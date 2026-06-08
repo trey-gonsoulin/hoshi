@@ -5,10 +5,10 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from .ephemeris import PLANET_ORDER, PlanetPosition, lahiri_ayanamsa, positions
-from .houses import Angles, house_13_arc, house_placidus, placidus_cusps
-from .points import LunarElements, part_of_fortune
-from .zodiac import Placement
+from nuastro.ephemeris import PLANET_ORDER, PlanetPosition, lahiri_ayanamsa, positions
+from nuastro.houses import Angles, house_13_arc, house_placidus, placidus_cusps
+from nuastro.points import LunarElements, part_of_fortune
+from nuastro.zodiac import Placement
 
 
 class Placed(BaseModel, frozen=True):

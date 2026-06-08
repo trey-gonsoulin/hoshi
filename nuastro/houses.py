@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 from pydantic import BaseModel
 
-from .ephemeris import _timescale
+from nuastro.ephemeris import _timescale
 
 
 # Fixed house arcs = IAU constellation widths in zodiac order. Nuastro's
