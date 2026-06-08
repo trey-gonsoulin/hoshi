@@ -1,0 +1,221 @@
+"""Skyfield-backed ecliptic positions for the classical planets, plus a
+Horizons-API fetcher for Chiron (which JPL distributes as an SPK type 21
+that jplephem doesn't decode).
+
+Positions are geocentric apparent ecliptic lon/lat in degrees, J2000 frame
+to match the IAU constellation boundaries.
+"""
+
+import json
+import ssl
+import urllib.parse
+import urllib.request
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from functools import cache
+from pathlib import Path
+
+from skyfield.api import load
+
+
+# Skyfield target names from DE421/DE440. Outer-planet IDs are barycenters,
+# which is fine for naked-eye-scale ecliptic longitude.
+SKYFIELD_TARGETS: dict[str, str] = {
+    "sun":     "sun",
+    "moon":    "moon",
+    "mercury": "mercury",
+    "venus":   "venus",
+    "mars":    "mars",
+    "jupiter": "jupiter barycenter",
+    "saturn":  "saturn barycenter",
+    "uranus":  "uranus barycenter",
+    "neptune": "neptune barycenter",
+    "pluto":   "pluto barycenter",
+}
+
+PLANET_ORDER = list(SKYFIELD_TARGETS.keys()) + ["chiron"]
+
+HORIZONS_URL = "https://ssd.jpl.nasa.gov/api/horizons.api"
+CHIRON_HORIZONS_ID = "2060;"  # trailing ';' = small-body designation
+CHIRON_CACHE_PATH = Path(".chiron_cache.json")
+
+
+def horizons_fetch(params: dict[str, str]) -> str:
+    """GET against the Horizons API with a certifi-backed SSL context.
+
+    Shared by Chiron (OBSERVER ephemeris) and true lunar elements (ELEMENTS).
+    """
+    url = f"{HORIZONS_URL}?{urllib.parse.urlencode(params)}"
+    with urllib.request.urlopen(url, timeout=20, context=_ssl_context()) as resp:
+        return resp.read().decode("utf-8")
+
+
+def json_cache_get(path: Path, key: str) -> dict | None:
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
+    return data.get(key)
+
+
+def json_cache_put(path: Path, key: str, value: dict) -> None:
+    data: dict = {}
+    if path.exists():
+        try:
+            data = json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            data = {}
+    data[key] = value
+    path.write_text(json.dumps(data, indent=2, sort_keys=True))
+
+
+@dataclass(frozen=True)
+class PlanetPosition:
+    lon: float       # ecliptic longitude, degrees [0, 360)
+    lat: float       # ecliptic latitude, degrees
+    retrograde: bool
+
+
+@cache
+def _load_ephemeris():
+    """Load DE421 (covers 1900–2050 — fine for birth charts)."""
+    return load("de421.bsp")
+
+
+@cache
+def _timescale():
+    return load.timescale()
+
+
+@cache
+def _ssl_context() -> ssl.SSLContext:
+    """SSL context that trusts certifi's CA bundle.
+
+    stdlib `urllib` ignores certifi by default and uses OpenSSL's compiled-in
+    bundle, which misses some roots on macOS.
+    """
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        return ssl.create_default_context()
+
+
+def positions(when: datetime) -> dict[str, PlanetPosition]:
+    """Return geocentric ecliptic positions for all supported bodies at `when`.
+
+    `when` must be timezone-aware. Use UTC for reproducibility.
+    """
+    if when.tzinfo is None:
+        raise ValueError("`when` must be timezone-aware (use UTC)")
+    when_utc = when.astimezone(timezone.utc)
+
+    eph = _load_ephemeris()
+    ts = _timescale()
+    t = ts.from_datetime(when_utc)
+    # Sample one minute later to detect retrograde via longitude derivative.
+    t_next = ts.from_datetime(when_utc.replace(microsecond=0)) + (1.0 / 1440.0)
+
+    earth = eph["earth"]
+    out: dict[str, PlanetPosition] = {}
+    for pid, target in SKYFIELD_TARGETS.items():
+        body = eph[target]
+        astrometric = earth.at(t).observe(body)
+        # epoch=t requests ecliptic-of-date longitudes (matching the convention
+        # online Nuastro / standard astrology software use). Skyfield's
+        # default ecliptic_latlon() actually returns J2000 ecliptic, which
+        # differs from of-date by the precession over years since J2000.
+        lat, lon, _ = astrometric.ecliptic_latlon(epoch=t)
+        astrometric_next = earth.at(t_next).observe(body)
+        _, lon_next, _ = astrometric_next.ecliptic_latlon(epoch=t_next)
+
+        lon_deg = lon.degrees % 360.0
+        lon_next_deg = lon_next.degrees % 360.0
+        # Shortest signed delta in [-180, 180].
+        delta = ((lon_next_deg - lon_deg + 540.0) % 360.0) - 180.0
+        retrograde = delta < 0
+
+        out[pid] = PlanetPosition(
+            lon=lon_deg,
+            lat=lat.degrees,
+            retrograde=retrograde,
+        )
+
+    out["chiron"] = _chiron_position(when_utc)
+    return out
+
+
+def _chiron_position(when_utc: datetime) -> PlanetPosition:
+    """Fetch geocentric ecliptic lon/lat for Chiron from JPL Horizons.
+
+    Skyfield can't read Horizons' small-body SPKs (data type 21), so we use
+    the OBSERVER ephemeris API and parse two epochs to derive retrograde.
+    Results are cached per minute in `.chiron_cache.json` in the cwd.
+    """
+    ts = _timescale()
+    t = ts.from_datetime(when_utc)
+    jd = t.tdb
+    jd_next = jd + 1.0 / 1440.0  # +1 minute
+
+    cache_key = when_utc.replace(second=0, microsecond=0).isoformat()
+    cached = json_cache_get(CHIRON_CACHE_PATH, cache_key)
+    if cached is not None:
+        return PlanetPosition(**cached)
+
+    body = horizons_fetch({
+        "format": "text",
+        "COMMAND": CHIRON_HORIZONS_ID,
+        "OBJ_DATA": "NO",
+        "MAKE_EPHEM": "YES",
+        "EPHEM_TYPE": "OBSERVER",
+        "CENTER": "500@399",        # geocentric
+        "TLIST": f"{jd},{jd_next}",
+        "TLIST_TYPE": "JD",
+        "QUANTITIES": "31",         # observer ecliptic lon/lat (J2000)
+        "ANG_FORMAT": "DEG",
+        "CSV_FORMAT": "YES",
+    })
+
+    lon, lat, lon_next = _parse_horizons_ecliptic(body)
+    delta = ((lon_next - lon + 540.0) % 360.0) - 180.0
+    pos = PlanetPosition(lon=lon % 360.0, lat=lat, retrograde=delta < 0)
+    json_cache_put(CHIRON_CACHE_PATH, cache_key, {
+        "lon": pos.lon, "lat": pos.lat, "retrograde": pos.retrograde,
+    })
+    return pos
+
+
+def _parse_horizons_ecliptic(body: str) -> tuple[float, float, float]:
+    """Pull (lon_t0, lat_t0, lon_t1) from a Horizons OBSERVER CSV response."""
+    lines = body.splitlines()
+    try:
+        start = lines.index("$$SOE")
+        end = lines.index("$$EOE")
+    except ValueError as exc:
+        raise RuntimeError(f"Horizons response missing $$SOE/$$EOE:\n{body[:500]}") from exc
+    rows = [ln for ln in lines[start + 1 : end] if ln.strip()]
+    if len(rows) < 2:
+        raise RuntimeError(f"Expected 2 Horizons rows, got {len(rows)}: {rows}")
+    # CSV columns: date, solar-presence, lunar-presence, lon, lat, (trailing)
+    cols0 = [c.strip() for c in rows[0].split(",")]
+    cols1 = [c.strip() for c in rows[1].split(",")]
+    return float(cols0[3]), float(cols0[4]), float(cols1[3])
+
+
+
+
+def lahiri_ayanamsa(when: datetime) -> float:
+    """Approximate Lahiri ayanamsa (degrees) for sidereal/Vedic mode.
+
+    Simple linear model anchored at J2000. Accurate to a few arcminutes —
+    fine for chart display, not for ephemeris-grade work.
+    """
+    if when.tzinfo is None:
+        raise ValueError("`when` must be timezone-aware (use UTC)")
+    when_utc = when.astimezone(timezone.utc)
+    ts = _timescale()
+    t = ts.from_datetime(when_utc)
+    years_since_j2000 = (t.tt - 2451545.0) / 365.25
+    return 23.85 + years_since_j2000 * (50.29 / 3600.0)
