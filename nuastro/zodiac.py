@@ -5,11 +5,10 @@ Ported from `nuastro-calc.js`. The IAU table is the distinguishing feature:
 expressed as tropical J2000 ecliptic-longitude ranges.
 """
 
-from dataclasses import dataclass
+from pydantic import BaseModel
 
 
-@dataclass(frozen=True)
-class IAUSign:
+class IAUSign(BaseModel, frozen=True):
     name: str
     abbr: str
     lo: float
@@ -17,21 +16,22 @@ class IAUSign:
 
 
 # Tropical J2000 ecliptic longitudes. Aries wraps past 360 (hi=389.00 means 29.00).
-IAU: list[IAUSign] = [
-    IAUSign("Aries",        "Ari",  29.00,  53.41),
-    IAUSign("Taurus",       "Tau",  53.41,  90.46),
-    IAUSign("Gemini",       "Gem",  90.46, 118.23),
-    IAUSign("Cancer",       "Cnc", 118.23, 138.18),
-    IAUSign("Leo",          "Leo", 138.18, 174.07),
-    IAUSign("Virgo",        "Vir", 174.07, 217.84),
-    IAUSign("Libra",        "Lib", 217.84, 241.03),
-    IAUSign("Scorpio",      "Sco", 241.03, 247.74),
-    IAUSign("Ophiuchus",    "Oph", 247.74, 266.55),
-    IAUSign("Sagittarius",  "Sgr", 266.55, 299.71),
-    IAUSign("Capricorn",    "Cap", 299.71, 327.61),
-    IAUSign("Aquarius",     "Aqr", 327.61, 351.65),
-    IAUSign("Pisces",        "Psc", 351.65, 389.00),
+_IAU_ROWS: list[tuple[str, str, float, float]] = [
+    ("Aries",        "Ari",  29.00,  53.41),
+    ("Taurus",       "Tau",  53.41,  90.46),
+    ("Gemini",       "Gem",  90.46, 118.23),
+    ("Cancer",       "Cnc", 118.23, 138.18),
+    ("Leo",          "Leo", 138.18, 174.07),
+    ("Virgo",        "Vir", 174.07, 217.84),
+    ("Libra",        "Lib", 217.84, 241.03),
+    ("Scorpio",      "Sco", 241.03, 247.74),
+    ("Ophiuchus",    "Oph", 247.74, 266.55),
+    ("Sagittarius",  "Sgr", 266.55, 299.71),
+    ("Capricorn",    "Cap", 299.71, 327.61),
+    ("Aquarius",     "Aqr", 327.61, 351.65),
+    ("Pisces",       "Psc", 351.65, 389.00),
 ]
+IAU: list[IAUSign] = [IAUSign(name=n, abbr=a, lo=lo, hi=hi) for n, a, lo, hi in _IAU_ROWS]
 
 TROP_NAMES = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
               "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
@@ -39,8 +39,7 @@ TROP_ABBR  = ["Ari", "Tau", "Gem", "Cnc", "Leo", "Vir",
               "Lib", "Sco", "Sgr", "Cap", "Aqr", "Psc"]
 
 
-@dataclass(frozen=True)
-class Placement:
+class Placement(BaseModel, frozen=True):
     name: str
     abbr: str
     deg: float  # degrees into the sign (0–width)
@@ -73,21 +72,21 @@ def nuastro_placement(lon: float) -> Placement:
         deg = l - c.lo if l >= c.lo else (360 - c.lo) + l
     else:
         deg = l - c.lo
-    return Placement(c.name, c.abbr, deg)
+    return Placement(name=c.name, abbr=c.abbr, deg=deg)
 
 
 def tropical_placement(lon: float) -> Placement:
     """Standard 12 equal 30° signs from the vernal equinox."""
     l = n360(lon)
     i = int(l // 30)
-    return Placement(TROP_NAMES[i], TROP_ABBR[i], l - i * 30)
+    return Placement(name=TROP_NAMES[i], abbr=TROP_ABBR[i], deg=l - i * 30)
 
 
 def vedic_placement(lon: float, ayanamsa: float) -> Placement:
     """Sidereal placement with ayanamsa offset applied."""
     s = n360(lon - ayanamsa)
     i = int(s // 30)
-    return Placement(TROP_NAMES[i], TROP_ABBR[i], s - i * 30)
+    return Placement(name=TROP_NAMES[i], abbr=TROP_ABBR[i], deg=s - i * 30)
 
 
 def format_deg(d: float) -> str:

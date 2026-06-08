@@ -8,9 +8,10 @@ ecliptic). Per-minute cache in `.lunar_cache.json` in the cwd.
 Part of Fortune is computed locally from ASC + Sun + Moon longitudes.
 """
 
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+
+from pydantic import BaseModel
 
 from .ephemeris import (
     _timescale,
@@ -23,8 +24,7 @@ from .ephemeris import (
 LUNAR_CACHE_PATH = Path(".lunar_cache.json")
 
 
-@dataclass(frozen=True)
-class LunarElements:
+class LunarElements(BaseModel, frozen=True):
     """Subset of Moon osculating elements we use, in ecliptic J2000."""
     om: float   # OM — longitude of ascending node (= True N. Node)
     w: float    # W  — argument of perigee, measured from ascending node
@@ -43,7 +43,7 @@ def lunar_elements(when: datetime) -> LunarElements:
     cache_key = when_utc.replace(second=0, microsecond=0).isoformat()
     cached = json_cache_get(LUNAR_CACHE_PATH, cache_key)
     if cached is not None:
-        return LunarElements(**cached)
+        return LunarElements.model_validate(cached)
 
     jd = _timescale().from_datetime(when_utc).tdb
     body = horizons_fetch({
@@ -61,7 +61,7 @@ def lunar_elements(when: datetime) -> LunarElements:
     })
     om, w = _parse_horizons_elements(body)
     el = LunarElements(om=om, w=w)
-    json_cache_put(LUNAR_CACHE_PATH, cache_key, {"om": el.om, "w": el.w})
+    json_cache_put(LUNAR_CACHE_PATH, cache_key, el.model_dump())
     return el
 
 

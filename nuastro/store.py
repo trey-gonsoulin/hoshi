@@ -6,17 +6,16 @@ persisted — the chart is recomputed on read, which is fast because the
 Chiron/lunar Horizons responses are cached separately.
 """
 
-import json
 import re
-from dataclasses import asdict, dataclass
 from pathlib import Path
+
+from pydantic import BaseModel
 
 
 CHARTS_DIR = Path("charts")
 
 
-@dataclass(frozen=True)
-class ChartInput:
+class ChartInput(BaseModel, frozen=True):
     name: str
     date: str       # YYYY-MM-DD
     time: str       # HH:MM (24h)
@@ -48,7 +47,7 @@ def save(chart_input: ChartInput, *, overwrite: bool = False) -> Path:
             f"Pass --force to overwrite."
         )
     CHARTS_DIR.mkdir(exist_ok=True)
-    path.write_text(json.dumps(asdict(chart_input), indent=2))
+    path.write_text(chart_input.model_dump_json(indent=2))
     return path
 
 
@@ -56,7 +55,7 @@ def load(name: str) -> ChartInput:
     path = path_for(name)
     if not path.exists():
         raise FileNotFoundError(f"No saved chart named {name!r} (looked at {path})")
-    return ChartInput(**json.loads(path.read_text()))
+    return ChartInput.model_validate_json(path.read_text())
 
 
 def list_all() -> list[ChartInput]:
@@ -65,8 +64,8 @@ def list_all() -> list[ChartInput]:
     out: list[ChartInput] = []
     for p in sorted(CHARTS_DIR.glob("*.json")):
         try:
-            out.append(ChartInput(**json.loads(p.read_text())))
-        except (json.JSONDecodeError, TypeError):
+            out.append(ChartInput.model_validate_json(p.read_text()))
+        except ValueError:
             continue  # skip malformed files
     return out
 

@@ -5,8 +5,9 @@ themselves are derived here rather than read from an ephemeris.
 """
 
 import math
-from dataclasses import dataclass
 from datetime import datetime, timezone
+
+from pydantic import BaseModel
 
 from .ephemeris import _timescale
 
@@ -25,8 +26,7 @@ for _arc in FIXED_ARCS:
     _acc += _arc
 
 
-@dataclass(frozen=True)
-class Angles:
+class Angles(BaseModel, frozen=True):
     asc: float
     mc: float
     ic: float

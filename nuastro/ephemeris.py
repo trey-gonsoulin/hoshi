@@ -10,11 +10,11 @@ import json
 import ssl
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from functools import cache
 from pathlib import Path
 
+from pydantic import BaseModel
 from skyfield.api import load
 
 
@@ -71,8 +71,7 @@ def json_cache_put(path: Path, key: str, value: dict) -> None:
     path.write_text(json.dumps(data, indent=2, sort_keys=True))
 
 
-@dataclass(frozen=True)
-class PlanetPosition:
+class PlanetPosition(BaseModel, frozen=True):
     lon: float       # ecliptic longitude, degrees [0, 360)
     lat: float       # ecliptic latitude, degrees
     retrograde: bool
@@ -162,7 +161,7 @@ def _chiron_position(when_utc: datetime) -> PlanetPosition:
     cache_key = when_utc.replace(second=0, microsecond=0).isoformat()
     cached = json_cache_get(CHIRON_CACHE_PATH, cache_key)
     if cached is not None:
-        return PlanetPosition(**cached)
+        return PlanetPosition.model_validate(cached)
 
     body = horizons_fetch({
         "format": "text",
@@ -181,9 +180,7 @@ def _chiron_position(when_utc: datetime) -> PlanetPosition:
     lon, lat, lon_next = _parse_horizons_ecliptic(body)
     delta = ((lon_next - lon + 540.0) % 360.0) - 180.0
     pos = PlanetPosition(lon=lon % 360.0, lat=lat, retrograde=delta < 0)
-    json_cache_put(CHIRON_CACHE_PATH, cache_key, {
-        "lon": pos.lon, "lat": pos.lat, "retrograde": pos.retrograde,
-    })
+    json_cache_put(CHIRON_CACHE_PATH, cache_key, pos.model_dump())
     return pos
 
 
