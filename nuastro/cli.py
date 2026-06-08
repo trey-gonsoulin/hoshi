@@ -6,14 +6,9 @@ from zoneinfo import ZoneInfo
 import typer
 
 from . import store
-from .chart import build_chart
+from .chart import Chart
 from .store import ChartInput
-from .zodiac import (
-    format_deg,
-    nuastro_placement,
-    tropical_placement,
-    vedic_placement,
-)
+from .zodiac import Placement, format_deg
 
 
 app = typer.Typer(
@@ -56,7 +51,7 @@ def _to_datetime(ci: ChartInput) -> datetime:
 
 def _print_chart(ci: ChartInput, mode: str, *, show_cusps: bool = False) -> None:
     when = _to_datetime(ci)
-    chart = build_chart(when, ci.lat, ci.lng)
+    chart = Chart.build(when, ci.lat, ci.lng)
     house_attr = "house_13" if mode == "nuastro" else "house_placidus"
     house_label = "H13" if mode == "nuastro" else "H"
 
@@ -108,9 +103,9 @@ def _print_chart(ci: ChartInput, mode: str, *, show_cusps: bool = False) -> None
         typer.echo("")
         typer.echo("Placidus cusps")
         place_cusp = {
-            "nuastro": lambda c: nuastro_placement(c),
-            "tropical": lambda c: tropical_placement(c),
-            "vedic": lambda c: vedic_placement(c, chart.ayanamsa),
+            "nuastro": Placement.nuastro,
+            "tropical": Placement.tropical,
+            "vedic": lambda c: Placement.vedic(c, chart.ayanamsa),
         }[mode]
         for i, c in enumerate(chart.cusps, start=1):
             p = place_cusp(c)

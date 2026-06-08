@@ -25,44 +25,64 @@ LUNAR_CACHE_PATH = Path(".lunar_cache.json")
 
 
 class LunarElements(BaseModel, frozen=True):
-    """Subset of Moon osculating elements we use, in ecliptic J2000."""
+    """Subset of Moon osculating elements we use, in ecliptic J2000.
+
+    Derived points (true nodes and Black Moon Lilith) are exposed as
+    computed properties — they're fully determined by OM and W.
+    """
     om: float   # OM — longitude of ascending node (= True N. Node)
     w: float    # W  — argument of perigee, measured from ascending node
 
+    @property
+    def north_node(self) -> float:
+        """True (osculating) lunar ascending node."""
+        return self.om % 360.0
 
-def lunar_elements(when: datetime) -> LunarElements:
-    """Fetch the Moon's osculating ecliptic orbital elements from Horizons.
+    @property
+    def south_node(self) -> float:
+        return (self.north_node + 180.0) % 360.0
 
-    Results are cached per minute. OM and W together pin both the node and
-    the perigee/apogee direction.
-    """
-    if when.tzinfo is None:
-        raise ValueError("`when` must be timezone-aware (use UTC)")
-    when_utc = when.astimezone(timezone.utc)
+    @property
+    def lilith(self) -> float:
+        """True Black Moon Lilith — geocentric longitude of the Moon's apogee.
 
-    cache_key = when_utc.replace(second=0, microsecond=0).isoformat()
-    cached = json_cache_get(LUNAR_CACHE_PATH, cache_key)
-    if cached is not None:
-        return LunarElements.model_validate(cached)
+        Apogee direction = node + argument of perigee + 180° (opposite of perigee).
+        """
+        return (self.om + self.w + 180.0) % 360.0
 
-    jd = _timescale().from_datetime(when_utc).tdb
-    body = horizons_fetch({
-        "format": "text",
-        "COMMAND": "301",           # Moon
-        "OBJ_DATA": "NO",
-        "MAKE_EPHEM": "YES",
-        "EPHEM_TYPE": "ELEMENTS",
-        "CENTER": "500@399",        # geocentric
-        "TLIST": f"{jd}",
-        "TLIST_TYPE": "JD",
-        "REF_PLANE": "ECLIPTIC",
-        "OUT_UNITS": "KM-S",
-        "CSV_FORMAT": "YES",
-    })
-    om, w = _parse_horizons_elements(body)
-    el = LunarElements(om=om, w=w)
-    json_cache_put(LUNAR_CACHE_PATH, cache_key, el.model_dump())
-    return el
+    @classmethod
+    def at(cls, when: datetime) -> "LunarElements":
+        """Fetch the Moon's osculating ecliptic orbital elements from Horizons.
+
+        Results are cached per minute.
+        """
+        if when.tzinfo is None:
+            raise ValueError("`when` must be timezone-aware (use UTC)")
+        when_utc = when.astimezone(timezone.utc)
+
+        cache_key = when_utc.replace(second=0, microsecond=0).isoformat()
+        cached = json_cache_get(LUNAR_CACHE_PATH, cache_key)
+        if cached is not None:
+            return cls.model_validate(cached)
+
+        jd = _timescale().from_datetime(when_utc).tdb
+        body = horizons_fetch({
+            "format": "text",
+            "COMMAND": "301",           # Moon
+            "OBJ_DATA": "NO",
+            "MAKE_EPHEM": "YES",
+            "EPHEM_TYPE": "ELEMENTS",
+            "CENTER": "500@399",        # geocentric
+            "TLIST": f"{jd}",
+            "TLIST_TYPE": "JD",
+            "REF_PLANE": "ECLIPTIC",
+            "OUT_UNITS": "KM-S",
+            "CSV_FORMAT": "YES",
+        })
+        om, w = _parse_horizons_elements(body)
+        el = cls(om=om, w=w)
+        json_cache_put(LUNAR_CACHE_PATH, cache_key, el.model_dump())
+        return el
 
 
 def _parse_horizons_elements(body: str) -> tuple[float, float]:
@@ -81,24 +101,6 @@ def _parse_horizons_elements(body: str) -> tuple[float, float]:
         raise RuntimeError("Horizons ELEMENTS response had no data rows")
     cols = [c.strip() for c in rows[0].split(",")]
     return float(cols[5]), float(cols[6])  # OM, W
-
-
-def true_north_node(when: datetime) -> float:
-    """True (osculating) lunar ascending node."""
-    return lunar_elements(when).om % 360.0
-
-
-def true_south_node(when: datetime) -> float:
-    return (true_north_node(when) + 180.0) % 360.0
-
-
-def true_lilith(when: datetime) -> float:
-    """True (osculating) Black Moon Lilith — geocentric longitude of the Moon's apogee.
-
-    Apogee direction = node + argument of perigee + 180° (opposite of perigee).
-    """
-    el = lunar_elements(when)
-    return (el.om + el.w + 180.0) % 360.0
 
 
 def part_of_fortune(asc: float, sun_lon: float, moon_lon: float) -> float:

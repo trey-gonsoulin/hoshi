@@ -26,15 +26,6 @@ for _arc in FIXED_ARCS:
     _acc += _arc
 
 
-class Angles(BaseModel, frozen=True):
-    asc: float
-    mc: float
-    ic: float
-    dsc: float
-    vertex: float
-    antivertex: float
-
-
 def _n360(v: float) -> float:
     return v % 360.0
 
@@ -44,54 +35,62 @@ def _julian_day_ut(when_utc: datetime) -> float:
     return _timescale().from_datetime(when_utc).ut1
 
 
-def compute_angles(when: datetime, lat: float, lng: float) -> Angles:
-    """ASC/MC/IC/DSC in ecliptic degrees (J2000).
+class Angles(BaseModel, frozen=True):
+    asc: float
+    mc: float
+    ic: float
+    dsc: float
+    vertex: float
+    antivertex: float
 
-    `lng` is geographic longitude, east positive (e.g. Chicago ≈ -87.65).
-    """
-    if when.tzinfo is None:
-        raise ValueError("`when` must be timezone-aware (use UTC)")
-    when_utc = when.astimezone(timezone.utc)
+    @classmethod
+    def compute(cls, when: datetime, lat: float, lng: float) -> "Angles":
+        """ASC/MC/IC/DSC and Vertex/Antivertex in ecliptic degrees.
 
-    jd = _julian_day_ut(when_utc)
-    T = (jd - 2451545.0) / 36525.0
-    gmst = _n360(280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * T * T)
-    ramc = _n360(gmst + lng)
-    eps = math.radians(23.439291111 - 0.013004167 * T)
-    lat_r = math.radians(lat)
-    ramc_r = math.radians(ramc)
+        `lng` is geographic longitude, east positive (e.g. Chicago ≈ -87.65).
+        """
+        if when.tzinfo is None:
+            raise ValueError("`when` must be timezone-aware (use UTC)")
+        when_utc = when.astimezone(timezone.utc)
 
-    mc = _n360(math.degrees(math.atan2(math.sin(ramc_r), math.cos(ramc_r) * math.cos(eps))))
+        jd = _julian_day_ut(when_utc)
+        T = (jd - 2451545.0) / 36525.0
+        gmst = _n360(280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * T * T)
+        ramc = _n360(gmst + lng)
+        eps = math.radians(23.439291111 - 0.013004167 * T)
+        lat_r = math.radians(lat)
+        ramc_r = math.radians(ramc)
 
-    y_a = -math.cos(ramc_r)
-    x_a = math.sin(eps) * math.tan(lat_r) + math.cos(eps) * math.sin(ramc_r)
-    asc = _n360(math.degrees(math.atan2(y_a, x_a)))
-    # ASC must lead MC by 0–180° on the ecliptic.
-    if _n360(asc - mc) > 180.0:
-        asc = _n360(asc + 180.0)
+        mc = _n360(math.degrees(math.atan2(math.sin(ramc_r), math.cos(ramc_r) * math.cos(eps))))
 
-    # Vertex: the ecliptic intersection of the prime vertical (great circle
-    # through east/west horizon points and the zenith). Same form as the ASC
-    # equation but with the co-latitude (90°-lat) substituted for latitude,
-    # so tan(lat) becomes cot(lat). Quadrant fix forces it into the western
-    # hemisphere (houses 5–8), the conventional Vertex side.
-    cot_lat = 1.0 / math.tan(lat_r)
-    y_v = -math.cos(ramc_r)
-    x_v = math.sin(eps) * cot_lat - math.cos(eps) * math.sin(ramc_r)
-    vertex = _n360(math.degrees(math.atan2(y_v, x_v)))
-    # Force into western hemisphere (houses 5–8): (vertex − asc) mod 360 in [90, 270].
-    if not 90.0 <= _n360(vertex - asc) <= 270.0:
-        vertex = _n360(vertex + 180.0)
-    antivertex = _n360(vertex + 180.0)
+        y_a = -math.cos(ramc_r)
+        x_a = math.sin(eps) * math.tan(lat_r) + math.cos(eps) * math.sin(ramc_r)
+        asc = _n360(math.degrees(math.atan2(y_a, x_a)))
+        # ASC must lead MC by 0–180° on the ecliptic.
+        if _n360(asc - mc) > 180.0:
+            asc = _n360(asc + 180.0)
 
-    return Angles(
-        asc=asc,
-        mc=mc,
-        ic=_n360(mc + 180.0),
-        dsc=_n360(asc + 180.0),
-        vertex=vertex,
-        antivertex=antivertex,
-    )
+        # Vertex: the ecliptic intersection of the prime vertical (great circle
+        # through east/west horizon points and the zenith). Same form as the
+        # ASC equation but with the co-latitude (90°-lat) substituted for
+        # latitude, so tan(lat) becomes cot(lat). Quadrant fix forces it into
+        # the western hemisphere (houses 5–8), the conventional Vertex side.
+        cot_lat = 1.0 / math.tan(lat_r)
+        y_v = -math.cos(ramc_r)
+        x_v = math.sin(eps) * cot_lat - math.cos(eps) * math.sin(ramc_r)
+        vertex = _n360(math.degrees(math.atan2(y_v, x_v)))
+        if not 90.0 <= _n360(vertex - asc) <= 270.0:
+            vertex = _n360(vertex + 180.0)
+        antivertex = _n360(vertex + 180.0)
+
+        return cls(
+            asc=asc,
+            mc=mc,
+            ic=_n360(mc + 180.0),
+            dsc=_n360(asc + 180.0),
+            vertex=vertex,
+            antivertex=antivertex,
+        )
 
 
 def placidus_cusps(when: datetime, lat: float, lng: float, angles: Angles) -> list[float]:
