@@ -39,12 +39,6 @@ TROP_ABBR  = ["Ari", "Tau", "Gem", "Cnc", "Leo", "Vir",
               "Lib", "Sco", "Sgr", "Cap", "Aqr", "Psc"]
 
 
-class Placement(BaseModel, frozen=True):
-    name: str
-    abbr: str
-    deg: float  # degrees into the sign (0–width)
-
-
 def n360(v: float) -> float:
     return v % 360.0
 
@@ -62,31 +56,37 @@ def _iau_index(lon: float) -> int:
     return 12
 
 
-def nuastro_placement(lon: float) -> Placement:
-    """Real-sky IAU constellation placement (13 signs, unequal widths)."""
-    i = _iau_index(lon)
-    c = IAU[i]
-    l = n360(lon)
-    hi = c.hi - 360 if c.hi > 360 else c.hi
-    if c.lo > hi:
-        deg = l - c.lo if l >= c.lo else (360 - c.lo) + l
-    else:
-        deg = l - c.lo
-    return Placement(name=c.name, abbr=c.abbr, deg=deg)
+class Placement(BaseModel, frozen=True):
+    name: str
+    abbr: str
+    deg: float  # degrees into the sign (0–width)
 
+    @classmethod
+    def nuastro(cls, lon: float) -> "Placement":
+        """Real-sky IAU constellation placement (13 signs, unequal widths)."""
+        i = _iau_index(lon)
+        c = IAU[i]
+        l = n360(lon)
+        hi = c.hi - 360 if c.hi > 360 else c.hi
+        if c.lo > hi:
+            deg = l - c.lo if l >= c.lo else (360 - c.lo) + l
+        else:
+            deg = l - c.lo
+        return cls(name=c.name, abbr=c.abbr, deg=deg)
 
-def tropical_placement(lon: float) -> Placement:
-    """Standard 12 equal 30° signs from the vernal equinox."""
-    l = n360(lon)
-    i = int(l // 30)
-    return Placement(name=TROP_NAMES[i], abbr=TROP_ABBR[i], deg=l - i * 30)
+    @classmethod
+    def tropical(cls, lon: float) -> "Placement":
+        """Standard 12 equal 30° signs from the vernal equinox."""
+        l = n360(lon)
+        i = int(l // 30)
+        return cls(name=TROP_NAMES[i], abbr=TROP_ABBR[i], deg=l - i * 30)
 
-
-def vedic_placement(lon: float, ayanamsa: float) -> Placement:
-    """Sidereal placement with ayanamsa offset applied."""
-    s = n360(lon - ayanamsa)
-    i = int(s // 30)
-    return Placement(name=TROP_NAMES[i], abbr=TROP_ABBR[i], deg=s - i * 30)
+    @classmethod
+    def vedic(cls, lon: float, ayanamsa: float) -> "Placement":
+        """Sidereal placement with ayanamsa offset applied."""
+        s = n360(lon - ayanamsa)
+        i = int(s // 30)
+        return cls(name=TROP_NAMES[i], abbr=TROP_ABBR[i], deg=s - i * 30)
 
 
 def format_deg(d: float) -> str:
