@@ -13,7 +13,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from .ephemeris import (
+from nuastro.ephemeris import (
     _timescale,
     horizons_fetch,
     json_cache_get,

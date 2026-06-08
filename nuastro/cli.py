@@ -5,10 +5,10 @@ from zoneinfo import ZoneInfo
 
 import typer
 
-from . import store
-from .chart import Chart
-from .store import ChartInput
-from .zodiac import Placement, format_deg
+from nuastro import store
+from nuastro.chart import Chart
+from nuastro.store import ChartInput
+from nuastro.zodiac import Placement, format_deg
 
 
 app = typer.Typer(
