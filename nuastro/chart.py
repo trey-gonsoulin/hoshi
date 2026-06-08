@@ -1,8 +1,9 @@
 """Build a complete chart: positions placed in all three zodiac modes,
 plus angles, Placidus cusps, and house numbers."""
 
-from dataclasses import dataclass
 from datetime import datetime
+
+from pydantic import BaseModel
 
 from .ephemeris import PLANET_ORDER, PlanetPosition, lahiri_ayanamsa, positions
 from .houses import (
@@ -25,8 +26,7 @@ from .zodiac import (
 )
 
 
-@dataclass(frozen=True)
-class Placed:
+class Placed(BaseModel, frozen=True):
     """A point (planet or angle) placed in all three zodiac modes."""
     lon: float
     nuastro: Placement
@@ -34,8 +34,7 @@ class Placed:
     vedic: Placement
 
 
-@dataclass(frozen=True)
-class PlanetChart:
+class PlanetChart(BaseModel, frozen=True):
     pid: str
     pos: PlanetPosition
     placed: Placed
@@ -43,16 +42,14 @@ class PlanetChart:
     house_placidus: int # Standard 12-house Placidus
 
 
-@dataclass(frozen=True)
-class AngleChart:
+class AngleChart(BaseModel, frozen=True):
     name: str           # asc / mc / ic / dsc / vertex / antivertex
     placed: Placed
     house_13: int
     house_placidus: int
 
 
-@dataclass(frozen=True)
-class PointChart:
+class PointChart(BaseModel, frozen=True):
     """A calculated point (node, lilith, fortune) — no retrograde state."""
     name: str
     placed: Placed
@@ -60,8 +57,7 @@ class PointChart:
     house_placidus: int
 
 
-@dataclass(frozen=True)
-class Chart:
+class Chart(BaseModel, frozen=True):
     when: datetime
     lat: float
     lng: float
