@@ -21,16 +21,16 @@ from skyfield.api import load
 # Skyfield target names from DE421/DE440. Outer-planet IDs are barycenters,
 # which is fine for naked-eye-scale ecliptic longitude.
 SKYFIELD_TARGETS: dict[str, str] = {
-    "sun":     "sun",
-    "moon":    "moon",
+    "sun": "sun",
+    "moon": "moon",
     "mercury": "mercury",
-    "venus":   "venus",
-    "mars":    "mars",
+    "venus": "venus",
+    "mars": "mars",
     "jupiter": "jupiter barycenter",
-    "saturn":  "saturn barycenter",
-    "uranus":  "uranus barycenter",
+    "saturn": "saturn barycenter",
+    "uranus": "uranus barycenter",
     "neptune": "neptune barycenter",
-    "pluto":   "pluto barycenter",
+    "pluto": "pluto barycenter",
 }
 
 PLANET_ORDER = list(SKYFIELD_TARGETS.keys()) + ["chiron"]
@@ -72,8 +72,8 @@ def json_cache_put(path: Path, key: str, value: dict) -> None:
 
 
 class PlanetPosition(BaseModel, frozen=True):
-    lon: float       # ecliptic longitude, degrees [0, 360)
-    lat: float       # ecliptic latitude, degrees
+    lon: float  # ecliptic longitude, degrees [0, 360)
+    lat: float  # ecliptic latitude, degrees
     retrograde: bool
 
 
@@ -97,6 +97,7 @@ def _ssl_context() -> ssl.SSLContext:
     """
     try:
         import certifi
+
         return ssl.create_default_context(cafile=certifi.where())
     except ImportError:
         return ssl.create_default_context()
@@ -163,19 +164,21 @@ def _chiron_position(when_utc: datetime) -> PlanetPosition:
     if cached is not None:
         return PlanetPosition.model_validate(cached)
 
-    body = horizons_fetch({
-        "format": "text",
-        "COMMAND": CHIRON_HORIZONS_ID,
-        "OBJ_DATA": "NO",
-        "MAKE_EPHEM": "YES",
-        "EPHEM_TYPE": "OBSERVER",
-        "CENTER": "500@399",        # geocentric
-        "TLIST": f"{jd},{jd_next}",
-        "TLIST_TYPE": "JD",
-        "QUANTITIES": "31",         # observer ecliptic lon/lat (J2000)
-        "ANG_FORMAT": "DEG",
-        "CSV_FORMAT": "YES",
-    })
+    body = horizons_fetch(
+        {
+            "format": "text",
+            "COMMAND": CHIRON_HORIZONS_ID,
+            "OBJ_DATA": "NO",
+            "MAKE_EPHEM": "YES",
+            "EPHEM_TYPE": "OBSERVER",
+            "CENTER": "500@399",  # geocentric
+            "TLIST": f"{jd},{jd_next}",
+            "TLIST_TYPE": "JD",
+            "QUANTITIES": "31",  # observer ecliptic lon/lat (J2000)
+            "ANG_FORMAT": "DEG",
+            "CSV_FORMAT": "YES",
+        }
+    )
 
     lon, lat, lon_next = _parse_horizons_ecliptic(body)
     delta = ((lon_next - lon + 540.0) % 360.0) - 180.0
@@ -191,7 +194,9 @@ def _parse_horizons_ecliptic(body: str) -> tuple[float, float, float]:
         start = lines.index("$$SOE")
         end = lines.index("$$EOE")
     except ValueError as exc:
-        raise RuntimeError(f"Horizons response missing $$SOE/$$EOE:\n{body[:500]}") from exc
+        raise RuntimeError(
+            f"Horizons response missing $$SOE/$$EOE:\n{body[:500]}"
+        ) from exc
     rows = [ln for ln in lines[start + 1 : end] if ln.strip()]
     if len(rows) < 2:
         raise RuntimeError(f"Expected 2 Horizons rows, got {len(rows)}: {rows}")
@@ -199,8 +204,6 @@ def _parse_horizons_ecliptic(body: str) -> tuple[float, float, float]:
     cols0 = [c.strip() for c in rows[0].split(",")]
     cols1 = [c.strip() for c in rows[1].split(",")]
     return float(cols0[3]), float(cols0[4]), float(cols1[3])
-
-
 
 
 def lahiri_ayanamsa(when: datetime) -> float:

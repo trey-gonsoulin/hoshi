@@ -17,26 +17,52 @@ class IAUSign(BaseModel, frozen=True):
 
 # Tropical J2000 ecliptic longitudes. Aries wraps past 360 (hi=389.00 means 29.00).
 _IAU_ROWS: list[tuple[str, str, float, float]] = [
-    ("Aries",        "Ari",  29.00,  53.41),
-    ("Taurus",       "Tau",  53.41,  90.46),
-    ("Gemini",       "Gem",  90.46, 118.23),
-    ("Cancer",       "Cnc", 118.23, 138.18),
-    ("Leo",          "Leo", 138.18, 174.07),
-    ("Virgo",        "Vir", 174.07, 217.84),
-    ("Libra",        "Lib", 217.84, 241.03),
-    ("Scorpio",      "Sco", 241.03, 247.74),
-    ("Ophiuchus",    "Oph", 247.74, 266.55),
-    ("Sagittarius",  "Sgr", 266.55, 299.71),
-    ("Capricorn",    "Cap", 299.71, 327.61),
-    ("Aquarius",     "Aqr", 327.61, 351.65),
-    ("Pisces",       "Psc", 351.65, 389.00),
+    ("Aries", "Ari", 29.00, 53.41),
+    ("Taurus", "Tau", 53.41, 90.46),
+    ("Gemini", "Gem", 90.46, 118.23),
+    ("Cancer", "Cnc", 118.23, 138.18),
+    ("Leo", "Leo", 138.18, 174.07),
+    ("Virgo", "Vir", 174.07, 217.84),
+    ("Libra", "Lib", 217.84, 241.03),
+    ("Scorpio", "Sco", 241.03, 247.74),
+    ("Ophiuchus", "Oph", 247.74, 266.55),
+    ("Sagittarius", "Sgr", 266.55, 299.71),
+    ("Capricorn", "Cap", 299.71, 327.61),
+    ("Aquarius", "Aqr", 327.61, 351.65),
+    ("Pisces", "Psc", 351.65, 389.00),
 ]
-IAU: list[IAUSign] = [IAUSign(name=n, abbr=a, lo=lo, hi=hi) for n, a, lo, hi in _IAU_ROWS]
+IAU: list[IAUSign] = [
+    IAUSign(name=n, abbr=a, lo=lo, hi=hi) for n, a, lo, hi in _IAU_ROWS
+]
 
-TROP_NAMES = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
-              "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
-TROP_ABBR  = ["Ari", "Tau", "Gem", "Cnc", "Leo", "Vir",
-              "Lib", "Sco", "Sgr", "Cap", "Aqr", "Psc"]
+TROP_NAMES = [
+    "Aries",
+    "Taurus",
+    "Gemini",
+    "Cancer",
+    "Leo",
+    "Virgo",
+    "Libra",
+    "Scorpio",
+    "Sagittarius",
+    "Capricorn",
+    "Aquarius",
+    "Pisces",
+]
+TROP_ABBR = [
+    "Ari",
+    "Tau",
+    "Gem",
+    "Cnc",
+    "Leo",
+    "Vir",
+    "Lib",
+    "Sco",
+    "Sgr",
+    "Cap",
+    "Aqr",
+    "Psc",
+]
 
 
 def n360(v: float) -> float:

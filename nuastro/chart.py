@@ -6,13 +6,22 @@ from datetime import datetime
 from pydantic import BaseModel
 
 from nuastro.ephemeris import PLANET_ORDER, PlanetPosition, lahiri_ayanamsa, positions
-from nuastro.houses import Angles, house_13_arc, house_placidus, placidus_cusps
-from nuastro.points import LunarElements, part_of_fortune
+from nuastro.houses import (
+    Angles,
+    arc13_cusps,
+    equal_cusps,
+    house_13_arc,
+    house_from_cusps,
+    placidus_cusps,
+    porphyry_cusps,
+)
+from nuastro.points import HERMETIC_LOT_NAMES, LunarElements, hermetic_lots
 from nuastro.zodiac import Placement
 
 
 class Placed(BaseModel, frozen=True):
     """A point (planet or angle) placed in all three zodiac modes."""
+
     lon: float
     nuastro: Placement
     tropical: Placement
@@ -28,27 +37,28 @@ class Placed(BaseModel, frozen=True):
         )
 
 
+HOUSE_SYSTEMS = ("porphyry", "equal", "placidus", "arc13")
+
+
 class PlanetChart(BaseModel, frozen=True):
     pid: str
     pos: PlanetPosition
     placed: Placed
-    house_13: int       # Nuastro 13-arc wheel
-    house_placidus: int # Standard 12-house Placidus
+    house: int
 
 
 class AngleChart(BaseModel, frozen=True):
-    name: str           # asc / mc / ic / dsc / vertex / antivertex
+    name: str  # asc / mc / ic / dsc / vertex / antivertex
     placed: Placed
-    house_13: int
-    house_placidus: int
+    house: int
 
 
 class PointChart(BaseModel, frozen=True):
     """A calculated point (node, lilith, fortune) — no retrograde state."""
+
     name: str
     placed: Placed
-    house_13: int
-    house_placidus: int
+    house: int
 
 
 class Chart(BaseModel, frozen=True):
@@ -56,27 +66,53 @@ class Chart(BaseModel, frozen=True):
     lat: float
     lng: float
     ayanamsa: float
+    house_system: str
     angles: list[AngleChart]
     planets: list[PlanetChart]
     points: list[PointChart]
-    cusps: list[float]  # 12 Placidus cusps in ecliptic degrees
+    lots: list[PointChart]
+    cusps: list[float]  # 12 cusps (or 13 for arc13)
 
     @classmethod
-    def build(cls, when: datetime, lat: float, lng: float) -> "Chart":
+    def build(
+        cls,
+        when: datetime,
+        lat: float,
+        lng: float,
+        house_system: str = "porphyry",
+    ) -> "Chart":
         """Compute a full birth chart for the given moment and location."""
+        if house_system not in HOUSE_SYSTEMS:
+            raise ValueError(
+                f"house_system must be one of {HOUSE_SYSTEMS}, got {house_system!r}"
+            )
         ayan = lahiri_ayanamsa(when)
         angles = Angles.compute(when, lat, lng)
-        cusps = placidus_cusps(when, lat, lng, angles)
         pos = positions(when)
         lunar = LunarElements.at(when)
+
+        if house_system == "porphyry":
+            cusps = porphyry_cusps(angles)
+        elif house_system == "equal":
+            cusps = equal_cusps(angles.asc)
+        elif house_system == "placidus":
+            cusps = placidus_cusps(when, lat, lng, angles)
+        else:  # arc13
+            cusps = arc13_cusps(angles.asc)
+
+        if house_system == "arc13":
+            def house_of(lon: float) -> int:
+                return house_13_arc(lon, angles.asc)
+        else:
+            def house_of(lon: float) -> int:
+                return house_from_cusps(lon, cusps)
 
         planets = [
             PlanetChart(
                 pid=pid,
                 pos=pos[pid],
                 placed=Placed.for_longitude(pos[pid].lon, ayan),
-                house_13=house_13_arc(pos[pid].lon, angles.asc),
-                house_placidus=house_placidus(pos[pid].lon, cusps),
+                house=house_of(pos[pid].lon),
             )
             for pid in PLANET_ORDER
         ]
@@ -84,35 +120,47 @@ class Chart(BaseModel, frozen=True):
             AngleChart(
                 name=name,
                 placed=Placed.for_longitude(getattr(angles, name), ayan),
-                house_13=house_13_arc(getattr(angles, name), angles.asc),
-                house_placidus=house_placidus(getattr(angles, name), cusps),
+                house=house_of(getattr(angles, name)),
             )
             for name in ("asc", "mc", "ic", "dsc", "vertex", "antivertex")
         ]
 
         point_lons: dict[str, float] = {
-            "N.Node":  lunar.north_node,
-            "S.Node":  lunar.south_node,
-            "Lilith":  lunar.lilith,
-            "Fortune": part_of_fortune(angles.asc, pos["sun"].lon, pos["moon"].lon),
+            "N.Node": lunar.north_node,
+            "S.Node": lunar.south_node,
+            "Lilith": lunar.lilith,
         }
-        point_charts = [
-            PointChart(
+
+        def to_point(name: str, lon: float) -> PointChart:
+            return PointChart(
                 name=name,
                 placed=Placed.for_longitude(lon, ayan),
-                house_13=house_13_arc(lon, angles.asc),
-                house_placidus=house_placidus(lon, cusps),
+                house=house_of(lon),
             )
-            for name, lon in point_lons.items()
-        ]
+
+        point_charts = [to_point(name, lon) for name, lon in point_lons.items()]
+
+        lot_lons = hermetic_lots(
+            angles.asc,
+            pos["sun"].lon,
+            pos["moon"].lon,
+            pos["mercury"].lon,
+            pos["venus"].lon,
+            pos["mars"].lon,
+            pos["jupiter"].lon,
+            pos["saturn"].lon,
+        )
+        lot_charts = [to_point(name, lot_lons[name]) for name in HERMETIC_LOT_NAMES]
 
         return cls(
             when=when,
             lat=lat,
             lng=lng,
             ayanamsa=ayan,
+            house_system=house_system,
             angles=angle_charts,
             planets=planets,
             points=point_charts,
+            lots=lot_charts,
             cusps=cusps,
         )

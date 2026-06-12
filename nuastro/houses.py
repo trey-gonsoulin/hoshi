@@ -15,8 +15,19 @@ from nuastro.ephemeris import _timescale
 # Fixed house arcs = IAU constellation widths in zodiac order. Nuastro's
 # "real-sky" house wheel: 13 unequal houses anchored at the ASC.
 FIXED_ARCS: list[float] = [
-    24.41, 37.05, 27.77, 19.95, 35.89, 43.77, 23.19,
-    6.71, 18.81, 33.16, 27.90, 24.04, 37.35,
+    24.41,
+    37.05,
+    27.77,
+    19.95,
+    35.89,
+    43.77,
+    23.19,
+    6.71,
+    18.81,
+    33.16,
+    27.90,
+    24.04,
+    37.35,
 ]
 
 _FIXED_STARTS: list[float] = []
@@ -55,13 +66,17 @@ class Angles(BaseModel, frozen=True):
 
         jd = _julian_day_ut(when_utc)
         T = (jd - 2451545.0) / 36525.0
-        gmst = _n360(280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * T * T)
+        gmst = _n360(
+            280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * T * T
+        )
         ramc = _n360(gmst + lng)
         eps = math.radians(23.439291111 - 0.013004167 * T)
         lat_r = math.radians(lat)
         ramc_r = math.radians(ramc)
 
-        mc = _n360(math.degrees(math.atan2(math.sin(ramc_r), math.cos(ramc_r) * math.cos(eps))))
+        mc = _n360(
+            math.degrees(math.atan2(math.sin(ramc_r), math.cos(ramc_r) * math.cos(eps)))
+        )
 
         y_a = -math.cos(ramc_r)
         x_a = math.sin(eps) * math.tan(lat_r) + math.cos(eps) * math.sin(ramc_r)
@@ -93,7 +108,9 @@ class Angles(BaseModel, frozen=True):
         )
 
 
-def placidus_cusps(when: datetime, lat: float, lng: float, angles: Angles) -> list[float]:
+def placidus_cusps(
+    when: datetime, lat: float, lng: float, angles: Angles
+) -> list[float]:
     """Return the 12 Placidus house cusps in ecliptic degrees.
 
     Cardinal cusps (1/4/7/10) are pinned to the supplied `angles` so axis
@@ -105,16 +122,22 @@ def placidus_cusps(when: datetime, lat: float, lng: float, angles: Angles) -> li
 
     jd = _julian_day_ut(when_utc)
     T = (jd - 2451545.0) / 36525.0
-    gmst = _n360(280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * T * T)
+    gmst = _n360(
+        280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * T * T
+    )
     ramc = _n360(gmst + lng)
     eps = math.radians(23.439291111 - 0.013004167 * T)
     lat_r = math.radians(lat)
 
     # Seed MC for the iteration (the Placidus algorithm needs a starting MC).
-    mc_seed = _n360(math.degrees(math.atan2(
-        math.sin(math.radians(ramc)),
-        math.cos(math.radians(ramc)) * math.cos(eps),
-    )))
+    mc_seed = _n360(
+        math.degrees(
+            math.atan2(
+                math.sin(math.radians(ramc)),
+                math.cos(math.radians(ramc)) * math.cos(eps),
+            )
+        )
+    )
 
     def cusp(fraction: float, from_ic: bool) -> float:
         base = _n360(ramc + 180.0) if from_ic else ramc
@@ -129,36 +152,82 @@ def placidus_cusps(when: datetime, lat: float, lng: float, angles: Angles) -> li
             dsa = math.degrees(math.acos(cos_d))
             nsa = 180.0 - dsa
             sa = nsa if from_ic else dsa
-            ad = math.degrees(math.asin(math.sin(dec) / math.cos(dec) * math.tan(lat_r)))
-            target_ox = _n360(base - fraction * sa) if from_ic else _n360(base + fraction * sa)
+            ad = math.degrees(
+                math.asin(math.sin(dec) / math.cos(dec) * math.tan(lat_r))
+            )
+            target_ox = (
+                _n360(base - fraction * sa) if from_ic else _n360(base + fraction * sa)
+            )
             target_ra = _n360(target_ox - ad) if from_ic else _n360(target_ox + ad)
-            lon = _n360(math.degrees(math.atan2(
-                math.sin(math.radians(target_ra)) / math.cos(eps),
-                math.cos(math.radians(target_ra)),
-            )))
+            lon = _n360(
+                math.degrees(
+                    math.atan2(
+                        math.sin(math.radians(target_ra)) / math.cos(eps),
+                        math.cos(math.radians(target_ra)),
+                    )
+                )
+            )
             if abs(_n360(lon - prev + 180.0) - 180.0) < 0.0001:
                 break
         return _n360(lon)
 
     h11 = cusp(1 / 3, False)
     h12 = cusp(2 / 3, False)
-    h3  = cusp(1 / 3, True)
-    h2  = cusp(2 / 3, True)
+    h3 = cusp(1 / 3, True)
+    h2 = cusp(2 / 3, True)
 
     return [
-        angles.asc,                  # 1  ASC
-        h2,                          # 2
-        h3,                          # 3
-        angles.ic,                   # 4  IC
-        _n360(h11 + 180.0),          # 5
-        _n360(h12 + 180.0),          # 6
-        angles.dsc,                  # 7  DSC
-        _n360(h2 + 180.0),           # 8
-        _n360(h3 + 180.0),           # 9
-        angles.mc,                   # 10 MC
-        h11,                         # 11
-        h12,                         # 12
+        angles.asc,  # 1  ASC
+        h2,  # 2
+        h3,  # 3
+        angles.ic,  # 4  IC
+        _n360(h11 + 180.0),  # 5
+        _n360(h12 + 180.0),  # 6
+        angles.dsc,  # 7  DSC
+        _n360(h2 + 180.0),  # 8
+        _n360(h3 + 180.0),  # 9
+        angles.mc,  # 10 MC
+        h11,  # 11
+        h12,  # 12
     ]
+
+
+def equal_cusps(asc: float) -> list[float]:
+    """12 equal 30° houses starting at the ASC. Sign-agnostic but ASC-anchored."""
+    return [_n360(asc + i * 30.0) for i in range(12)]
+
+
+def porphyry_cusps(angles: Angles) -> list[float]:
+    """Trisect each ASC→IC→DSC→MC→ASC quadrant.
+
+    Cardinal cusps are pinned to the angles; intermediate cusps split each
+    quadrant arc into thirds. Quadrants 1/3 and 2/4 are equal in length by
+    construction (IC = MC+180°, DSC = ASC+180°), but at non-equatorial
+    latitudes the two pairs differ from each other.
+    """
+    q1 = _n360(angles.ic - angles.asc)
+    q2 = _n360(angles.dsc - angles.ic)
+    q3 = _n360(angles.mc - angles.dsc)
+    q4 = _n360(angles.asc - angles.mc)
+    return [
+        angles.asc,
+        _n360(angles.asc + q1 / 3.0),
+        _n360(angles.asc + 2.0 * q1 / 3.0),
+        angles.ic,
+        _n360(angles.ic + q2 / 3.0),
+        _n360(angles.ic + 2.0 * q2 / 3.0),
+        angles.dsc,
+        _n360(angles.dsc + q3 / 3.0),
+        _n360(angles.dsc + 2.0 * q3 / 3.0),
+        angles.mc,
+        _n360(angles.mc + q4 / 3.0),
+        _n360(angles.mc + 2.0 * q4 / 3.0),
+    ]
+
+
+def arc13_cusps(asc: float) -> list[float]:
+    """13 cusps for Nuastro's IAU-width fixed wheel, anchored at ASC."""
+    return [_n360(asc + s) for s in _FIXED_STARTS]
 
 
 def house_13_arc(lon: float, asc: float) -> int:
@@ -171,8 +240,8 @@ def house_13_arc(lon: float, asc: float) -> int:
     return 13
 
 
-def house_placidus(lon: float, cusps: list[float]) -> int:
-    """Standard 12-house assignment from Placidus cusps."""
+def house_from_cusps(lon: float, cusps: list[float]) -> int:
+    """House assignment from a 12-cusp list (Placidus, Porphyry, Equal)."""
     l = _n360(lon)
     for i in range(12):
         a = cusps[i]

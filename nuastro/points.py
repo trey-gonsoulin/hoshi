@@ -30,8 +30,9 @@ class LunarElements(BaseModel, frozen=True):
     Derived points (true nodes and Black Moon Lilith) are exposed as
     computed properties — they're fully determined by OM and W.
     """
-    om: float   # OM — longitude of ascending node (= True N. Node)
-    w: float    # W  — argument of perigee, measured from ascending node
+
+    om: float  # OM — longitude of ascending node (= True N. Node)
+    w: float  # W  — argument of perigee, measured from ascending node
 
     @property
     def north_node(self) -> float:
@@ -66,19 +67,21 @@ class LunarElements(BaseModel, frozen=True):
             return cls.model_validate(cached)
 
         jd = _timescale().from_datetime(when_utc).tdb
-        body = horizons_fetch({
-            "format": "text",
-            "COMMAND": "301",           # Moon
-            "OBJ_DATA": "NO",
-            "MAKE_EPHEM": "YES",
-            "EPHEM_TYPE": "ELEMENTS",
-            "CENTER": "500@399",        # geocentric
-            "TLIST": f"{jd}",
-            "TLIST_TYPE": "JD",
-            "REF_PLANE": "ECLIPTIC",
-            "OUT_UNITS": "KM-S",
-            "CSV_FORMAT": "YES",
-        })
+        body = horizons_fetch(
+            {
+                "format": "text",
+                "COMMAND": "301",  # Moon
+                "OBJ_DATA": "NO",
+                "MAKE_EPHEM": "YES",
+                "EPHEM_TYPE": "ELEMENTS",
+                "CENTER": "500@399",  # geocentric
+                "TLIST": f"{jd}",
+                "TLIST_TYPE": "JD",
+                "REF_PLANE": "ECLIPTIC",
+                "OUT_UNITS": "KM-S",
+                "CSV_FORMAT": "YES",
+            }
+        )
         om, w = _parse_horizons_elements(body)
         el = cls(om=om, w=w)
         json_cache_put(LUNAR_CACHE_PATH, cache_key, el.model_dump())
@@ -95,7 +98,9 @@ def _parse_horizons_elements(body: str) -> tuple[float, float]:
         start = lines.index("$$SOE")
         end = lines.index("$$EOE")
     except ValueError as exc:
-        raise RuntimeError(f"Horizons response missing $$SOE/$$EOE:\n{body[:500]}") from exc
+        raise RuntimeError(
+            f"Horizons response missing $$SOE/$$EOE:\n{body[:500]}"
+        ) from exc
     rows = [ln for ln in lines[start + 1 : end] if ln.strip()]
     if not rows:
         raise RuntimeError("Horizons ELEMENTS response had no data rows")
@@ -103,16 +108,50 @@ def _parse_horizons_elements(body: str) -> tuple[float, float]:
     return float(cols[5]), float(cols[6])  # OM, W
 
 
-def part_of_fortune(asc: float, sun_lon: float, moon_lon: float) -> float:
-    """Day/night-aware Lot of Fortune.
+HERMETIC_LOT_NAMES: list[str] = [
+    "Fortune",
+    "Spirit",
+    "Eros",
+    "Necessity",
+    "Courage",
+    "Victory",
+    "Nemesis",
+]
 
-    Day formula (Sun above horizon):   ASC + Moon - Sun
-    Night formula (Sun below horizon): ASC + Sun  - Moon
+
+def hermetic_lots(
+    asc: float,
+    sun: float,
+    moon: float,
+    mercury: float,
+    venus: float,
+    mars: float,
+    jupiter: float,
+    saturn: float,
+) -> dict[str, float]:
+    """The seven Hermetic Lots, day/night-aware.
+
+    Fortune and Spirit are the primary pair (Moon/Sun arc from ASC, reversed
+    at night); the other five are built off them with the personal planet
+    they correspond to (Venus→Eros, Mercury→Necessity, Mars→Courage,
+    Jupiter→Victory, Saturn→Nemesis), also reversed at night.
 
     Day/night detected by Sun's position in the house wheel: above horizon
     iff `(sun - asc) mod 360` lands in [180, 360) (houses 7-12).
     """
-    above_horizon = (sun_lon - asc) % 360.0 >= 180.0
-    if above_horizon:
-        return (asc + moon_lon - sun_lon) % 360.0
-    return (asc + sun_lon - moon_lon) % 360.0
+    day = (sun - asc) % 360.0 >= 180.0
+
+    def lot(a: float, b: float) -> float:
+        return (asc + a - b) % 360.0 if day else (asc + b - a) % 360.0
+
+    fortune = lot(moon, sun)
+    spirit = lot(sun, moon)
+    return {
+        "Fortune": fortune,
+        "Spirit": spirit,
+        "Eros": lot(venus, spirit),
+        "Necessity": lot(fortune, mercury),
+        "Courage": lot(mars, fortune),
+        "Victory": lot(jupiter, spirit),
+        "Nemesis": lot(fortune, saturn),
+    }

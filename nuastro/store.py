@@ -17,9 +17,9 @@ CHARTS_DIR = Path("charts")
 
 class ChartInput(BaseModel, frozen=True):
     name: str
-    date: str       # YYYY-MM-DD
-    time: str       # HH:MM (24h)
-    tz: str         # IANA timezone, e.g. "America/Chicago"
+    date: str  # YYYY-MM-DD
+    time: str  # HH:MM (24h)
+    tz: str  # IANA timezone, e.g. "America/Chicago"
     lat: float
     lng: float
 
