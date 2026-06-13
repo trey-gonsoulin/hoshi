@@ -26,6 +26,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "pydantic" },
+    { name = "rich" },
     { name = "skyfield" },
     { name = "typer" },
 ]
@@ -33,6 +34,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "pydantic", specifier = ">=2.13.4" },
+    { name = "rich", specifier = ">=15.0.0" },
     { name = "skyfield", specifier = ">=1.54" },
     { name = "typer", specifier = ">=0.26.7" },
 ]
