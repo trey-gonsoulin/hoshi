@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "pydantic>=2.13.4",
+    "rich>=15.0.0",
     "skyfield>=1.54",
     "typer>=0.26.7",
 ]

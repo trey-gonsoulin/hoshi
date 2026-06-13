@@ -4,11 +4,18 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import typer
+from rich import box
+from rich.console import Console
+from rich.table import Table
+from rich.text import Text
 
 from nuastro import store
 from nuastro.chart import HOUSE_SYSTEMS, Chart
 from nuastro.store import ChartInput
 from nuastro.zodiac import IAU, TROP_NAMES, Placement, format_deg
+
+
+console = Console()
 
 
 app = typer.Typer(
@@ -113,6 +120,41 @@ def _collect_entries(chart: Chart, mode: str, details: bool) -> list[dict]:
     return entries
 
 
+def _new_table(title: str) -> Table:
+    return Table(
+        title=title,
+        title_style="bold cyan",
+        title_justify="left",
+        box=box.SIMPLE_HEAD,
+        header_style="bold",
+        pad_edge=False,
+    )
+
+
+def _add_entity_row(
+    table: Table,
+    e: dict,
+    *,
+    include_kind: bool,
+    include_sign: bool,
+    include_rx: bool,
+    include_house: bool,
+) -> None:
+    cells: list[str] = []
+    if include_kind:
+        cells.append(e["kind"])
+    cells.append(e["name"])
+    if include_sign:
+        cells.append(e["placement"].name)
+    cells.append(format_deg(e["placement"].deg))
+    cells.append(f"{e['lon']:.2f}°")
+    if include_rx:
+        cells.append(e["rx"] or "")
+    if include_house:
+        cells.append(str(e["house"]))
+    table.add_row(*cells)
+
+
 def _print_by_sign(entries: list[dict], mode: str, house_label: str) -> None:
     order = _sign_order(mode)
     rank = {name: i for i, name in enumerate(order)}
@@ -122,18 +164,20 @@ def _print_by_sign(entries: list[dict], mode: str, house_label: str) -> None:
 
     for sign in sorted(grouped, key=lambda s: rank.get(s, 99)):
         rows = sorted(grouped[sign], key=lambda e: e["placement"].deg)
-        typer.echo("")
-        typer.echo(f"{sign}")
-        typer.echo(
-            f"  {'Kind':<7} {'Name':<11} {'Degree':<8} {'Lon':>8}  Rx  {house_label:>3}"
-        )
-        typer.echo("  " + "-" * 46)
+        table = _new_table(sign)
+        table.add_column("Kind")
+        table.add_column("Name", style="bold")
+        table.add_column("Degree", justify="right")
+        table.add_column("Lon", justify="right")
+        table.add_column("Rx", justify="center")
+        table.add_column(house_label, justify="right")
         for e in rows:
-            typer.echo(
-                f"  {e['kind']:<7} {e['name']:<11} "
-                f"{format_deg(e['placement'].deg):<8} {e['lon']:7.2f}°  "
-                f"{e['rx'] or ' ':<2} {e['house']:>3}"
+            _add_entity_row(
+                table, e,
+                include_kind=True, include_sign=False,
+                include_rx=True, include_house=True,
             )
+        console.print(table)
 
 
 def _print_by_house(entries: list[dict], asc: float, house_label: str) -> None:
@@ -143,18 +187,40 @@ def _print_by_house(entries: list[dict], asc: float, house_label: str) -> None:
 
     for house in sorted(grouped):
         rows = sorted(grouped[house], key=lambda e: (e["lon"] - asc) % 360.0)
-        typer.echo("")
-        typer.echo(f"{house_label}{house}")
-        typer.echo(
-            f"  {'Kind':<7} {'Name':<11} {'Sign':<13} {'Degree':<8} {'Lon':>8}  Rx"
-        )
-        typer.echo("  " + "-" * 55)
+        table = _new_table(f"{house_label}{house}")
+        table.add_column("Kind")
+        table.add_column("Name", style="bold")
+        table.add_column("Sign")
+        table.add_column("Degree", justify="right")
+        table.add_column("Lon", justify="right")
+        table.add_column("Rx", justify="center")
         for e in rows:
-            typer.echo(
-                f"  {e['kind']:<7} {e['name']:<11} {e['placement'].name:<13} "
-                f"{format_deg(e['placement'].deg):<8} {e['lon']:7.2f}°  "
-                f"{e['rx'] or ' '}"
+            _add_entity_row(
+                table, e,
+                include_kind=True, include_sign=True,
+                include_rx=True, include_house=False,
             )
+        console.print(table)
+
+
+def _print_section(
+    title: str, entries: list[dict], house_label: str
+) -> None:
+    """Render one category section (Planets/Angles/Nodes/Points/Lots)."""
+    table = _new_table(title)
+    table.add_column("Name", style="bold")
+    table.add_column("Sign")
+    table.add_column("Degree", justify="right")
+    table.add_column("Lon", justify="right")
+    table.add_column("Rx", justify="center")
+    table.add_column(house_label, justify="right")
+    for e in entries:
+        _add_entity_row(
+            table, e,
+            include_kind=False, include_sign=True,
+            include_rx=True, include_house=True,
+        )
+    console.print(table)
 
 
 def _print_chart(
@@ -171,104 +237,44 @@ def _print_chart(
     house_label = "H"
 
     header = (
-        f"Chart for {when.isoformat()}  ({ci.lat:.4f}°, {ci.lng:.4f}°)  "
-        f"mode: {mode}  houses: {chart.house_system}"
+        f"[bold]Chart for[/bold] {when.isoformat()}  "
+        f"([cyan]{ci.lat:.4f}°[/cyan], [cyan]{ci.lng:.4f}°[/cyan])  "
+        f"mode: [magenta]{mode}[/magenta]  houses: [magenta]{chart.house_system}[/magenta]"
     )
     if ci.name:
-        header = f"[{ci.name}] " + header
-    typer.echo(header)
+        header = f"[yellow]\\[{ci.name.title()}][/yellow] " + header
+    console.print(header)
     if mode == "vedic":
-        typer.echo(f"Ayanamsa (Lahiri, approx): {chart.ayanamsa:.4f}°")
+        console.print(f"Ayanamsa (Lahiri, approx): {chart.ayanamsa:.4f}°")
+
+    entries = _collect_entries(chart, mode, details)
 
     if group_by != "category":
-        entries = _collect_entries(chart, mode, details)
-        typer.echo("")
         if group_by == "sign":
-            typer.echo("By Sign")
             _print_by_sign(entries, mode, house_label)
         else:
-            typer.echo("By House")
             asc = next(a.placed.lon for a in chart.angles if a.name == "asc")
             _print_by_house(entries, asc, house_label)
         if show_cusps:
             _print_cusps(chart, mode)
         return
 
-    typer.echo("")
-    typer.echo("Planets")
-    typer.echo(
-        f"  {'Planet':<10} {'Sign':<13} {'Degree':<8} {'Lon':>8}  Rx  {house_label:>3}"
-    )
-    typer.echo("  " + "-" * 50)
-    for p in chart.planets:
-        placement = getattr(p.placed, mode)
-        rx = "℞" if p.pos.retrograde else " "
-        h = p.house
-        typer.echo(
-            f"  {p.pid.capitalize():<10} {placement.name:<13} {format_deg(placement.deg):<8} "
-            f"{p.placed.lon:7.2f}°  {rx}  {h:>3}"
-        )
-
-    angles = chart.angles if details else [a for a in chart.angles if a.name == "asc"]
-    typer.echo("")
-    typer.echo("Angles")
-    typer.echo(
-        f"  {'Point':<11} {'Sign':<13} {'Degree':<8} {'Lon':>8}      {house_label:>3}"
-    )
-    typer.echo("  " + "-" * 50)
-    for a in angles:
-        placement = getattr(a.placed, mode)
-        h = a.house
-        typer.echo(
-            f"  {ANGLE_DISPLAY_NAMES[a.name]:<11} {placement.name:<13} {format_deg(placement.deg):<8} "
-            f"{a.placed.lon:7.2f}°     {h:>3}"
-        )
+    by_kind: dict[str, list[dict]] = {}
+    for e in entries:
+        by_kind.setdefault(e["kind"], []).append(e)
 
     if details:
-        nodes = [pt for pt in chart.points if pt.name in NODE_NAMES]
-        points = [pt for pt in chart.points if pt.name not in NODE_NAMES]
-
-        typer.echo("")
-        typer.echo("Nodes")
-        typer.echo(
-            f"  {'Point':<11} {'Sign':<13} {'Degree':<8} {'Lon':>8}      {house_label:>3}"
+        _print_section("Planets", by_kind.get("Planet", []), house_label)
+        _print_section("Angles", by_kind.get("Angle", []), house_label)
+        _print_section("Nodes", by_kind.get("Node", []), house_label)
+        _print_section("Points", by_kind.get("Point", []), house_label)
+        _print_section("Lots", by_kind.get("Lot", []), house_label)
+    else:
+        _print_section(
+            "Placements",
+            by_kind.get("Planet", []) + by_kind.get("Angle", []),
+            house_label,
         )
-        typer.echo("  " + "-" * 50)
-        for pt in nodes:
-            placement = getattr(pt.placed, mode)
-            h = pt.house
-            typer.echo(
-                f"  {pt.name:<10} {placement.name:<13} {format_deg(placement.deg):<8} "
-                f"{pt.placed.lon:7.2f}°     {h:>3}"
-            )
-
-        typer.echo("")
-        typer.echo("Points")
-        typer.echo(
-            f"  {'Point':<11} {'Sign':<13} {'Degree':<8} {'Lon':>8}      {house_label:>3}"
-        )
-        typer.echo("  " + "-" * 50)
-        for pt in points:
-            placement = getattr(pt.placed, mode)
-            h = pt.house
-            typer.echo(
-                f"  {pt.name:<10} {placement.name:<13} {format_deg(placement.deg):<8} "
-                f"{pt.placed.lon:7.2f}°     {h:>3}"
-            )
-
-        typer.echo("")
-        typer.echo("Lots")
-        typer.echo(
-            f"  {'Lot':<11} {'Sign':<13} {'Degree':<8} {'Lon':>8}      {house_label:>3}"
-        )
-        typer.echo("  " + "-" * 50)
-        for pt in chart.lots:
-            placement = getattr(pt.placed, mode)
-            h = pt.house
-            typer.echo(
-                f"  {pt.name:<11} {placement.name:<13} {format_deg(placement.deg):<8} "
-                f"{pt.placed.lon:7.2f}°     {h:>3}"
-            )
 
     if show_cusps:
         _print_cusps(chart, mode)
@@ -296,48 +302,58 @@ def _print_house_comparison(ci: ChartInput, mode: str, *, details: bool) -> None
     house_columns = {sys: _entity_houses(charts[sys], details) for sys in HOUSE_SYSTEMS}
 
     header = (
-        f"Chart for {when.isoformat()}  ({ci.lat:.4f}°, {ci.lng:.4f}°)  mode: {mode}"
+        f"[bold]Chart for[/bold] {when.isoformat()}  "
+        f"([cyan]{ci.lat:.4f}°[/cyan], [cyan]{ci.lng:.4f}°[/cyan])  "
+        f"mode: [magenta]{mode}[/magenta]"
     )
     if ci.name:
-        header = f"[{ci.name}] " + header
-    typer.echo(header)
-    typer.echo("")
-    typer.echo("House comparison (yellow = differs from Porphyry)")
-    typer.echo("")
+        header = f"[yellow]\\[{ci.name.title()}][/yellow] " + header
+    console.print(header)
 
-    col_headers = "  ".join(f"{s.capitalize():>8}" for s in HOUSE_SYSTEMS)
-    typer.echo(
-        f"  {'Kind':<7} {'Name':<11} {'Sign':<13} {'Degree':<8} {'Lon':>8}   {col_headers}"
+    table = _new_table(
+        "House comparison (yellow = differs from Porphyry)"
     )
-    typer.echo("  " + "-" * (52 + len(col_headers)))
+    table.add_column("Kind")
+    table.add_column("Name", style="bold")
+    table.add_column("Sign")
+    table.add_column("Degree", justify="right")
+    table.add_column("Lon", justify="right")
+    for sys in HOUSE_SYSTEMS:
+        table.add_column(sys.capitalize(), justify="right")
 
     for i, e in enumerate(entries):
         houses_row = [house_columns[s][i] for s in HOUSE_SYSTEMS]
-        baseline = houses_row[0]  # porphyry
-        cells: list[str] = []
+        baseline = houses_row[0]
+        cells: list = [
+            e["kind"],
+            e["name"],
+            e["placement"].name,
+            format_deg(e["placement"].deg),
+            f"{e['lon']:.2f}°",
+        ]
         for h in houses_row:
-            text = f"{h:>8}"
-            if h != baseline:
-                text = typer.style(text, fg=typer.colors.YELLOW, bold=True)
-            cells.append(text)
-        typer.echo(
-            f"  {e['kind']:<7} {e['name']:<11} {e['placement'].name:<13} "
-            f"{format_deg(e['placement'].deg):<8} {e['lon']:7.2f}°   "
-            + "  ".join(cells)
-        )
+            cells.append(
+                Text(str(h), style="bold yellow") if h != baseline else str(h)
+            )
+        table.add_row(*cells)
+    console.print(table)
 
 
 def _print_cusps(chart: Chart, mode: str) -> None:
-    typer.echo("")
-    typer.echo(f"{chart.house_system.capitalize()} cusps")
     place_cusp = {
         "nuastro": Placement.nuastro,
         "tropical": Placement.tropical,
         "vedic": lambda c: Placement.vedic(c, chart.ayanamsa),
     }[mode]
+    table = _new_table(f"{chart.house_system.capitalize()} cusps")
+    table.add_column("House", justify="right")
+    table.add_column("Sign")
+    table.add_column("Degree", justify="right")
+    table.add_column("Lon", justify="right")
     for i, c in enumerate(chart.cusps, start=1):
         p = place_cusp(c)
-        typer.echo(f"  H{i:<2} {p.name:<13} {format_deg(p.deg):<8} {c:7.2f}°")
+        table.add_row(f"H{i}", p.name, format_deg(p.deg), f"{c:.2f}°")
+    console.print(table)
 
 
 @chart_app.command(name="add")
@@ -409,14 +425,18 @@ def chart_list() -> None:
             "No saved charts. Use `astro chart add NAME DATE [TIME] --lat ... --lng ...` to create one."
         )
         return
-    typer.echo(
-        f"{'Name':<24} {'Date':<10} {'Time':<6} {'Timezone':<22} {'Lat':>10} {'Lng':>10}"
-    )
-    typer.echo("-" * 86)
+    table = _new_table("Saved charts")
+    table.add_column("Name", style="bold")
+    table.add_column("Date")
+    table.add_column("Time")
+    table.add_column("Timezone")
+    table.add_column("Lat", justify="right")
+    table.add_column("Lng", justify="right")
     for ci in charts:
-        typer.echo(
-            f"{ci.name:<24} {ci.date:<10} {ci.time:<6} {ci.tz:<22} {ci.lat:>10.4f} {ci.lng:>10.4f}"
+        table.add_row(
+            ci.name, ci.date, ci.time, ci.tz, f"{ci.lat:.4f}", f"{ci.lng:.4f}"
         )
+    console.print(table)
 
 
 @chart_app.command(name="show")
