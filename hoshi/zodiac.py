@@ -88,7 +88,7 @@ class Placement(BaseModel, frozen=True):
     deg: float  # degrees into the sign (0–width)
 
     @classmethod
-    def nuastro(cls, lon: float) -> "Placement":
+    def realsky(cls, lon: float) -> "Placement":
         """Real-sky IAU constellation placement (13 signs, unequal widths)."""
         i = _iau_index(lon)
         c = IAU[i]

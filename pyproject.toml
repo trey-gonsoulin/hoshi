@@ -1,7 +1,7 @@
 [project]
-name = "astro"
+name = "hoshi"
 version = "0.1.0"
-description = "Real-sky astrology birth chart CLI — Python port of Nuastro."
+description = "Real-sky astrology birth chart CLI."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.scripts]
-astro = "nuastro.cli:main"
+hoshi = "hoshi.cli:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -23,4 +23,4 @@ url = "https://pypi.org/simple"
 default = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["nuastro"]
+packages = ["hoshi"]

@@ -5,8 +5,8 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from nuastro.ephemeris import PLANET_ORDER, PlanetPosition, lahiri_ayanamsa, positions
-from nuastro.houses import (
+from hoshi.ephemeris import PLANET_ORDER, PlanetPosition, lahiri_ayanamsa, positions
+from hoshi.houses import (
     Angles,
     arc13_cusps,
     equal_cusps,
@@ -15,15 +15,15 @@ from nuastro.houses import (
     placidus_cusps,
     porphyry_cusps,
 )
-from nuastro.points import HERMETIC_LOT_NAMES, LunarElements, hermetic_lots
-from nuastro.zodiac import Placement
+from hoshi.points import HERMETIC_LOT_NAMES, LunarElements, hermetic_lots
+from hoshi.zodiac import Placement
 
 
 class Placed(BaseModel, frozen=True):
     """A point (planet or angle) placed in all three zodiac modes."""
 
     lon: float
-    nuastro: Placement
+    realsky: Placement
     tropical: Placement
     vedic: Placement
 
@@ -31,7 +31,7 @@ class Placed(BaseModel, frozen=True):
     def for_longitude(cls, lon: float, ayanamsa: float) -> "Placed":
         return cls(
             lon=lon,
-            nuastro=Placement.nuastro(lon),
+            realsky=Placement.realsky(lon),
             tropical=Placement.tropical(lon),
             vedic=Placement.vedic(lon, ayanamsa),
         )
