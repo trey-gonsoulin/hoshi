@@ -9,10 +9,11 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
-from nuastro import store
-from nuastro.chart import HOUSE_SYSTEMS, Chart
-from nuastro.store import ChartInput
-from nuastro.zodiac import IAU, TROP_NAMES, Placement, format_deg
+from hoshi import store
+from hoshi.aspects import KIND_ORDER, compute_aspects, fmt_orb
+from hoshi.chart import HOUSE_SYSTEMS, Chart
+from hoshi.store import ChartInput
+from hoshi.zodiac import IAU, TROP_NAMES, Placement, format_deg
 
 
 console = Console()
@@ -35,7 +36,7 @@ ANGLE_DISPLAY_NAMES: dict[str, str] = {
     "antivertex": "Antivertex",
 }
 
-VALID_MODES = {"nuastro", "tropical", "vedic"}
+VALID_MODES = {"realsky", "tropical", "vedic"}
 VALID_GROUPINGS = {"category", "sign", "house"}
 VALID_HOUSE_SYSTEMS = set(HOUSE_SYSTEMS)
 
@@ -78,7 +79,7 @@ NODE_NAMES = {"N.Node", "S.Node"}
 
 
 def _sign_order(mode: str) -> list[str]:
-    return [s.name for s in IAU] if mode == "nuastro" else TROP_NAMES
+    return [s.name for s in IAU] if mode == "realsky" else TROP_NAMES
 
 
 def _collect_entries(chart: Chart, mode: str, details: bool) -> list[dict]:
@@ -255,6 +256,8 @@ def _print_chart(
         else:
             asc = next(a.placed.lon for a in chart.angles if a.name == "asc")
             _print_by_house(entries, asc, house_label)
+        if details:
+            _print_aspects(chart)
         if show_cusps:
             _print_cusps(chart, mode)
         return
@@ -269,6 +272,7 @@ def _print_chart(
         _print_section("Nodes", by_kind.get("Node", []), house_label)
         _print_section("Points", by_kind.get("Point", []), house_label)
         _print_section("Lots", by_kind.get("Lot", []), house_label)
+        _print_aspects(chart)
     else:
         _print_section(
             "Placements",
@@ -339,9 +343,39 @@ def _print_house_comparison(ci: ChartInput, mode: str, *, details: bool) -> None
     console.print(table)
 
 
+def _print_aspects(chart: Chart) -> None:
+    aspects = compute_aspects(chart)
+    if not aspects:
+        return
+    by_kind: dict[str, list] = {}
+    for asp in aspects:
+        by_kind.setdefault(asp.kind, []).append(asp)
+    for kind in KIND_ORDER:
+        group = by_kind.get(kind)
+        if not group:
+            continue
+        table = _new_table(f"{kind} Aspects")
+        table.add_column("Body A", style="bold")
+        table.add_column("", justify="center")
+        table.add_column("Body B", style="bold")
+        table.add_column("Aspect")
+        table.add_column("Angle", justify="right")
+        table.add_column("Orb", justify="right")
+        for asp in group:
+            table.add_row(
+                asp.body_a,
+                asp.symbol,
+                asp.body_b,
+                asp.name,
+                f"{asp.angle:.0f}°",
+                fmt_orb(asp.orb),
+            )
+        console.print(table)
+
+
 def _print_cusps(chart: Chart, mode: str) -> None:
     place_cusp = {
-        "nuastro": Placement.nuastro,
+        "realsky": Placement.realsky,
         "tropical": Placement.tropical,
         "vedic": lambda c: Placement.vedic(c, chart.ayanamsa),
     }[mode]
@@ -373,7 +407,7 @@ def chart_add(
         "UTC", "--tz", help="IANA timezone of the birth time, e.g. America/Chicago."
     ),
     mode: str = typer.Option(
-        "nuastro", "--mode", help="Zodiac mode: nuastro, tropical, or vedic."
+        "realsky", "--mode", help="Zodiac mode: realsky, tropical, or vedic."
     ),
     force: bool = typer.Option(
         False, "--force", help="Overwrite an existing saved chart with the same name."
@@ -459,7 +493,7 @@ def chart_show(
         "UTC", "--tz", help="One-off chart IANA timezone, e.g. America/Chicago."
     ),
     mode: str = typer.Option(
-        "nuastro", "--mode", help="Zodiac mode: nuastro, tropical, or vedic."
+        "realsky", "--mode", help="Zodiac mode: realsky, tropical, or vedic."
     ),
     houses: str = typer.Option(
         "porphyry",

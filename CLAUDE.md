@@ -10,8 +10,8 @@ Build a Python CLI that replicates parts of [Nuastro](https://nuastro.com)'s rea
 
 - `main.py` / `pyproject.toml` / `.python-version` — `uv init` skeleton. Python 3.13+. No dependencies declared yet; Skyfield needs to be added (`uv add skyfield`).
 - `nuastro-*.js`, `smush-lazy-load.min.js` — **reference material only**, copied from Nuastro's WordPress widget. Read these to understand the algorithms and conventions to port; do not edit them.
-- `nuastro/` — Python package with the port (`zodiac`, `ephemeris`, `houses`, `points`, `chart`, `store`, `cli`). Exposed as the `astro` console script via `[project.scripts]`; build backend is `hatchling`. After dependency changes, `uv sync` reinstalls the project in editable mode.
-- `charts/` — user-saved charts (one JSON file per chart, written by `astro chart --name ...`). Not a cache — treat as user data. Persists only inputs; charts are recomputed on `astro show`.
+- `hoshi/` — Python package with the port (`zodiac`, `ephemeris`, `houses`, `points`, `chart`, `store`, `cli`). Exposed as the `hoshi` console script via `[project.scripts]`; build backend is `hatchling`. After dependency changes, `uv sync` reinstalls the project in editable mode.
+- `charts/` — user-saved charts (one JSON file per chart, written by `hoshi chart --name ...`). Not a cache — treat as user data. Persists only inputs; charts are recomputed on `hoshi show`.
 - `.chiron_cache.json` — per-minute cache of Horizons OBSERVER responses for Chiron, written next to wherever the CLI is run. Safe to delete.
 - `.lunar_cache.json` — per-minute cache of Horizons ELEMENTS responses for the Moon (used for true nodes and true Lilith). Safe to delete.
 
@@ -39,7 +39,7 @@ upstream Nuastro tool. This requires explicit `epoch=t` in Skyfield calls —
 **`ecliptic_latlon()` default returns J2000**, contrary to what the Skyfield
 docs suggest. The two differ by precession (~50.3″/year), so a chart 4 years
 off J2000 lands ~3-4′ apart between the two frames. The IAU constellation
-table in `nuastro/zodiac.py` is J2000-fixed; mixing it with of-date positions
+table in `hoshi/zodiac.py` is J2000-fixed; mixing it with of-date positions
 is a minor inconsistency we accept to match upstream behavior.
 
 ## Pluto / Chiron disagreement with online Nuastro
@@ -56,16 +56,16 @@ to match online for these two bodies.
 Skyfield/jplephem can't read JPL Horizons' small-body SPKs (SPK data type 21
 is unsupported). Two things use Horizons HTTP APIs directly:
 
-- **Chiron** (`_chiron_position` in `nuastro/ephemeris.py`) — Horizons
+- **Chiron** (`_chiron_position` in `hoshi/ephemeris.py`) — Horizons
   **OBSERVER** ephemeris at chart time + 1 minute for ecliptic lon/lat and
   retrograde state.
 - **True lunar nodes & Black Moon Lilith** (`lunar_elements` in
-  `nuastro/points.py`) — Horizons **ELEMENTS** API at chart time, parses
+  `hoshi/points.py`) — Horizons **ELEMENTS** API at chart time, parses
   OM (ascending node) and W (argument of perigee) for the Moon. True Lilith
   = OM + W + 180°.
 
 Shared HTTP/SSL/cache helpers (`horizons_fetch`, `json_cache_get/put`) live
-in `nuastro/ephemeris.py`. The SSL context uses `certifi` because macOS
+in `hoshi/ephemeris.py`. The SSL context uses `certifi` because macOS
 stdlib `urllib` ships with an incomplete root bundle.
 
 ## Conventions
