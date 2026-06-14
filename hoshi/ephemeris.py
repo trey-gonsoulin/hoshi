@@ -219,3 +219,16 @@ def lahiri_ayanamsa(when: datetime) -> float:
     t = ts.from_datetime(when_utc)
     years_since_j2000 = (t.tt - 2451545.0) / 365.25
     return 23.85 + years_since_j2000 * (50.29 / 3600.0)
+
+
+def ecliptic_precession(when: datetime) -> float:
+    """Degrees of ecliptic precession since J2000.0 at the given moment.
+
+    Subtracting this from an of-date ecliptic longitude converts it to J2000.
+    """
+    if when.tzinfo is None:
+        raise ValueError("`when` must be timezone-aware")
+    when_utc = when.astimezone(timezone.utc)
+    t = _timescale().from_datetime(when_utc)
+    years_since_j2000 = (t.tt - 2451545.0) / 365.25
+    return years_since_j2000 * (50.29 / 3600.0)

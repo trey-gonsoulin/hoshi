@@ -5,7 +5,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from hoshi.ephemeris import PLANET_ORDER, PlanetPosition, lahiri_ayanamsa, positions
+from hoshi.ephemeris import PLANET_ORDER, PlanetPosition, ecliptic_precession, lahiri_ayanamsa, positions
 from hoshi.houses import (
     Angles,
     arc13_cusps,
@@ -28,10 +28,10 @@ class Placed(BaseModel, frozen=True):
     vedic: Placement
 
     @classmethod
-    def for_longitude(cls, lon: float, ayanamsa: float) -> "Placed":
+    def for_longitude(cls, lon: float, ayanamsa: float, precession: float = 0.0) -> "Placed":
         return cls(
             lon=lon,
-            realsky=Placement.realsky(lon),
+            realsky=Placement.realsky(lon, precession),
             tropical=Placement.tropical(lon),
             vedic=Placement.vedic(lon, ayanamsa),
         )
@@ -87,6 +87,7 @@ class Chart(BaseModel, frozen=True):
                 f"house_system must be one of {HOUSE_SYSTEMS}, got {house_system!r}"
             )
         ayan = lahiri_ayanamsa(when)
+        prec = ecliptic_precession(when)
         angles = Angles.compute(when, lat, lng)
         pos = positions(when)
         lunar = LunarElements.at(when)
@@ -111,7 +112,7 @@ class Chart(BaseModel, frozen=True):
             PlanetChart(
                 pid=pid,
                 pos=pos[pid],
-                placed=Placed.for_longitude(pos[pid].lon, ayan),
+                placed=Placed.for_longitude(pos[pid].lon, ayan, prec),
                 house=house_of(pos[pid].lon),
             )
             for pid in PLANET_ORDER
@@ -119,7 +120,7 @@ class Chart(BaseModel, frozen=True):
         angle_charts = [
             AngleChart(
                 name=name,
-                placed=Placed.for_longitude(getattr(angles, name), ayan),
+                placed=Placed.for_longitude(getattr(angles, name), ayan, prec),
                 house=house_of(getattr(angles, name)),
             )
             for name in ("asc", "mc", "ic", "dsc", "vertex", "antivertex")
@@ -134,7 +135,7 @@ class Chart(BaseModel, frozen=True):
         def to_point(name: str, lon: float) -> PointChart:
             return PointChart(
                 name=name,
-                placed=Placed.for_longitude(lon, ayan),
+                placed=Placed.for_longitude(lon, ayan, prec),
                 house=house_of(lon),
             )
 
