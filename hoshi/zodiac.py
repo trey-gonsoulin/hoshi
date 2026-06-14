@@ -69,15 +69,16 @@ def n360(v: float) -> float:
     return v % 360.0
 
 
-def _iau_index(lon: float) -> int:
+def _iau_index(lon: float, precession: float = 0.0) -> int:
     lon = n360(lon)
     for i, c in enumerate(IAU):
-        hi = c.hi - 360 if c.hi > 360 else c.hi
-        if c.lo > hi:  # wraps past 360 (Pisces)
-            if lon >= c.lo or lon < hi:
+        lo = n360(c.lo + precession)
+        hi = n360(c.hi + precession)
+        if lo > hi:  # wraps past 360 (Pisces, or any sign near 0° after precession shift)
+            if lon >= lo or lon < hi:
                 return i
         else:
-            if c.lo <= lon < c.hi:
+            if lo <= lon < hi:
                 return i
     return 12
 
@@ -88,16 +89,22 @@ class Placement(BaseModel, frozen=True):
     deg: float  # degrees into the sign (0–width)
 
     @classmethod
-    def realsky(cls, lon: float) -> "Placement":
-        """Real-sky IAU constellation placement (13 signs, unequal widths)."""
-        i = _iau_index(lon)
+    def realsky(cls, lon: float, precession: float = 0.0) -> "Placement":
+        """Real-sky IAU constellation placement (13 signs, unequal widths).
+
+        The IAU boundary table is J2000-fixed. Pass `precession` (degrees
+        since J2000) to shift the boundaries to the of-date frame before
+        comparing against `lon`.
+        """
+        i = _iau_index(lon, precession)
         c = IAU[i]
+        lo = n360(c.lo + precession)
+        hi = n360(c.hi + precession)
         l = n360(lon)
-        hi = c.hi - 360 if c.hi > 360 else c.hi
-        if c.lo > hi:
-            deg = l - c.lo if l >= c.lo else (360 - c.lo) + l
+        if lo > hi:  # wraps past 360
+            deg = l - lo if l >= lo else (360 - lo) + l
         else:
-            deg = l - c.lo
+            deg = l - lo
         return cls(name=c.name, abbr=c.abbr, deg=deg)
 
     @classmethod
