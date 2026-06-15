@@ -181,14 +181,23 @@ def _print_by_sign(entries: list[dict], mode: str, house_label: str) -> None:
         console.print(table)
 
 
-def _print_by_house(entries: list[dict], asc: float, house_label: str) -> None:
+def _print_by_house(
+    entries: list[dict], asc: float, house_label: str, chart: Chart, mode: str
+) -> None:
     grouped: dict[int, list[dict]] = {}
     for e in entries:
         grouped.setdefault(e["house"], []).append(e)
 
-    for house in sorted(grouped):
-        rows = sorted(grouped[house], key=lambda e: (e["lon"] - asc) % 360.0)
-        table = _new_table(f"{house_label}{house}")
+    place_cusp = {
+        "realsky": Placement.realsky,
+        "tropical": Placement.tropical,
+        "vedic": lambda c: Placement.vedic(c, chart.ayanamsa),
+    }[mode]
+
+    for house in range(1, len(chart.cusps) + 1):
+        rows = sorted(grouped.get(house, []), key=lambda e: (e["lon"] - asc) % 360.0)
+        cusp_sign = place_cusp(chart.cusps[house - 1]).name
+        table = _new_table(f"{house_label}{house} — {cusp_sign}")
         table.add_column("Kind")
         table.add_column("Name", style="bold")
         table.add_column("Sign")
@@ -230,6 +239,7 @@ def _print_chart(
     *,
     show_cusps: bool = False,
     details: bool = False,
+    aspects: bool = False,
     group_by: str = "category",
     house_system: str = "porphyry",
 ) -> None:
@@ -255,9 +265,9 @@ def _print_chart(
             _print_by_sign(entries, mode, house_label)
         else:
             asc = next(a.placed.lon for a in chart.angles if a.name == "asc")
-            _print_by_house(entries, asc, house_label)
-        if details:
-            _print_aspects(chart)
+            _print_by_house(entries, asc, house_label, chart, mode)
+        if aspects:
+            _print_aspects(chart, details)
         if show_cusps:
             _print_cusps(chart, mode)
         return
@@ -272,7 +282,6 @@ def _print_chart(
         _print_section("Nodes", by_kind.get("Node", []), house_label)
         _print_section("Points", by_kind.get("Point", []), house_label)
         _print_section("Lots", by_kind.get("Lot", []), house_label)
-        _print_aspects(chart)
     else:
         _print_section(
             "Placements",
@@ -280,6 +289,8 @@ def _print_chart(
             house_label,
         )
 
+    if aspects:
+        _print_aspects(chart, details)
     if show_cusps:
         _print_cusps(chart, mode)
 
@@ -343,8 +354,8 @@ def _print_house_comparison(ci: ChartInput, mode: str, *, details: bool) -> None
     console.print(table)
 
 
-def _print_aspects(chart: Chart) -> None:
-    aspects = compute_aspects(chart)
+def _print_aspects(chart: Chart, details: bool = True) -> None:
+    aspects = compute_aspects(chart, details)
     if not aspects:
         return
     by_kind: dict[str, list] = {}
@@ -423,6 +434,9 @@ def chart_add(
     details: bool = typer.Option(
         False, "--details", help="Also print all angles, nodes, and calculated points."
     ),
+    aspects: bool = typer.Option(
+        False, "--aspects", help="Print aspect tables (uses all bodies with --details, planets+Asc otherwise)."
+    ),
     group_by: str = typer.Option(
         "category",
         "--group-by",
@@ -445,6 +459,7 @@ def chart_add(
         mode,
         show_cusps=cusps,
         details=details,
+        aspects=aspects,
         group_by=group_by,
         house_system=houses,
     )
@@ -506,6 +521,9 @@ def chart_show(
     details: bool = typer.Option(
         False, "--details", help="Also print all angles, nodes, and calculated points."
     ),
+    aspects: bool = typer.Option(
+        False, "--aspects", help="Print aspect tables (uses all bodies with --details, planets+Asc otherwise)."
+    ),
     group_by: str = typer.Option(
         "category",
         "--group-by",
@@ -547,6 +565,7 @@ def chart_show(
         mode,
         show_cusps=cusps,
         details=details,
+        aspects=aspects,
         group_by=group_by,
         house_system=houses,
     )
