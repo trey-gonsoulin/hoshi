@@ -262,24 +262,29 @@ def _print_planets_section(entries: list[dict], house_label: str) -> None:
 
 def _print_tallies(chart: Chart, mode: str) -> None:
     tally = element_modality_tally(chart, mode)
+    pri_e = tally["primary"]["elements"]
+    tot_e = tally["total"]["elements"]
+    pri_m = tally["primary"]["modalities"]
+    tot_m = tally["total"]["modalities"]
+
     table = _new_table("Tallies")
     table.add_column("Element", style="bold")
-    table.add_column("Count", justify="right")
+    table.add_column("Primary", justify="right")
+    table.add_column("Total", justify="right")
     table.add_column("  ", no_wrap=True)  # spacer
     table.add_column("Modality", style="bold")
-    table.add_column("Count", justify="right")
-    elems = tally["elements"]
-    mods = tally["modalities"]
+    table.add_column("Primary", justify="right")
+    table.add_column("Total", justify="right")
+
     elem_order = ["Fire", "Earth", "Air", "Water"]
     mod_order = ["Cardinal", "Fixed", "Mutable"]
-    rows = max(len(elem_order), len(mod_order))
-    for i in range(rows):
-        e_name = elem_order[i] if i < len(elem_order) else ""
-        m_name = mod_order[i] if i < len(mod_order) else ""
+    for i in range(max(len(elem_order), len(mod_order))):
+        e = elem_order[i] if i < len(elem_order) else ""
+        m = mod_order[i] if i < len(mod_order) else ""
         table.add_row(
-            e_name, str(elems.get(e_name, 0)) if e_name else "",
+            e, str(pri_e.get(e, 0)) if e else "", str(tot_e.get(e, 0)) if e else "",
             "",
-            m_name, str(mods.get(m_name, 0)) if m_name else "",
+            m, str(pri_m.get(m, 0)) if m else "", str(tot_m.get(m, 0)) if m else "",
         )
     console.print(table)
 
