@@ -4,57 +4,65 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Goal
 
-Build a Python CLI that replicates parts of [Nuastro](https://nuastro.com)'s real-sky astrology birth chart calculator. Planetary positions come from the [Skyfield](https://rhodesmill.org/skyfield/) package (JPL ephemerides) rather than the browser-side ephemeris Nuastro uses.
+Hoshi is a Python CLI for astrological charting, with a focus on real-sky astrology. Real-sky charts use IAU constellation boundaries (13 signs of unequal width, including Ophiuchus) rather than the traditional 12-sign tropical wheel — this makes charting significantly harder to do by hand, which is where Hoshi helps. Planetary positions come from [Skyfield](https://rhodesmill.org/skyfield/) (JPL ephemerides) for accuracy.
 
 ## Repo contents
 
-- `main.py` / `pyproject.toml` / `.python-version` — `uv init` skeleton. Python 3.13+. No dependencies declared yet; Skyfield needs to be added (`uv add skyfield`).
-- `nuastro-*.js`, `smush-lazy-load.min.js` — **reference material only**, copied from Nuastro's WordPress widget. Read these to understand the algorithms and conventions to port; do not edit them.
-- `hoshi/` — Python package with the port (`zodiac`, `ephemeris`, `houses`, `points`, `chart`, `store`, `cli`). Exposed as the `hoshi` console script via `[project.scripts]`; build backend is `hatchling`. After dependency changes, `uv sync` reinstalls the project in editable mode.
-- `charts/` — user-saved charts (one JSON file per chart, written by `hoshi chart --name ...`). Not a cache — treat as user data. Persists only inputs; charts are recomputed on `hoshi show`.
-- `.chiron_cache.json` — per-minute cache of Horizons OBSERVER responses for Chiron, written next to wherever the CLI is run. Safe to delete.
-- `.lunar_cache.json` — per-minute cache of Horizons ELEMENTS responses for the Moon (used for true nodes and true Lilith). Safe to delete.
+- `main.py` / `pyproject.toml` / `.python-version` — `uv init` skeleton. Python 3.13+.
+- `hoshi/` — Python package. Exposed as the `hoshi` console script via `[project.scripts]`; build backend is `hatchling`. After dependency changes, run `uv sync` to reinstall.
+- `charts/` — user-saved charts (one JSON file per chart). Names are normalized to lowercase on save. Not a cache — treat as user data. Persists only inputs; charts are recomputed on `hoshi chart show`.
+- `~/.cache/hoshi/chiron.json` — per-minute cache of Horizons OBSERVER responses for Chiron. Safe to delete.
+- `~/.cache/hoshi/lunar.json` — per-minute cache of Horizons ELEMENTS responses for the Moon (true nodes and true Lilith). Safe to delete.
 
-## Reference JS, in dependency order
+## Package modules (`hoshi/`)
 
-1. `nuastro-calc.js` (`window.NuastroCalc`) — the math worth porting first: IAU constellation boundaries, tropical signs, sidereal conversion, aspects.
-2. `nuastro-chart.js` / `nuastro-chart-north-indian.js` — SVG rendering. Not directly useful for a CLI unless we emit SVG/PNG output.
-3. `nuastro-widget.js` — top-level WordPress glue. Source of truth for the planet registry, `ASPECT_ORB = 4`, and the `DIGNITIES` / `ELEMENTS` tables. These tables are tuned to the real-sky 13-sign scheme (e.g. Chiron domicile = Ophiuchus) — preserve them as-is when porting; they are not standard tropical assignments.
+| Module | Purpose |
+|--------|---------|
+| `ephemeris.py` | Skyfield positions, Horizons HTTP fetch, JSON cache helpers, `ecliptic_precession()` |
+| `zodiac.py` | IAU real-sky boundaries, tropical and sidereal placements, `Placement.realsky(lon, precession)` |
+| `houses.py` | Placidus, Porphyry, Equal, Arc-13 house cusps; angle computation |
+| `points.py` | True lunar nodes, Black Moon Lilith, Hermetic lots |
+| `chart.py` | `Chart.build()` — assembles all bodies; `Placed.for_longitude(lon, ayanamsa, precession)` |
+| `aspects.py` | Aspect definitions and orbs; `compute_aspects()`, `compute_inter_aspects()` |
+| `dignities.py` | Planetary dignities table, element/modality tally |
+| `store.py` | Save/load/list/delete named charts in `./charts/` |
+| `cli.py` | Typer entry point — all `hoshi chart` subcommands |
 
-`nuastro-ephemeris.js` is referenced by the JS but not in the repo; Skyfield replaces it on the Python side.
+## CLI commands
 
-## Three zodiac modes to support
+```
+hoshi chart add   NAME DATE [TIME] --lat --lng [--tz] [--mode] [--houses] [--details] [--aspects] [--group-by] [--cusps] [--force]
+hoshi chart show  NAME|DATE [TIME] --lat --lng ...   [--format table|json] [--compare-houses]
+hoshi chart cusps NAME|DATE [TIME] --lat --lng ...   [--mode] [--houses]
+hoshi chart compare NAME1 NAME2                      [--mode] [--houses] [--aspects] [--details]
+hoshi chart list
+hoshi chart delete NAME [--yes]
+```
 
-Nuastro exposes three, and the port should too:
+## Three zodiac modes
 
-- `'nuastro'` — IAU real-sky boundaries (13 signs incl. Ophiuchus, unequal widths) — see `IAU[]` in `nuastro-calc.js`. This is the distinguishing feature.
+- `'realsky'` — IAU real-sky boundaries (13 signs incl. Ophiuchus, unequal widths). Default. See `IAU[]` in `hoshi/zodiac.py`.
 - `'tropical'` — standard 12 equal 30° signs from the vernal equinox.
-- `'vedic'` — sidereal, with an ayanamsa offset applied (check `nuastro-calc.js` for which one).
+- `'vedic'` — sidereal, Lahiri ayanamsa offset applied.
 
 ## Reference frame: of-date, not J2000
 
 All ecliptic longitudes are in the **equinox of date** frame (measured from
-the vernal equinox at the chart moment), matching tropical astrology and the
-upstream Nuastro tool. This requires explicit `epoch=t` in Skyfield calls —
+the vernal equinox at the chart moment), matching standard astrological
+convention. This requires explicit `epoch=t` in Skyfield calls —
 **`ecliptic_latlon()` default returns J2000**, contrary to what the Skyfield
-docs suggest. The two differ by precession (~50.3″/year), so a chart 4 years
-off J2000 lands ~3-4′ apart between the two frames. The IAU constellation
-table in `hoshi/zodiac.py` is J2000-fixed; mixing it with of-date positions
-is a minor inconsistency we accept to match upstream behavior.
+docs suggest. The two differ by precession (~50.3″/year).
 
-## Pluto / Chiron disagreement with online Nuastro
-
-Online Nuastro can be off from JPL Horizons by several degrees (~9° Pluto,
-~22° Chiron observed on a 1996 chart) — apparently the online tool uses
-stale or low-accuracy fallback ephemeris for bodies outside its main VSOP
-polynomial set. Our local values come from Skyfield/DE421 (Pluto) and
-Horizons OBSERVER (Chiron), which are authoritative. Don't "fix" the CLI
-to match online for these two bodies.
+The IAU constellation table is J2000-fixed. `Placement.realsky()` accepts a
+`precession` argument (degrees since J2000 from `ecliptic_precession(when)`)
+to shift the boundaries into the of-date frame before the sign lookup.
+`Placed.for_longitude()` threads this through automatically when built via
+`Chart.build()`.
 
 ## Horizons-backed bodies
 
 Skyfield/jplephem can't read JPL Horizons' small-body SPKs (SPK data type 21
-is unsupported). Two things use Horizons HTTP APIs directly:
+is unsupported). Two bodies use Horizons HTTP APIs directly:
 
 - **Chiron** (`_chiron_position` in `hoshi/ephemeris.py`) — Horizons
   **OBSERVER** ephemeris at chart time + 1 minute for ecliptic lon/lat and
@@ -67,6 +75,22 @@ is unsupported). Two things use Horizons HTTP APIs directly:
 Shared HTTP/SSL/cache helpers (`horizons_fetch`, `json_cache_get/put`) live
 in `hoshi/ephemeris.py`. The SSL context uses `certifi` because macOS
 stdlib `urllib` ships with an incomplete root bundle.
+
+## Aspects
+
+Five major aspects (4° orb), four minor (2° orb), three micro (1° orb). See
+`hoshi/aspects.py`. Single-chart aspects via `compute_aspects(chart, details)`;
+synastry inter-aspects via `compute_inter_aspects(chart_a, chart_b, details)`.
+Without `--details`, only planets + Asc are included. Axis pairs (Asc/Dsc,
+MC/IC, etc.) are filtered from single-chart aspects.
+
+## Dignities
+
+`hoshi/dignities.py` holds the domicile/exaltation/detriment/fall table for
+the 13-sign real-sky scheme (Chiron domicile = Ophiuchus). Assignments follow
+standard conventions adapted for 13 signs.
+`element_modality_tally()` returns separate primary (planets) and total (all
+bodies) counts.
 
 ## Conventions
 
