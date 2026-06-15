@@ -37,7 +37,15 @@ PLANET_ORDER = list(SKYFIELD_TARGETS.keys()) + ["chiron"]
 
 HORIZONS_URL = "https://ssd.jpl.nasa.gov/api/horizons.api"
 CHIRON_HORIZONS_ID = "2060;"  # trailing ';' = small-body designation
-CHIRON_CACHE_PATH = Path(".chiron_cache.json")
+
+
+def _cache_dir() -> Path:
+    p = Path.home() / ".cache" / "hoshi"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+CHIRON_CACHE_PATH = _cache_dir() / "chiron.json"
 
 
 def horizons_fetch(params: dict[str, str]) -> str:

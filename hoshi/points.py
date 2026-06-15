@@ -9,11 +9,11 @@ Part of Fortune is computed locally from ASC + Sun + Moon longitudes.
 """
 
 from datetime import datetime, timezone
-from pathlib import Path
 
 from pydantic import BaseModel
 
 from hoshi.ephemeris import (
+    _cache_dir,
     _timescale,
     horizons_fetch,
     json_cache_get,
@@ -21,7 +21,7 @@ from hoshi.ephemeris import (
 )
 
 
-LUNAR_CACHE_PATH = Path(".lunar_cache.json")
+LUNAR_CACHE_PATH = _cache_dir() / "lunar.json"
 
 
 class LunarElements(BaseModel, frozen=True):

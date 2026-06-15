@@ -132,5 +132,37 @@ def compute_aspects(chart: Chart, details: bool = True) -> list[Aspect]:
     return aspects
 
 
+def compute_inter_aspects(chart_a: Chart, chart_b: Chart, details: bool = True) -> list[Aspect]:
+    """Return all significant aspects between bodies of two different charts."""
+    bodies_a = _bodies(chart_a, details)
+    bodies_b = _bodies(chart_b, details)
+    aspects: list[Aspect] = []
+
+    for name_a, lon_a in bodies_a:
+        for name_b, lon_b in bodies_b:
+            diff = (lon_a - lon_b) % 360.0
+            if diff > 180.0:
+                diff = 360.0 - diff
+
+            for adef in ASPECT_DEFS:
+                orb = diff - adef.angle
+                if abs(orb) <= adef.orb:
+                    aspects.append(
+                        Aspect(
+                            body_a=name_a,
+                            body_b=name_b,
+                            name=adef.name,
+                            symbol=adef.symbol,
+                            angle=adef.angle,
+                            orb=orb,
+                            kind=adef.kind,
+                        )
+                    )
+                    break
+
+    aspects.sort(key=lambda asp: abs(asp.orb))
+    return aspects
+
+
 def fmt_orb(orb: float) -> str:
     return _fmt_orb(orb)
