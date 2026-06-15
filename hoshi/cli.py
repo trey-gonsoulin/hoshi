@@ -1,5 +1,6 @@
 """Typer CLI entry point."""
 
+import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -10,8 +11,9 @@ from rich.table import Table
 from rich.text import Text
 
 from hoshi import store
-from hoshi.aspects import KIND_ORDER, compute_aspects, fmt_orb
+from hoshi.aspects import KIND_ORDER, compute_aspects, compute_inter_aspects, fmt_orb
 from hoshi.chart import HOUSE_SYSTEMS, Chart
+from hoshi.dignities import DIGNITY_SYMBOLS, dignity_for, element_modality_tally
 from hoshi.store import ChartInput
 from hoshi.zodiac import IAU, TROP_NAMES, Placement, format_deg
 
@@ -233,6 +235,55 @@ def _print_section(
     console.print(table)
 
 
+def _print_planets_section(entries: list[dict], house_label: str) -> None:
+    """Planets section with an extra Dignity column."""
+    table = _new_table("Planets")
+    table.add_column("Name", style="bold")
+    table.add_column("Sign")
+    table.add_column("Degree", justify="right")
+    table.add_column("Lon", justify="right")
+    table.add_column("Rx", justify="center")
+    table.add_column(house_label, justify="right")
+    table.add_column("Dig", justify="center")
+    for e in entries:
+        p = e["placement"]
+        dig = dignity_for(e["name"], p.name)
+        table.add_row(
+            e["name"],
+            p.name,
+            format_deg(p.deg),
+            f"{e['lon']:.2f}°",
+            e["rx"] or "",
+            str(e["house"]),
+            DIGNITY_SYMBOLS.get(dig, "") if dig else "",
+        )
+    console.print(table)
+
+
+def _print_tallies(chart: Chart, mode: str) -> None:
+    tally = element_modality_tally(chart, mode)
+    table = _new_table("Tallies")
+    table.add_column("Element", style="bold")
+    table.add_column("Count", justify="right")
+    table.add_column("  ", no_wrap=True)  # spacer
+    table.add_column("Modality", style="bold")
+    table.add_column("Count", justify="right")
+    elems = tally["elements"]
+    mods = tally["modalities"]
+    elem_order = ["Fire", "Earth", "Air", "Water"]
+    mod_order = ["Cardinal", "Fixed", "Mutable"]
+    rows = max(len(elem_order), len(mod_order))
+    for i in range(rows):
+        e_name = elem_order[i] if i < len(elem_order) else ""
+        m_name = mod_order[i] if i < len(mod_order) else ""
+        table.add_row(
+            e_name, str(elems.get(e_name, 0)) if e_name else "",
+            "",
+            m_name, str(mods.get(m_name, 0)) if m_name else "",
+        )
+    console.print(table)
+
+
 def _print_chart(
     ci: ChartInput,
     mode: str,
@@ -277,11 +328,12 @@ def _print_chart(
         by_kind.setdefault(e["kind"], []).append(e)
 
     if details:
-        _print_section("Planets", by_kind.get("Planet", []), house_label)
+        _print_planets_section(by_kind.get("Planet", []), house_label)
         _print_section("Angles", by_kind.get("Angle", []), house_label)
         _print_section("Nodes", by_kind.get("Node", []), house_label)
         _print_section("Points", by_kind.get("Point", []), house_label)
         _print_section("Lots", by_kind.get("Lot", []), house_label)
+        _print_tallies(chart, mode)
     else:
         _print_section(
             "Placements",
@@ -354,8 +406,37 @@ def _print_house_comparison(ci: ChartInput, mode: str, *, details: bool) -> None
     console.print(table)
 
 
-def _print_aspects(chart: Chart, details: bool = True) -> None:
-    aspects = compute_aspects(chart, details)
+def _chart_to_json(chart: Chart, ci: ChartInput, mode: str, details: bool) -> str:
+    entries = _collect_entries(chart, mode, details)
+    when = _to_datetime(ci)
+    return json.dumps(
+        {
+            "chart": {
+                "when": when.isoformat(),
+                "lat": ci.lat,
+                "lng": ci.lng,
+                "mode": mode,
+                "house_system": chart.house_system,
+            },
+            "bodies": [
+                {
+                    "name": e["name"],
+                    "sign": e["placement"].name,
+                    "degree": round(e["placement"].deg, 4),
+                    "lon": round(e["lon"], 4),
+                    "house": e["house"],
+                    "rx": e["rx"] == "℞",
+                }
+                for e in entries
+            ],
+            "cusps": [round(c, 4) for c in chart.cusps],
+        },
+        indent=2,
+    )
+
+
+def _aspect_tables(aspects: list, title_prefix: str) -> None:
+    """Render a list of Aspect objects grouped by kind."""
     if not aspects:
         return
     by_kind: dict[str, list] = {}
@@ -365,7 +446,7 @@ def _print_aspects(chart: Chart, details: bool = True) -> None:
         group = by_kind.get(kind)
         if not group:
             continue
-        table = _new_table(f"{kind} Aspects")
+        table = _new_table(f"{title_prefix}{kind} Aspects")
         table.add_column("Body A", style="bold")
         table.add_column("", justify="center")
         table.add_column("Body B", style="bold")
@@ -382,6 +463,18 @@ def _print_aspects(chart: Chart, details: bool = True) -> None:
                 fmt_orb(asp.orb),
             )
         console.print(table)
+
+
+def _print_aspects(chart: Chart, details: bool = True) -> None:
+    _aspect_tables(compute_aspects(chart, details), "")
+
+
+def _print_inter_aspects(
+    chart_a: Chart, chart_b: Chart, label_a: str, label_b: str, details: bool
+) -> None:
+    aspects = compute_inter_aspects(chart_a, chart_b, details)
+    prefix = f"{label_a.title()} → {label_b.title()}: "
+    _aspect_tables(aspects, prefix)
 
 
 def _print_cusps(chart: Chart, mode: str) -> None:
@@ -483,9 +576,41 @@ def chart_list() -> None:
     table.add_column("Lng", justify="right")
     for ci in charts:
         table.add_row(
-            ci.name, ci.date, ci.time, ci.tz, f"{ci.lat:.4f}", f"{ci.lng:.4f}"
+            ci.name.title(), ci.date, ci.time, ci.tz, f"{ci.lat:.4f}", f"{ci.lng:.4f}"
         )
     console.print(table)
+
+
+@chart_app.command(name="cusps")
+def chart_cusps(
+    target: str = typer.Argument(
+        ...,
+        help="Saved chart name, OR a birth date (YYYY-MM-DD) for a one-off chart "
+        "(in which case --lat and --lng are required).",
+    ),
+    time: str = typer.Argument("12:00", help="Birth time for one-off charts, HH:MM (24h)."),
+    lat: float = typer.Option(None, "--lat", help="One-off chart latitude (N positive)."),
+    lng: float = typer.Option(None, "--lng", help="One-off chart longitude (E positive)."),
+    tz: str = typer.Option("UTC", "--tz", help="IANA timezone, e.g. America/Chicago."),
+    mode: str = typer.Option("realsky", "--mode", help="Zodiac mode: realsky, tropical, or vedic."),
+    houses: str = typer.Option("porphyry", "--houses", help=f"House system: {', '.join(HOUSE_SYSTEMS)}."),
+) -> None:
+    """Print house cusps for a saved or one-off chart."""
+    _validate_mode(mode)
+    _validate_house_system(houses)
+    one_off = lat is not None or lng is not None
+    if one_off:
+        if lat is None or lng is None:
+            raise typer.BadParameter("One-off charts require both --lat and --lng.")
+        ci = ChartInput(name="", date=target, time=time, tz=tz, lat=lat, lng=lng)
+    else:
+        try:
+            ci = store.load(target)
+        except FileNotFoundError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+    when = _to_datetime(ci)
+    chart = Chart.build(when, ci.lat, ci.lng, house_system=houses)
+    _print_cusps(chart, mode)
 
 
 @chart_app.command(name="show")
@@ -529,6 +654,9 @@ def chart_show(
         "--group-by",
         help="Group entries by: category (default), sign, or house.",
     ),
+    fmt: str = typer.Option(
+        "table", "--format", help="Output format: table (default) or json."
+    ),
     compare_houses: bool = typer.Option(
         False,
         "--compare-houses",
@@ -555,6 +683,12 @@ def chart_show(
 
     _validate_group_by(group_by)
     _validate_house_system(houses)
+
+    if fmt == "json":
+        when = _to_datetime(ci)
+        chart = Chart.build(when, ci.lat, ci.lng, house_system=houses)
+        print(_chart_to_json(chart, ci, mode, details))
+        return
 
     if compare_houses:
         _print_house_comparison(ci, mode, details=details)
@@ -585,6 +719,36 @@ def chart_delete(
         typer.confirm(f"Delete saved chart {name!r}?", abort=True)
     path = store.delete(name)
     typer.echo(f"Deleted {path}")
+
+
+@chart_app.command(name="compare")
+def chart_compare(
+    name_a: str = typer.Argument(..., help="First saved chart name."),
+    name_b: str = typer.Argument(..., help="Second saved chart name."),
+    mode: str = typer.Option("realsky", "--mode", help="Zodiac mode: realsky, tropical, or vedic."),
+    houses: str = typer.Option("porphyry", "--houses", help=f"House system: {', '.join(HOUSE_SYSTEMS)}."),
+    details: bool = typer.Option(False, "--details", help="Include angles, nodes, and points in inter-aspects."),
+    aspects: bool = typer.Option(False, "--aspects", help="Print inter-aspect tables."),
+) -> None:
+    """Show synastry (inter-aspects) between two saved charts."""
+    _validate_mode(mode)
+    _validate_house_system(houses)
+    try:
+        ci_a = store.load(name_a)
+        ci_b = store.load(name_b)
+    except FileNotFoundError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    chart_a = Chart.build(_to_datetime(ci_a), ci_a.lat, ci_a.lng, house_system=houses)
+    chart_b = Chart.build(_to_datetime(ci_b), ci_b.lat, ci_b.lng, house_system=houses)
+
+    console.print(
+        f"[bold]Synastry:[/bold] [yellow]{ci_a.name.title()}[/yellow] ({ci_a.date})  ×  "
+        f"[yellow]{ci_b.name.title()}[/yellow] ({ci_b.date})  "
+        f"mode: [magenta]{mode}[/magenta]"
+    )
+    if aspects:
+        _print_inter_aspects(chart_a, chart_b, ci_a.name, ci_b.name, details)
 
 
 def main() -> None:

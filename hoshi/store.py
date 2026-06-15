@@ -47,7 +47,7 @@ def save(chart_input: ChartInput, *, overwrite: bool = False) -> Path:
             f"Pass --force to overwrite."
         )
     CHARTS_DIR.mkdir(exist_ok=True)
-    path.write_text(chart_input.model_dump_json(indent=2))
+    path.write_text(chart_input.model_copy(update={"name": chart_input.name.lower()}).model_dump_json(indent=2))
     return path
 
 
