@@ -14,6 +14,7 @@ from hoshi import store
 from hoshi.aspects import KIND_ORDER, compute_aspects, compute_inter_aspects, fmt_orb
 from hoshi.chart import HOUSE_SYSTEMS, Chart
 from hoshi.dignities import DIGNITY_SYMBOLS, dignity_for, element_modality_tally
+from hoshi.houses import house_13_arc, house_from_cusps
 from hoshi.store import ChartInput
 from hoshi.zodiac import IAU, TROP_NAMES, Placement, format_deg
 
@@ -724,6 +725,152 @@ def chart_delete(
         typer.confirm(f"Delete saved chart {name!r}?", abort=True)
     path = store.delete(name)
     typer.echo(f"Deleted {path}")
+
+
+def _collect_transit_entries(
+    transit: Chart, natal: Chart, mode: str, details: bool
+) -> list[dict]:
+    """Like _collect_entries but house numbers come from natal chart cusps."""
+    natal_asc = next(a.placed.lon for a in natal.angles if a.name == "asc")
+
+    def natal_house(lon: float) -> int:
+        if natal.house_system == "arc13":
+            return house_13_arc(lon, natal_asc)
+        return house_from_cusps(lon, natal.cusps)
+
+    def row(kind: str, name: str, placed, lon: float, rx: str = "") -> dict:
+        return {
+            "kind": kind,
+            "name": name,
+            "placement": getattr(placed, mode),
+            "lon": lon,
+            "house": natal_house(lon),
+            "rx": rx,
+        }
+
+    entries: list[dict] = []
+    for p in transit.planets:
+        entries.append(
+            row("Planet", p.pid.capitalize(), p.placed, p.placed.lon, "℞" if p.pos.retrograde else "")
+        )
+    angles = transit.angles if details else [a for a in transit.angles if a.name == "asc"]
+    for a in angles:
+        entries.append(row("Angle", ANGLE_DISPLAY_NAMES[a.name], a.placed, a.placed.lon))
+    if details:
+        for pt in transit.points:
+            kind = "Node" if pt.name in NODE_NAMES else "Point"
+            entries.append(row(kind, pt.name, pt.placed, pt.placed.lon))
+        for pt in transit.lots:
+            entries.append(row("Lot", pt.name, pt.placed, pt.placed.lon))
+    return entries
+
+
+def _print_transits(
+    ci_natal: ChartInput,
+    transit_dt: datetime,
+    mode: str,
+    *,
+    details: bool,
+    aspects: bool,
+    show_natal: bool,
+    house_system: str,
+) -> None:
+    chart_natal = Chart.build(_to_datetime(ci_natal), ci_natal.lat, ci_natal.lng, house_system=house_system)
+    chart_transit = Chart.build(transit_dt, ci_natal.lat, ci_natal.lng, house_system=house_system)
+
+    label = f"[yellow]\\[{ci_natal.name.title()}][/yellow]"
+    console.print(
+        f"[bold]Transits:[/bold] {label} natal {ci_natal.date}  →  "
+        f"transit {transit_dt.strftime('%Y-%m-%d %H:%M %Z').strip()}  "
+        f"mode: [magenta]{mode}[/magenta]  houses: [magenta]{chart_natal.house_system}[/magenta]"
+    )
+
+    transit_entries = _collect_transit_entries(chart_transit, chart_natal, mode, details)
+
+    if show_natal:
+        natal_entries = _collect_entries(chart_natal, mode, details)
+        table = _new_table("Natal vs Transits  (H = natal house)")
+        table.add_column("Name", style="bold")
+        table.add_column("Natal Sign")
+        table.add_column("Natal Deg", justify="right")
+        table.add_column("→", justify="center")
+        table.add_column("Transit Sign")
+        table.add_column("Transit Deg", justify="right")
+        table.add_column("Rx", justify="center")
+        table.add_column("H", justify="right")
+        for n, t in zip(natal_entries, transit_entries):
+            table.add_row(
+                n["name"],
+                n["placement"].name,
+                format_deg(n["placement"].deg),
+                "→",
+                t["placement"].name,
+                format_deg(t["placement"].deg),
+                t["rx"] or "",
+                str(t["house"]),
+            )
+        console.print(table)
+    else:
+        by_kind: dict[str, list[dict]] = {}
+        for e in transit_entries:
+            by_kind.setdefault(e["kind"], []).append(e)
+        if details:
+            _print_section("Planets", by_kind.get("Planet", []), "H")
+            _print_section("Angles", by_kind.get("Angle", []), "H")
+            _print_section("Nodes", by_kind.get("Node", []), "H")
+            _print_section("Points", by_kind.get("Point", []), "H")
+            _print_section("Lots", by_kind.get("Lot", []), "H")
+        else:
+            _print_section(
+                "Transiting Planets  (H = natal house)",
+                by_kind.get("Planet", []) + by_kind.get("Angle", []),
+                "H",
+            )
+
+    if aspects:
+        _print_inter_aspects(chart_natal, chart_transit, ci_natal.name, "transit", details)
+
+
+@chart_app.command(name="transits")
+def chart_transits(
+    name: str = typer.Argument(..., help="Saved natal chart name."),
+    date: str | None = typer.Argument(None, help="Transit date YYYY-MM-DD (default: today)."),
+    time: str | None = typer.Argument(None, help="Transit time HH:MM 24h (default: now)."),
+    tz: str = typer.Option("UTC", "--tz", help="IANA timezone for the transit date/time."),
+    mode: str = typer.Option("realsky", "--mode", help="Zodiac mode: realsky, tropical, or vedic."),
+    houses: str = typer.Option(
+        "porphyry", "--houses", help=f"House system: {', '.join(HOUSE_SYSTEMS)}."
+    ),
+    details: bool = typer.Option(
+        False, "--details", help="Include angles, nodes, and points."
+    ),
+    aspects: bool = typer.Option(
+        False, "--aspects", help="Print inter-aspect tables (natal × transit)."
+    ),
+    natal: bool = typer.Option(
+        False, "--natal", help="Show natal placements alongside transits in a side-by-side table."
+    ),
+) -> None:
+    """Compare a saved natal chart against current (or specified date) transiting planets."""
+    _validate_mode(mode)
+    _validate_house_system(houses)
+    try:
+        ci = store.load(name)
+    except FileNotFoundError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    now = datetime.now().astimezone()
+    if date is None:
+        transit_dt = now
+    else:
+        t = time if time is not None else now.strftime("%H:%M")
+        try:
+            local = datetime.fromisoformat(f"{date}T{t}")
+        except ValueError as exc:
+            raise typer.BadParameter(f"Could not parse date/time: {exc}") from exc
+        transit_dt = local.replace(tzinfo=ZoneInfo(tz))
+
+    _print_transits(ci, transit_dt, mode, details=details, aspects=aspects, show_natal=natal, house_system=houses)
 
 
 @chart_app.command(name="compare")
