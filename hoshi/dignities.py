@@ -86,21 +86,28 @@ def _sign_attrs(sign: str) -> tuple[str, str] | None:
     return _TROP_SIGN_ATTRS.get(sign) or _REALSKY_EXTRA.get(sign)
 
 
-def element_modality_tally(chart: Chart, mode: str) -> dict[str, dict[str, int]]:
-    """Count element and modality occurrences across chart planets only.
-
-    Returns {"elements": {"Fire": n, ...}, "modalities": {"Cardinal": n, ...}}
-    """
+def _tally_bodies(bodies: list, mode: str) -> dict[str, dict[str, int]]:
     elements: dict[str, int] = {}
     modalities: dict[str, int] = {}
-
-    for planet in chart.planets:
-        placement = getattr(planet.placed, mode)
+    for body in bodies:
+        placement = getattr(body.placed, mode)
         attrs = _sign_attrs(placement.name)
         if attrs is None:
             continue
         elem, mod = attrs
         elements[elem] = elements.get(elem, 0) + 1
         modalities[mod] = modalities.get(mod, 0) + 1
-
     return {"elements": elements, "modalities": modalities}
+
+
+def element_modality_tally(chart: Chart, mode: str) -> dict[str, dict[str, dict[str, int]]]:
+    """Count element and modality occurrences, returning primary (planets) and total (all bodies).
+
+    Returns {"primary": {"elements": {...}, "modalities": {...}},
+             "total":   {"elements": {...}, "modalities": {...}}}
+    """
+    all_bodies = list(chart.planets) + list(chart.angles) + list(chart.points) + list(chart.lots)
+    return {
+        "primary": _tally_bodies(chart.planets, mode),
+        "total":   _tally_bodies(all_bodies, mode),
+    }
