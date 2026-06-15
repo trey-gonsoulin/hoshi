@@ -31,12 +31,13 @@ Hoshi is a Python CLI for astrological charting, with a focus on real-sky astrol
 ## CLI commands
 
 ```
-hoshi chart add   NAME DATE [TIME] --lat --lng [--tz] [--mode] [--houses] [--details] [--aspects] [--group-by] [--cusps] [--force]
-hoshi chart show  NAME|DATE [TIME] --lat --lng ...   [--format table|json] [--compare-houses]
-hoshi chart cusps NAME|DATE [TIME] --lat --lng ...   [--mode] [--houses]
-hoshi chart compare NAME1 NAME2                      [--mode] [--houses] [--aspects] [--details]
+hoshi chart add      NAME DATE [TIME] --lat --lng [--tz] [--mode] [--houses] [--details] [--aspects] [--group-by] [--cusps] [--force]
+hoshi chart show     NAME|DATE [TIME] --lat --lng ...   [--format table|json] [--compare-houses]
+hoshi chart cusps    NAME|DATE [TIME] --lat --lng ...   [--mode] [--houses]
+hoshi chart transits NAME [DATE [TIME]]                 [--tz] [--mode] [--houses] [--details] [--aspects] [--natal]
+hoshi chart compare  NAME1 NAME2                        [--mode] [--houses] [--aspects] [--details]
 hoshi chart list
-hoshi chart delete NAME [--yes]
+hoshi chart delete   NAME [--yes]
 ```
 
 ## Three zodiac modes

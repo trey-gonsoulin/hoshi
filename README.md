@@ -20,15 +20,17 @@ On first run, Skyfield downloads `de421.bsp` (~17 MB) into the current directory
 ## Commands
 
 ```sh
-hoshi chart add    NAME DATE [TIME] --lat LAT --lng LNG [--tz TZ] [--mode MODE] [--houses SYS]
-                                    [--details] [--aspects] [--group-by category|sign|house]
-                                    [--cusps] [--force]
-hoshi chart show   NAME|DATE [TIME] --lat LAT --lng LNG ...
-                                    [--format table|json] [--compare-houses]
-hoshi chart cusps  NAME|DATE [TIME] --lat LAT --lng LNG ... [--mode MODE] [--houses SYS]
-hoshi chart compare NAME1 NAME2     [--mode MODE] [--houses SYS] [--aspects] [--details]
+hoshi chart add      NAME DATE [TIME] --lat LAT --lng LNG [--tz TZ] [--mode MODE] [--houses SYS]
+                                      [--details] [--aspects] [--group-by category|sign|house]
+                                      [--cusps] [--force]
+hoshi chart show     NAME|DATE [TIME] --lat LAT --lng LNG ...
+                                      [--format table|json] [--compare-houses]
+hoshi chart cusps    NAME|DATE [TIME] --lat LAT --lng LNG ... [--mode MODE] [--houses SYS]
+hoshi chart transits NAME [DATE [TIME]] [--tz TZ] [--mode MODE] [--houses SYS]
+                                        [--details] [--aspects] [--natal]
+hoshi chart compare  NAME1 NAME2        [--mode MODE] [--houses SYS] [--aspects] [--details]
 hoshi chart list
-hoshi chart delete NAME [--yes]
+hoshi chart delete   NAME [--yes]
 ```
 
 `NAME|DATE` — pass a saved chart name, or a `YYYY-MM-DD` date with `--lat`/`--lng` for a one-off chart.
@@ -103,6 +105,20 @@ The Planets table in `--details` shows a dignity indicator per planet:
 | ✕ | Fall |
 
 Assignments follow standard conventions adapted for the 13-sign real-sky scheme (Chiron domicile = Ophiuchus).
+
+## Transits
+
+```sh
+hoshi chart transits person               # current moment vs natal
+hoshi chart transits person 2026-01-01    # specific date (noon UTC)
+hoshi chart transits person 2026-01-01 14:30 --tz America/Chicago
+hoshi chart transits person --natal       # side-by-side natal vs transit table
+hoshi chart transits person --aspects     # inter-aspects (natal × transit)
+```
+
+Computes current (or specified date) planetary positions and places them against the saved natal chart. The house column (`H`) always shows which **natal house** each transiting planet falls in, using the natal chart's cusps.
+
+`--natal` adds a side-by-side table showing each body's natal sign/degree alongside its current transit sign/degree. `--details` and `--aspects` work the same as in other commands.
 
 ## Synastry
 
