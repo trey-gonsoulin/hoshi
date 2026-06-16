@@ -64,7 +64,7 @@ class PointChart(BaseModel, frozen=True):
 class Chart(BaseModel, frozen=True):
     when: datetime
     lat: float
-    lng: float
+    lon: float
     ayanamsa: float
     house_system: str
     angles: list[AngleChart]
@@ -78,7 +78,7 @@ class Chart(BaseModel, frozen=True):
         cls,
         when: datetime,
         lat: float,
-        lng: float,
+        lon: float,
         house_system: str = "porphyry",
     ) -> "Chart":
         """Compute a full birth chart for the given moment and location."""
@@ -88,7 +88,7 @@ class Chart(BaseModel, frozen=True):
             )
         ayan = lahiri_ayanamsa(when)
         prec = ecliptic_precession(when)
-        angles = Angles.compute(when, lat, lng)
+        angles = Angles.compute(when, lat, lon)
         pos = positions(when)
         lunar = LunarElements.at(when)
 
@@ -97,7 +97,7 @@ class Chart(BaseModel, frozen=True):
         elif house_system == "equal":
             cusps = equal_cusps(angles.asc)
         elif house_system == "placidus":
-            cusps = placidus_cusps(when, lat, lng, angles)
+            cusps = placidus_cusps(when, lat, lon, angles)
         else:  # arc13
             cusps = arc13_cusps(angles.asc)
 
@@ -156,7 +156,7 @@ class Chart(BaseModel, frozen=True):
         return cls(
             when=when,
             lat=lat,
-            lng=lng,
+            lon=lon,
             ayanamsa=ayan,
             house_system=house_system,
             angles=angle_charts,

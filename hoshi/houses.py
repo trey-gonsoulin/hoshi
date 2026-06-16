@@ -55,10 +55,10 @@ class Angles(BaseModel, frozen=True):
     antivertex: float
 
     @classmethod
-    def compute(cls, when: datetime, lat: float, lng: float) -> "Angles":
+    def compute(cls, when: datetime, lat: float, lon: float) -> "Angles":
         """ASC/MC/IC/DSC and Vertex/Antivertex in ecliptic degrees.
 
-        `lng` is geographic longitude, east positive (e.g. Chicago ≈ -87.65).
+        `lon` is geographic longitude, east positive (e.g. Chicago ≈ -87.65).
         """
         if when.tzinfo is None:
             raise ValueError("`when` must be timezone-aware (use UTC)")
@@ -69,7 +69,7 @@ class Angles(BaseModel, frozen=True):
         gmst = _n360(
             280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * T * T
         )
-        ramc = _n360(gmst + lng)
+        ramc = _n360(gmst + lon)
         eps = math.radians(23.439291111 - 0.013004167 * T)
         lat_r = math.radians(lat)
         ramc_r = math.radians(ramc)
@@ -109,7 +109,7 @@ class Angles(BaseModel, frozen=True):
 
 
 def placidus_cusps(
-    when: datetime, lat: float, lng: float, angles: Angles
+    when: datetime, lat: float, lon: float, angles: Angles
 ) -> list[float]:
     """Return the 12 Placidus house cusps in ecliptic degrees.
 
@@ -125,7 +125,7 @@ def placidus_cusps(
     gmst = _n360(
         280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * T * T
     )
-    ramc = _n360(gmst + lng)
+    ramc = _n360(gmst + lon)
     eps = math.radians(23.439291111 - 0.013004167 * T)
     lat_r = math.radians(lat)
 
