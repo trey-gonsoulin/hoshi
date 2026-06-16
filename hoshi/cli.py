@@ -12,8 +12,9 @@ from rich.text import Text
 
 from hoshi import store
 from hoshi.aspects import KIND_ORDER, compute_aspects, compute_inter_aspects, fmt_orb
-from hoshi.chart import HOUSE_SYSTEMS, Chart
+from hoshi.chart import HOUSE_SYSTEMS, Chart, Placed
 from hoshi.dignities import DIGNITY_SYMBOLS, dignity_for, element_modality_tally
+from hoshi.ephemeris import ecliptic_precession, lahiri_ayanamsa, positions
 from hoshi.houses import house_13_arc, house_from_cusps
 from hoshi.store import ChartInput
 from hoshi.zodiac import IAU, TROP_NAMES, Placement, format_deg
@@ -78,18 +79,42 @@ def _sign_order(mode: str) -> list[str]:
     return [s.name for s in IAU] if mode == "realsky" else TROP_NAMES
 
 
+def _uncertain_pids(ci: ChartInput, mode: str) -> frozenset[str]:
+    """Return the set of planet pids whose sign changes at any point on the birth date.
+
+    Only inner planets (Sun through Mars) can realistically change sign in 24 hours;
+    outer planets are excluded from the check to avoid unnecessary Horizons fetches.
+    """
+    d = datetime.fromisoformat(ci.date)
+    tz = ZoneInfo(ci.tz)
+    start = d.replace(hour=0, minute=0, second=0, tzinfo=tz)
+    end = d.replace(hour=23, minute=59, second=59, tzinfo=tz)
+    pos_start = positions(start)
+    pos_end = positions(end)
+    ayan = lahiri_ayanamsa(start)
+    prec_start = ecliptic_precession(start)
+    prec_end = ecliptic_precession(end)
+    uncertain: set[str] = set()
+    for pid in ("sun", "moon", "mercury", "venus", "mars"):
+        s = getattr(Placed.for_longitude(pos_start[pid].lon, ayan, prec_start), mode).name
+        e = getattr(Placed.for_longitude(pos_end[pid].lon, ayan, prec_end), mode).name
+        if s != e:
+            uncertain.add(pid)
+    return frozenset(uncertain)
+
+
 def _collect_entries(
     chart: Chart,
     mode: str,
     details: bool,
     *,
-    uncertain: bool = False,
+    uncertain_pids: frozenset[str] = frozenset(),
     include_angles: bool = True,
     include_lots: bool = True,
 ) -> list[dict]:
     """Flatten all displayed bodies into one record list for pivoting."""
 
-    def row(kind: str, name: str, placed, lon: float, house: int, rx: str = "") -> dict:
+    def row(kind: str, name: str, placed, lon: float, house: int, rx: str = "", pid: str = "") -> dict:
         return {
             "kind": kind,
             "name": name,
@@ -97,7 +122,7 @@ def _collect_entries(
             "lon": lon,
             "house": house,
             "rx": rx,
-            "uncertain": uncertain,
+            "uncertain": pid in uncertain_pids,
         }
 
     entries: list[dict] = []
@@ -110,6 +135,7 @@ def _collect_entries(
                 p.placed.lon,
                 p.house,
                 "℞" if p.pos.retrograde else "",
+                pid=p.pid,
             )
         )
     if include_angles:
@@ -280,8 +306,8 @@ def _print_planets_section(entries: list[dict], house_label: str | None) -> None
     console.print(table)
 
 
-def _print_tallies(chart: Chart, mode: str) -> None:
-    tally = element_modality_tally(chart, mode)
+def _print_tallies(chart: Chart, mode: str, *, show_full: bool = True) -> None:
+    tally = element_modality_tally(chart, mode, include_angles=show_full, include_lots=show_full)
     pri_e = tally["primary"]["elements"]
     tot_e = tally["total"]["elements"]
     pri_m = tally["primary"]["modalities"]
@@ -345,19 +371,26 @@ def _print_chart(
     if mode == "vedic":
         console.print(f"Ayanamsa (Lahiri, approx): {chart.ayanamsa:.4f}°")
 
+    house_label: str | None = "H" if show_full else None
+    uncertain_pids = _uncertain_pids(ci, mode) if not time_known else frozenset()
+
     if not time_known:
-        console.print(
-            "[yellow]⚠ Birth time unknown — planet degrees approximate; Moon sign may differ[/yellow]"
-        )
+        if uncertain_pids:
+            names = ", ".join(p.capitalize() for p in uncertain_pids)
+            console.print(
+                f"[yellow]⚠ Birth time unknown — {names} may be in a different sign (highlighted)[/yellow]"
+            )
+        else:
+            console.print(
+                "[yellow]⚠ Birth time unknown — all signs stable on this date, degrees approximate[/yellow]"
+            )
     if not loc_known:
         console.print(
             "[yellow]⚠ Birth location unknown — angles and houses omitted[/yellow]"
         )
-
-    house_label: str | None = "H" if show_full else None
     entries = _collect_entries(
         chart, mode, details,
-        uncertain=not time_known,
+        uncertain_pids=uncertain_pids,
         include_angles=show_full,
         include_lots=show_full,
     )
@@ -399,7 +432,7 @@ def _print_chart(
         _print_section("Points", by_kind.get("Point", []), house_label)
         if show_full:
             _print_section("Lots", by_kind.get("Lot", []), house_label)
-        _print_tallies(chart, mode)
+        _print_tallies(chart, mode, show_full=show_full)
     else:
         _print_section(
             "Placements",
@@ -478,9 +511,10 @@ def _chart_to_json(chart: Chart, ci: ChartInput, mode: str, details: bool) -> st
     time_known = ci.time_known
     loc_known = ci.location_known
     show_full = time_known and loc_known
+    uncertain_pids = _uncertain_pids(ci, mode) if not time_known else frozenset()
     entries = _collect_entries(
         chart, mode, details,
-        uncertain=not time_known,
+        uncertain_pids=uncertain_pids,
         include_angles=show_full,
         include_lots=show_full,
     )
@@ -915,9 +949,10 @@ def _print_transits(
 
     if show_natal:
         natal_show_full = natal_time_known and natal_loc_known
+        natal_uncertain_pids = _uncertain_pids(ci_natal, mode) if not natal_time_known else frozenset()
         natal_entries = _collect_entries(
             chart_natal, mode, details,
-            uncertain=not natal_time_known,
+            uncertain_pids=natal_uncertain_pids,
             include_angles=natal_show_full,
             include_lots=natal_show_full,
         )

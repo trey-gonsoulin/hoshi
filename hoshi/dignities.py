@@ -100,13 +100,24 @@ def _tally_bodies(bodies: list, mode: str) -> dict[str, dict[str, int]]:
     return {"elements": elements, "modalities": modalities}
 
 
-def element_modality_tally(chart: Chart, mode: str) -> dict[str, dict[str, dict[str, int]]]:
+def element_modality_tally(
+    chart: Chart,
+    mode: str,
+    *,
+    include_angles: bool = True,
+    include_lots: bool = True,
+) -> dict[str, dict[str, dict[str, int]]]:
     """Count element and modality occurrences, returning primary (planets) and total (all bodies).
 
     Returns {"primary": {"elements": {...}, "modalities": {...}},
              "total":   {"elements": {...}, "modalities": {...}}}
     """
-    all_bodies = list(chart.planets) + list(chart.angles) + list(chart.points) + list(chart.lots)
+    all_bodies = list(chart.planets)
+    if include_angles:
+        all_bodies += list(chart.angles)
+    all_bodies += list(chart.points)
+    if include_lots:
+        all_bodies += list(chart.lots)
     return {
         "primary": _tally_bodies(chart.planets, mode),
         "total":   _tally_bodies(all_bodies, mode),
