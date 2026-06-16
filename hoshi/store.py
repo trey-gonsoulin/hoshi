@@ -7,7 +7,9 @@ Chiron/lunar Horizons responses are cached separately.
 """
 
 import re
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel
 
@@ -18,10 +20,24 @@ CHARTS_DIR = Path("charts")
 class ChartInput(BaseModel, frozen=True):
     name: str
     date: str  # YYYY-MM-DD
-    time: str  # HH:MM (24h)
-    tz: str  # IANA timezone, e.g. "America/Chicago"
-    lat: float
-    lng: float
+    time: str | None = None  # HH:MM (24h); None = unknown, noon UTC used for computation
+    tz: str = "UTC"  # IANA timezone; ignored when time is None
+    lat: float | None = None  # degrees N positive; None = unknown
+    lon: float | None = None  # degrees E positive; None = unknown
+
+    @property
+    def time_known(self) -> bool:
+        return self.time is not None
+
+    @property
+    def location_known(self) -> bool:
+        return self.lat is not None and self.lon is not None
+
+    def to_datetime(self) -> datetime:
+        time_str = self.time if self.time is not None else "12:00"
+        tz_str = self.tz if self.time is not None else "UTC"
+        local = datetime.fromisoformat(f"{self.date}T{time_str}")
+        return local.replace(tzinfo=ZoneInfo(tz_str))
 
 
 def _safe_filename(name: str) -> str:

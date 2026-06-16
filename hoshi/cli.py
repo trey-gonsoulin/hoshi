@@ -70,13 +70,6 @@ def _validate_house_system(house_system: str) -> None:
         )
 
 
-def _to_datetime(ci: ChartInput) -> datetime:
-    try:
-        local = datetime.fromisoformat(f"{ci.date}T{ci.time}")
-    except ValueError as exc:
-        raise typer.BadParameter(f"Could not parse date/time: {exc}") from exc
-    return local.replace(tzinfo=ZoneInfo(ci.tz))
-
 
 NODE_NAMES = {"N.Node", "S.Node"}
 
@@ -85,7 +78,15 @@ def _sign_order(mode: str) -> list[str]:
     return [s.name for s in IAU] if mode == "realsky" else TROP_NAMES
 
 
-def _collect_entries(chart: Chart, mode: str, details: bool) -> list[dict]:
+def _collect_entries(
+    chart: Chart,
+    mode: str,
+    details: bool,
+    *,
+    uncertain: bool = False,
+    include_angles: bool = True,
+    include_lots: bool = True,
+) -> list[dict]:
     """Flatten all displayed bodies into one record list for pivoting."""
 
     def row(kind: str, name: str, placed, lon: float, house: int, rx: str = "") -> dict:
@@ -96,6 +97,7 @@ def _collect_entries(chart: Chart, mode: str, details: bool) -> list[dict]:
             "lon": lon,
             "house": house,
             "rx": rx,
+            "uncertain": uncertain,
         }
 
     entries: list[dict] = []
@@ -110,17 +112,19 @@ def _collect_entries(chart: Chart, mode: str, details: bool) -> list[dict]:
                 "℞" if p.pos.retrograde else "",
             )
         )
-    angles = chart.angles if details else [a for a in chart.angles if a.name == "asc"]
-    for a in angles:
-        entries.append(
-            row("Angle", ANGLE_DISPLAY_NAMES[a.name], a.placed, a.placed.lon, a.house)
-        )
+    if include_angles:
+        angles = chart.angles if details else [a for a in chart.angles if a.name == "asc"]
+        for a in angles:
+            entries.append(
+                row("Angle", ANGLE_DISPLAY_NAMES[a.name], a.placed, a.placed.lon, a.house)
+            )
     if details:
         for pt in chart.points:
             kind = "Node" if pt.name in NODE_NAMES else "Point"
             entries.append(row(kind, pt.name, pt.placed, pt.placed.lon, pt.house))
-        for pt in chart.lots:
-            entries.append(row("Lot", pt.name, pt.placed, pt.placed.lon, pt.house))
+        if include_lots:
+            for pt in chart.lots:
+                entries.append(row("Lot", pt.name, pt.placed, pt.placed.lon, pt.house))
     return entries
 
 
@@ -144,14 +148,19 @@ def _add_entity_row(
     include_rx: bool,
     include_house: bool,
 ) -> None:
-    cells: list[str] = []
+    uncertain = e.get("uncertain", False)
+
+    def _s(val: str) -> "str | Text":
+        return Text(val, style="yellow") if uncertain else val
+
+    cells: list = []
     if include_kind:
         cells.append(e["kind"])
     cells.append(e["name"])
     if include_sign:
-        cells.append(e["placement"].name)
-    cells.append(format_deg(e["placement"].deg))
-    cells.append(f"{e['lon']:.2f}°")
+        cells.append(_s(e["placement"].name))
+    cells.append(_s(format_deg(e["placement"].deg)))
+    cells.append(_s(f"{e['lon']:.2f}°"))
     if include_rx:
         cells.append(e["rx"] or "")
     if include_house:
@@ -159,7 +168,7 @@ def _add_entity_row(
     table.add_row(*cells)
 
 
-def _print_by_sign(entries: list[dict], mode: str, house_label: str) -> None:
+def _print_by_sign(entries: list[dict], mode: str, house_label: str | None) -> None:
     order = _sign_order(mode)
     rank = {name: i for i, name in enumerate(order)}
     grouped: dict[str, list[dict]] = {}
@@ -174,18 +183,19 @@ def _print_by_sign(entries: list[dict], mode: str, house_label: str) -> None:
         table.add_column("Degree", justify="right")
         table.add_column("Lon", justify="right")
         table.add_column("Rx", justify="center")
-        table.add_column(house_label, justify="right")
+        if house_label is not None:
+            table.add_column(house_label, justify="right")
         for e in rows:
             _add_entity_row(
                 table, e,
                 include_kind=True, include_sign=False,
-                include_rx=True, include_house=True,
+                include_rx=True, include_house=house_label is not None,
             )
         console.print(table)
 
 
 def _print_by_house(
-    entries: list[dict], asc: float, house_label: str, chart: Chart, mode: str
+    entries: list[dict], asc: float, house_label: str | None, chart: Chart, mode: str
 ) -> None:
     grouped: dict[int, list[dict]] = {}
     for e in entries:
@@ -217,7 +227,7 @@ def _print_by_house(
 
 
 def _print_section(
-    title: str, entries: list[dict], house_label: str
+    title: str, entries: list[dict], house_label: str | None
 ) -> None:
     """Render one category section (Planets/Angles/Nodes/Points/Lots)."""
     table = _new_table(title)
@@ -226,17 +236,18 @@ def _print_section(
     table.add_column("Degree", justify="right")
     table.add_column("Lon", justify="right")
     table.add_column("Rx", justify="center")
-    table.add_column(house_label, justify="right")
+    if house_label is not None:
+        table.add_column(house_label, justify="right")
     for e in entries:
         _add_entity_row(
             table, e,
             include_kind=False, include_sign=True,
-            include_rx=True, include_house=True,
+            include_rx=True, include_house=house_label is not None,
         )
     console.print(table)
 
 
-def _print_planets_section(entries: list[dict], house_label: str) -> None:
+def _print_planets_section(entries: list[dict], house_label: str | None) -> None:
     """Planets section with an extra Dignity column."""
     table = _new_table("Planets")
     table.add_column("Name", style="bold")
@@ -244,20 +255,28 @@ def _print_planets_section(entries: list[dict], house_label: str) -> None:
     table.add_column("Degree", justify="right")
     table.add_column("Lon", justify="right")
     table.add_column("Rx", justify="center")
-    table.add_column(house_label, justify="right")
+    if house_label is not None:
+        table.add_column(house_label, justify="right")
     table.add_column("Dig", justify="center")
     for e in entries:
+        uncertain = e.get("uncertain", False)
+
+        def _s(val: str, u: bool = uncertain) -> "str | Text":
+            return Text(val, style="yellow") if u else val
+
         p = e["placement"]
         dig = dignity_for(e["name"], p.name)
-        table.add_row(
+        row: list = [
             e["name"],
-            p.name,
-            format_deg(p.deg),
-            f"{e['lon']:.2f}°",
+            _s(p.name),
+            _s(format_deg(p.deg)),
+            _s(f"{e['lon']:.2f}°"),
             e["rx"] or "",
-            str(e["house"]),
-            DIGNITY_SYMBOLS.get(dig, "") if dig else "",
-        )
+        ]
+        if house_label is not None:
+            row.append(str(e["house"]))
+        row.append(DIGNITY_SYMBOLS.get(dig, "") if dig else "")
+        table.add_row(*row)
     console.print(table)
 
 
@@ -300,14 +319,25 @@ def _print_chart(
     group_by: str = "category",
     house_system: str = "porphyry",
 ) -> None:
-    when = _to_datetime(ci)
-    chart = Chart.build(when, ci.lat, ci.lng, house_system=house_system)
-    house_label = "H"
+    time_known = ci.time_known
+    loc_known = ci.location_known
+    show_full = time_known and loc_known
 
+    try:
+        when = ci.to_datetime()
+    except ValueError as exc:
+        raise typer.BadParameter(f"Could not parse date/time: {exc}") from exc
+    lat = ci.lat if ci.lat is not None else 0.001
+    lon = ci.lon if ci.lon is not None else 0.0
+    chart = Chart.build(when, lat, lon, house_system=house_system)
+
+    # Header — omit unknown fields
+    when_str = when.strftime("%Y-%m-%d") if not time_known else when.isoformat()
+    loc_str = f"([cyan]{lat:.4f}°[/cyan], [cyan]{lon:.4f}°[/cyan])  " if loc_known else ""
+    houses_str = f"  houses: [magenta]{chart.house_system}[/magenta]" if show_full else ""
     header = (
-        f"[bold]Chart for[/bold] {when.isoformat()}  "
-        f"([cyan]{ci.lat:.4f}°[/cyan], [cyan]{ci.lng:.4f}°[/cyan])  "
-        f"mode: [magenta]{mode}[/magenta]  houses: [magenta]{chart.house_system}[/magenta]"
+        f"[bold]Chart for[/bold] {when_str}  {loc_str}"
+        f"mode: [magenta]{mode}[/magenta]{houses_str}"
     )
     if ci.name:
         header = f"[yellow]\\[{ci.name.title()}][/yellow] " + header
@@ -315,17 +345,45 @@ def _print_chart(
     if mode == "vedic":
         console.print(f"Ayanamsa (Lahiri, approx): {chart.ayanamsa:.4f}°")
 
-    entries = _collect_entries(chart, mode, details)
+    if not time_known:
+        console.print(
+            "[yellow]⚠ Birth time unknown — planet degrees approximate; Moon sign may differ[/yellow]"
+        )
+    if not loc_known:
+        console.print(
+            "[yellow]⚠ Birth location unknown — angles and houses omitted[/yellow]"
+        )
 
-    if group_by != "category":
-        if group_by == "sign":
-            _print_by_sign(entries, mode, house_label)
-        else:
-            asc = next(a.placed.lon for a in chart.angles if a.name == "asc")
-            _print_by_house(entries, asc, house_label, chart, mode)
+    house_label: str | None = "H" if show_full else None
+    entries = _collect_entries(
+        chart, mode, details,
+        uncertain=not time_known,
+        include_angles=show_full,
+        include_lots=show_full,
+    )
+
+    # Fallback from group-by house when houses unavailable
+    if group_by == "house" and not show_full:
+        console.print(
+            "[yellow]⚠ Cannot group by house without known birth time and location; "
+            "using category grouping.[/yellow]"
+        )
+        group_by = "category"
+
+    if group_by == "sign":
+        _print_by_sign(entries, mode, house_label)
         if aspects:
             _print_aspects(chart, details)
-        if show_cusps:
+        if show_cusps and show_full:
+            _print_cusps(chart, mode)
+        return
+
+    if group_by == "house":
+        asc = next(a.placed.lon for a in chart.angles if a.name == "asc")
+        _print_by_house(entries, asc, house_label, chart, mode)
+        if aspects:
+            _print_aspects(chart, details)
+        if show_cusps and show_full:
             _print_cusps(chart, mode)
         return
 
@@ -335,10 +393,12 @@ def _print_chart(
 
     if details:
         _print_planets_section(by_kind.get("Planet", []), house_label)
-        _print_section("Angles", by_kind.get("Angle", []), house_label)
+        if show_full:
+            _print_section("Angles", by_kind.get("Angle", []), house_label)
         _print_section("Nodes", by_kind.get("Node", []), house_label)
         _print_section("Points", by_kind.get("Point", []), house_label)
-        _print_section("Lots", by_kind.get("Lot", []), house_label)
+        if show_full:
+            _print_section("Lots", by_kind.get("Lot", []), house_label)
         _print_tallies(chart, mode)
     else:
         _print_section(
@@ -349,7 +409,7 @@ def _print_chart(
 
     if aspects:
         _print_aspects(chart, details)
-    if show_cusps:
+    if show_cusps and show_full:
         _print_cusps(chart, mode)
 
 
@@ -365,9 +425,11 @@ def _entity_houses(chart: Chart, details: bool) -> list[int]:
 
 
 def _print_house_comparison(ci: ChartInput, mode: str, *, details: bool) -> None:
-    when = _to_datetime(ci)
+    when = ci.to_datetime()
+    lat = ci.lat if ci.lat is not None else 0.001
+    lon = ci.lon if ci.lon is not None else 0.0
     charts = {
-        sys: Chart.build(when, ci.lat, ci.lng, house_system=sys)
+        sys: Chart.build(when, lat, lon, house_system=sys)
         for sys in HOUSE_SYSTEMS
     }
     base = charts["porphyry"]
@@ -376,7 +438,7 @@ def _print_house_comparison(ci: ChartInput, mode: str, *, details: bool) -> None
 
     header = (
         f"[bold]Chart for[/bold] {when.isoformat()}  "
-        f"([cyan]{ci.lat:.4f}°[/cyan], [cyan]{ci.lng:.4f}°[/cyan])  "
+        f"([cyan]{ci.lat:.4f}°[/cyan], [cyan]{ci.lon:.4f}°[/cyan])  "
         f"mode: [magenta]{mode}[/magenta]"
     )
     if ci.name:
@@ -413,29 +475,44 @@ def _print_house_comparison(ci: ChartInput, mode: str, *, details: bool) -> None
 
 
 def _chart_to_json(chart: Chart, ci: ChartInput, mode: str, details: bool) -> str:
-    entries = _collect_entries(chart, mode, details)
-    when = _to_datetime(ci)
+    time_known = ci.time_known
+    loc_known = ci.location_known
+    show_full = time_known and loc_known
+    entries = _collect_entries(
+        chart, mode, details,
+        uncertain=not time_known,
+        include_angles=show_full,
+        include_lots=show_full,
+    )
+    when = ci.to_datetime()
+    warnings: list[str] = []
+    if not time_known:
+        warnings.append("Birth time unknown — planet degrees approximate; Moon sign may differ")
+    if not loc_known:
+        warnings.append("Birth location unknown — angles and houses omitted")
     return json.dumps(
         {
             "chart": {
                 "when": when.isoformat(),
                 "lat": ci.lat,
-                "lng": ci.lng,
+                "lon": ci.lon,
                 "mode": mode,
-                "house_system": chart.house_system,
+                "house_system": chart.house_system if show_full else None,
             },
+            "warnings": warnings,
             "bodies": [
                 {
                     "name": e["name"],
                     "sign": e["placement"].name,
                     "degree": round(e["placement"].deg, 4),
                     "lon": round(e["lon"], 4),
-                    "house": e["house"],
+                    "house": e["house"] if show_full else None,
                     "rx": e["rx"] == "℞",
+                    "approximate": e.get("uncertain", False),
                 }
                 for e in entries
             ],
-            "cusps": [round(c, 4) for c in chart.cusps],
+            "cusps": [round(c, 4) for c in chart.cusps] if show_full else [],
         },
         indent=2,
     )
@@ -506,12 +583,14 @@ def chart_add(
         ..., help="Name to save this chart under (filename-safe key)."
     ),
     date: str = typer.Argument(..., help="Birth date, YYYY-MM-DD."),
-    time: str = typer.Argument("12:00", help="Birth time, HH:MM (24h)."),
-    lat: float = typer.Option(
-        ..., "--lat", help="Birth latitude, degrees (N positive)."
+    time: str | None = typer.Argument(
+        None, help="Birth time, HH:MM (24h). Omit if unknown."
     ),
-    lng: float = typer.Option(
-        ..., "--lng", help="Birth longitude, degrees (E positive)."
+    lat: float | None = typer.Option(
+        None, "--lat", help="Birth latitude, degrees (N positive). Omit if unknown."
+    ),
+    lon: float | None = typer.Option(
+        None, "--lon", help="Birth longitude, degrees (E positive). Omit if unknown."
     ),
     tz: str = typer.Option(
         "UTC", "--tz", help="IANA timezone of the birth time, e.g. America/Chicago."
@@ -544,15 +623,17 @@ def chart_add(
 ) -> None:
     """Save a named birth chart to ./charts/ and print it."""
     _validate_mode(mode)
-    ci = ChartInput(name=name, date=date, time=time, tz=tz, lat=lat, lng=lng)
+    _validate_group_by(group_by)
+    _validate_house_system(houses)
+    if (lat is None) != (lon is None):
+        raise typer.BadParameter("--lat and --lon must both be provided or both omitted.")
+    ci = ChartInput(name=name, date=date, time=time, tz=tz, lat=lat, lon=lon)
     try:
         path = store.save(ci, overwrite=force)
     except FileExistsError as exc:
         raise typer.BadParameter(str(exc)) from exc
     typer.echo(f"Saved chart to {path}")
     typer.echo("")
-    _validate_group_by(group_by)
-    _validate_house_system(houses)
     _print_chart(
         ci,
         mode,
@@ -570,7 +651,7 @@ def chart_list() -> None:
     charts = store.list_all()
     if not charts:
         typer.echo(
-            "No saved charts. Use `astro chart add NAME DATE [TIME] --lat ... --lng ...` to create one."
+            "No saved charts. Use `astro chart add NAME DATE [TIME] --lat ... --lon ...` to create one."
         )
         return
     table = _new_table("Saved charts")
@@ -579,10 +660,15 @@ def chart_list() -> None:
     table.add_column("Time")
     table.add_column("Timezone")
     table.add_column("Lat", justify="right")
-    table.add_column("Lng", justify="right")
+    table.add_column("Lon", justify="right")
     for ci in charts:
         table.add_row(
-            ci.name.title(), ci.date, ci.time, ci.tz, f"{ci.lat:.4f}", f"{ci.lng:.4f}"
+            ci.name.title(),
+            ci.date,
+            ci.time or "—",
+            ci.tz if ci.time is not None else "—",
+            f"{ci.lat:.4f}" if ci.lat is not None else "—",
+            f"{ci.lon:.4f}" if ci.lon is not None else "—",
         )
     console.print(table)
 
@@ -592,11 +678,11 @@ def chart_cusps(
     target: str = typer.Argument(
         ...,
         help="Saved chart name, OR a birth date (YYYY-MM-DD) for a one-off chart "
-        "(in which case --lat and --lng are required).",
+        "(in which case --lat and --lon are required).",
     ),
     time: str = typer.Argument("12:00", help="Birth time for one-off charts, HH:MM (24h)."),
     lat: float = typer.Option(None, "--lat", help="One-off chart latitude (N positive)."),
-    lng: float = typer.Option(None, "--lng", help="One-off chart longitude (E positive)."),
+    lon: float = typer.Option(None, "--lon", help="One-off chart longitude (E positive)."),
     tz: str = typer.Option("UTC", "--tz", help="IANA timezone, e.g. America/Chicago."),
     mode: str = typer.Option("realsky", "--mode", help="Zodiac mode: realsky, tropical, or vedic."),
     houses: str = typer.Option("porphyry", "--houses", help=f"House system: {', '.join(HOUSE_SYSTEMS)}."),
@@ -604,18 +690,31 @@ def chart_cusps(
     """Print house cusps for a saved or one-off chart."""
     _validate_mode(mode)
     _validate_house_system(houses)
-    one_off = lat is not None or lng is not None
+    one_off = lat is not None or lon is not None
     if one_off:
-        if lat is None or lng is None:
-            raise typer.BadParameter("One-off charts require both --lat and --lng.")
-        ci = ChartInput(name="", date=target, time=time, tz=tz, lat=lat, lng=lng)
+        if lat is None or lon is None:
+            raise typer.BadParameter("One-off charts require both --lat and --lon.")
+        ci = ChartInput(name="", date=target, time=time, tz=tz, lat=lat, lon=lon)
     else:
         try:
             ci = store.load(target)
         except FileNotFoundError as exc:
             raise typer.BadParameter(str(exc)) from exc
-    when = _to_datetime(ci)
-    chart = Chart.build(when, ci.lat, ci.lng, house_system=houses)
+        if not ci.time_known:
+            raise typer.BadParameter(
+                f"Chart {ci.name!r} has no birth time — house cusps cannot be computed."
+            )
+        if not ci.location_known:
+            raise typer.BadParameter(
+                f"Chart {ci.name!r} has no birth location — house cusps cannot be computed."
+            )
+    try:
+        when = ci.to_datetime()
+    except ValueError as exc:
+        raise typer.BadParameter(f"Could not parse date/time: {exc}") from exc
+    chart_lat = ci.lat if ci.lat is not None else 0.001
+    chart_lon = ci.lon if ci.lon is not None else 0.0
+    chart = Chart.build(when, chart_lat, chart_lon, house_system=houses)
     _print_cusps(chart, mode)
 
 
@@ -624,7 +723,7 @@ def chart_show(
     target: str = typer.Argument(
         ...,
         help="Saved chart name, OR a birth date (YYYY-MM-DD) for a one-off chart "
-        "(in which case --lat and --lng are required).",
+        "(in which case --lat and --lon are required).",
     ),
     time: str = typer.Argument(
         "12:00", help="Birth time for one-off charts, HH:MM (24h)."
@@ -632,8 +731,8 @@ def chart_show(
     lat: float = typer.Option(
         None, "--lat", help="One-off chart latitude (N positive)."
     ),
-    lng: float = typer.Option(
-        None, "--lng", help="One-off chart longitude (E positive)."
+    lon: float = typer.Option(
+        None, "--lon", help="One-off chart longitude (E positive)."
     ),
     tz: str = typer.Option(
         "UTC", "--tz", help="One-off chart IANA timezone, e.g. America/Chicago."
@@ -673,17 +772,17 @@ def chart_show(
     """Display a chart by saved name, or compute a one-off chart from birth parameters."""
     _validate_mode(mode)
 
-    one_off = lat is not None or lng is not None
+    one_off = lat is not None or lon is not None
     if one_off:
-        if lat is None or lng is None:
-            raise typer.BadParameter("One-off charts require both --lat and --lng.")
-        ci = ChartInput(name="", date=target, time=time, tz=tz, lat=lat, lng=lng)
+        if lat is None or lon is None:
+            raise typer.BadParameter("One-off charts require both --lat and --lon.")
+        ci = ChartInput(name="", date=target, time=time, tz=tz, lat=lat, lon=lon)
     else:
         try:
             ci = store.load(target)
         except FileNotFoundError as exc:
             raise typer.BadParameter(
-                f"{exc}\nIf you meant a one-off chart, also pass --lat and --lng "
+                f"{exc}\nIf you meant a one-off chart, also pass --lat and --lon "
                 f"(and the first argument should be a YYYY-MM-DD date)."
             ) from exc
 
@@ -691,12 +790,18 @@ def chart_show(
     _validate_house_system(houses)
 
     if fmt == "json":
-        when = _to_datetime(ci)
-        chart = Chart.build(when, ci.lat, ci.lng, house_system=houses)
+        when = ci.to_datetime()
+        chart_lat = ci.lat if ci.lat is not None else 0.001
+        chart_lon = ci.lon if ci.lon is not None else 0.0
+        chart = Chart.build(when, chart_lat, chart_lon, house_system=houses)
         print(_chart_to_json(chart, ci, mode, details))
         return
 
     if compare_houses:
+        if not ci.time_known or not ci.location_known:
+            raise typer.BadParameter(
+                "--compare-houses requires a chart with known birth time and location."
+            )
         _print_house_comparison(ci, mode, details=details)
         return
 
@@ -728,12 +833,14 @@ def chart_delete(
 
 
 def _collect_transit_entries(
-    transit: Chart, natal: Chart, mode: str, details: bool
+    transit: Chart, natal: Chart, mode: str, details: bool, *, natal_loc_known: bool = True
 ) -> list[dict]:
     """Like _collect_entries but house numbers come from natal chart cusps."""
     natal_asc = next(a.placed.lon for a in natal.angles if a.name == "asc")
 
     def natal_house(lon: float) -> int:
+        if not natal_loc_known:
+            return 0
         if natal.house_system == "arc13":
             return house_13_arc(lon, natal_asc)
         return house_from_cusps(lon, natal.cusps)
@@ -746,6 +853,7 @@ def _collect_transit_entries(
             "lon": lon,
             "house": natal_house(lon),
             "rx": rx,
+            "uncertain": False,
         }
 
     entries: list[dict] = []
@@ -775,21 +883,46 @@ def _print_transits(
     show_natal: bool,
     house_system: str,
 ) -> None:
-    chart_natal = Chart.build(_to_datetime(ci_natal), ci_natal.lat, ci_natal.lng, house_system=house_system)
-    chart_transit = Chart.build(transit_dt, ci_natal.lat, ci_natal.lng, house_system=house_system)
+    natal_time_known = ci_natal.time_known
+    natal_loc_known = ci_natal.location_known
+    natal_lat = ci_natal.lat if ci_natal.lat is not None else 0.001
+    natal_lon = ci_natal.lon if ci_natal.lon is not None else 0.0
+
+    chart_natal = Chart.build(ci_natal.to_datetime(), natal_lat, natal_lon, house_system=house_system)
+    chart_transit = Chart.build(transit_dt, natal_lat, natal_lon, house_system=house_system)
 
     label = f"[yellow]\\[{ci_natal.name.title()}][/yellow]"
+    houses_str = f"  houses: [magenta]{chart_natal.house_system}[/magenta]" if natal_loc_known else ""
     console.print(
         f"[bold]Transits:[/bold] {label} natal {ci_natal.date}  →  "
         f"transit {transit_dt.strftime('%Y-%m-%d %H:%M %Z').strip()}  "
-        f"mode: [magenta]{mode}[/magenta]  houses: [magenta]{chart_natal.house_system}[/magenta]"
+        f"mode: [magenta]{mode}[/magenta]{houses_str}"
     )
 
-    transit_entries = _collect_transit_entries(chart_transit, chart_natal, mode, details)
+    if not natal_time_known:
+        console.print(
+            "[yellow]⚠ Natal time unknown — natal planet degrees approximate[/yellow]"
+        )
+    if not natal_loc_known:
+        console.print(
+            "[yellow]⚠ Natal location unknown — natal house placement of transits omitted[/yellow]"
+        )
+
+    transit_house_label: str | None = "H" if natal_loc_known else None
+    transit_entries = _collect_transit_entries(
+        chart_transit, chart_natal, mode, details, natal_loc_known=natal_loc_known
+    )
 
     if show_natal:
-        natal_entries = _collect_entries(chart_natal, mode, details)
-        table = _new_table("Natal vs Transits  (H = natal house)")
+        natal_show_full = natal_time_known and natal_loc_known
+        natal_entries = _collect_entries(
+            chart_natal, mode, details,
+            uncertain=not natal_time_known,
+            include_angles=natal_show_full,
+            include_lots=natal_show_full,
+        )
+        title = "Natal vs Transits" + ("  (H = natal house)" if natal_loc_known else "")
+        table = _new_table(title)
         table.add_column("Name", style="bold")
         table.add_column("Natal Sign")
         table.add_column("Natal Deg", justify="right")
@@ -797,34 +930,43 @@ def _print_transits(
         table.add_column("Transit Sign")
         table.add_column("Transit Deg", justify="right")
         table.add_column("Rx", justify="center")
-        table.add_column("H", justify="right")
+        if natal_loc_known:
+            table.add_column("H", justify="right")
         for n, t in zip(natal_entries, transit_entries):
-            table.add_row(
+            n_uncertain = n.get("uncertain", False)
+
+            def _ns(val: str, u: bool = n_uncertain) -> "str | Text":
+                return Text(val, style="yellow") if u else val
+
+            row: list = [
                 n["name"],
-                n["placement"].name,
-                format_deg(n["placement"].deg),
+                _ns(n["placement"].name),
+                _ns(format_deg(n["placement"].deg)),
                 "→",
                 t["placement"].name,
                 format_deg(t["placement"].deg),
                 t["rx"] or "",
-                str(t["house"]),
-            )
+            ]
+            if natal_loc_known:
+                row.append(str(t["house"]))
+            table.add_row(*row)
         console.print(table)
     else:
         by_kind: dict[str, list[dict]] = {}
         for e in transit_entries:
             by_kind.setdefault(e["kind"], []).append(e)
+        title_suffix = "  (H = natal house)" if natal_loc_known else ""
         if details:
-            _print_section("Planets", by_kind.get("Planet", []), "H")
-            _print_section("Angles", by_kind.get("Angle", []), "H")
-            _print_section("Nodes", by_kind.get("Node", []), "H")
-            _print_section("Points", by_kind.get("Point", []), "H")
-            _print_section("Lots", by_kind.get("Lot", []), "H")
+            _print_section("Planets", by_kind.get("Planet", []), transit_house_label)
+            _print_section("Angles", by_kind.get("Angle", []), transit_house_label)
+            _print_section("Nodes", by_kind.get("Node", []), transit_house_label)
+            _print_section("Points", by_kind.get("Point", []), transit_house_label)
+            _print_section("Lots", by_kind.get("Lot", []), transit_house_label)
         else:
             _print_section(
-                "Transiting Planets  (H = natal house)",
+                f"Transiting Planets{title_suffix}",
                 by_kind.get("Planet", []) + by_kind.get("Angle", []),
-                "H",
+                transit_house_label,
             )
 
     if aspects:
@@ -891,14 +1033,33 @@ def chart_compare(
     except FileNotFoundError as exc:
         raise typer.BadParameter(str(exc)) from exc
 
-    chart_a = Chart.build(_to_datetime(ci_a), ci_a.lat, ci_a.lng, house_system=houses)
-    chart_b = Chart.build(_to_datetime(ci_b), ci_b.lat, ci_b.lng, house_system=houses)
+    chart_a = Chart.build(
+        ci_a.to_datetime(),
+        ci_a.lat if ci_a.lat is not None else 0.001,
+        ci_a.lon if ci_a.lon is not None else 0.0,
+        house_system=houses,
+    )
+    chart_b = Chart.build(
+        ci_b.to_datetime(),
+        ci_b.lat if ci_b.lat is not None else 0.001,
+        ci_b.lon if ci_b.lon is not None else 0.0,
+        house_system=houses,
+    )
 
     console.print(
         f"[bold]Synastry:[/bold] [yellow]{ci_a.name.title()}[/yellow] ({ci_a.date})  ×  "
         f"[yellow]{ci_b.name.title()}[/yellow] ({ci_b.date})  "
         f"mode: [magenta]{mode}[/magenta]"
     )
+    for ci in (ci_a, ci_b):
+        if not ci.time_known:
+            console.print(
+                f"[yellow]⚠ {ci.name.title()} birth time unknown — planet positions approximate[/yellow]"
+            )
+        if not ci.location_known:
+            console.print(
+                f"[yellow]⚠ {ci.name.title()} birth location unknown[/yellow]"
+            )
     if aspects:
         _print_inter_aspects(chart_a, chart_b, ci_a.name, ci_b.name, details)
 

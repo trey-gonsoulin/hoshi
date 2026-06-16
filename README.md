@@ -20,12 +20,12 @@ On first run, Skyfield downloads `de421.bsp` (~17 MB) into the current directory
 ## Commands
 
 ```sh
-hoshi chart add      NAME DATE [TIME] --lat LAT --lng LNG [--tz TZ] [--mode MODE] [--houses SYS]
+hoshi chart add      NAME DATE [TIME] [--lat LAT] [--lon LON] [--tz TZ] [--mode MODE] [--houses SYS]
                                       [--details] [--aspects] [--group-by category|sign|house]
                                       [--cusps] [--force]
-hoshi chart show     NAME|DATE [TIME] --lat LAT --lng LNG ...
+hoshi chart show     NAME|DATE [TIME] [--lat LAT --lon LON] ...
                                       [--format table|json] [--compare-houses]
-hoshi chart cusps    NAME|DATE [TIME] --lat LAT --lng LNG ... [--mode MODE] [--houses SYS]
+hoshi chart cusps    NAME|DATE [TIME] [--lat LAT --lon LON] ... [--mode MODE] [--houses SYS]
 hoshi chart transits NAME [DATE [TIME]] [--tz TZ] [--mode MODE] [--houses SYS]
                                         [--details] [--aspects] [--natal]
 hoshi chart compare  NAME1 NAME2        [--mode MODE] [--houses SYS] [--aspects] [--details]
@@ -33,7 +33,9 @@ hoshi chart list
 hoshi chart delete   NAME [--yes]
 ```
 
-`NAME|DATE` — pass a saved chart name, or a `YYYY-MM-DD` date with `--lat`/`--lng` for a one-off chart.
+`NAME|DATE` — pass a saved chart name, or a `YYYY-MM-DD` date with `--lat`/`--lon` for a one-off chart.
+
+`--lat` and `--lon` are optional for `chart add` — omit either or both if the birth location is unknown. If time is also omitted, only the date is stored. Placements computed from unknown inputs are shown in yellow with a warning; angles and houses are omitted entirely when time or location is unknown.
 
 ## Options
 
@@ -68,7 +70,7 @@ Alternative layout grouping bodies by zodiac sign or house instead of category. 
 
 ### `--format json`
 
-Outputs a mode-specific JSON summary instead of the Rich table. Includes body placements, house assignments, and cusp longitudes. Useful for scripting or piping into other tools.
+Outputs a mode-specific JSON summary instead of the Rich table. Includes body placements, house assignments, and cusp longitudes. Useful for scripting or piping into other tools. When time or location is unknown, the JSON includes a `"warnings"` array and an `"approximate": true` flag on affected body entries.
 
 ## Bodies
 

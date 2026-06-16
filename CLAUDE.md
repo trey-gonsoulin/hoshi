@@ -31,14 +31,25 @@ Hoshi is a Python CLI for astrological charting, with a focus on real-sky astrol
 ## CLI commands
 
 ```
-hoshi chart add      NAME DATE [TIME] --lat --lng [--tz] [--mode] [--houses] [--details] [--aspects] [--group-by] [--cusps] [--force]
-hoshi chart show     NAME|DATE [TIME] --lat --lng ...   [--format table|json] [--compare-houses]
-hoshi chart cusps    NAME|DATE [TIME] --lat --lng ...   [--mode] [--houses]
-hoshi chart transits NAME [DATE [TIME]]                 [--tz] [--mode] [--houses] [--details] [--aspects] [--natal]
-hoshi chart compare  NAME1 NAME2                        [--mode] [--houses] [--aspects] [--details]
+hoshi chart add      NAME DATE [TIME] [--lat] [--lon] [--tz] [--mode] [--houses] [--details] [--aspects] [--group-by] [--cusps] [--force]
+hoshi chart show     NAME|DATE [TIME] [--lat --lon] ...   [--format table|json] [--compare-houses]
+hoshi chart cusps    NAME|DATE [TIME] [--lat --lon] ...   [--mode] [--houses]
+hoshi chart transits NAME [DATE [TIME]]                   [--tz] [--mode] [--houses] [--details] [--aspects] [--natal]
+hoshi chart compare  NAME1 NAME2                          [--mode] [--houses] [--aspects] [--details]
 hoshi chart list
 hoshi chart delete   NAME [--yes]
 ```
+
+## Optional birth data and uncertainty
+
+`ChartInput` stores `time`, `lat`, and `lon` as `str | None` and `float | None` respectively — all three are optional. Store whatever is known; omit the rest.
+
+When displaying a chart with missing data:
+- **Time unknown** — noon UTC is used for computation; all planet sign/degree/lon cells render in **yellow** as a warning; `⚠` note is printed above the table. Moon sign is particularly uncertain (moves ~13°/day).
+- **Location unknown** — angles (ASC/MC/etc.), house numbers, and Hermetic lots are **suppressed entirely**; `⚠` note is printed.
+- **Both unknown** — both sets of rules apply.
+
+`ChartInput` properties `time_known` and `location_known` drive all suppression logic in `cli.py`. `--compare-houses` and `chart cusps` require both to be known and error if not.
 
 ## Three zodiac modes
 
