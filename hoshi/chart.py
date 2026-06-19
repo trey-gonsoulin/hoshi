@@ -2,6 +2,7 @@
 plus angles, Placidus cusps, and house numbers."""
 
 from datetime import datetime
+from enum import StrEnum
 
 from pydantic import BaseModel
 
@@ -37,7 +38,11 @@ class Placed(BaseModel, frozen=True):
         )
 
 
-HOUSE_SYSTEMS = ("porphyry", "equal", "placidus", "arc13")
+class HouseSystem(StrEnum):
+    porphyry = "porphyry"
+    equal = "equal"
+    placidus = "placidus"
+    arc13 = "arc13"
 
 
 class PlanetChart(BaseModel, frozen=True):
@@ -79,13 +84,9 @@ class Chart(BaseModel, frozen=True):
         when: datetime,
         lat: float,
         lon: float,
-        house_system: str = "porphyry",
+        house_system: HouseSystem | str = HouseSystem.porphyry,
     ) -> "Chart":
         """Compute a full birth chart for the given moment and location."""
-        if house_system not in HOUSE_SYSTEMS:
-            raise ValueError(
-                f"house_system must be one of {HOUSE_SYSTEMS}, got {house_system!r}"
-            )
         ayan = lahiri_ayanamsa(when)
         prec = ecliptic_precession(when)
         angles = Angles.compute(when, lat, lon)

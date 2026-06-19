@@ -2,6 +2,7 @@
 
 import json
 from datetime import datetime
+from enum import StrEnum
 from zoneinfo import ZoneInfo
 
 import typer
@@ -12,7 +13,7 @@ from rich.text import Text
 
 from hoshi import store
 from hoshi.aspects import KIND_ORDER, compute_aspects, compute_inter_aspects, fmt_orb
-from hoshi.chart import HOUSE_SYSTEMS, Chart, Placed
+from hoshi.chart import Chart, HouseSystem, Placed
 from hoshi.dignities import DIGNITY_SYMBOLS, dignity_for, element_modality_tally
 from hoshi.ephemeris import ecliptic_precession, lahiri_ayanamsa, positions
 from hoshi.houses import house_13_arc, house_from_cusps
@@ -40,35 +41,22 @@ ANGLE_DISPLAY_NAMES: dict[str, str] = {
     "antivertex": "Antivertex",
 }
 
-VALID_MODES = {"realsky", "tropical", "vedic"}
-VALID_GROUPINGS = {"category", "sign", "house"}
-VALID_HOUSE_SYSTEMS = set(HOUSE_SYSTEMS)
+
+class ZodiacMode(StrEnum):
+    realsky = "realsky"
+    tropical = "tropical"
+    vedic = "vedic"
+
+
+class GroupBy(StrEnum):
+    category = "category"
+    sign = "sign"
+    house = "house"
 
 
 @app.callback()
 def _root() -> None:
     """Forces Typer into multi-command mode so `chart` isn't collapsed."""
-
-
-def _validate_mode(mode: str) -> None:
-    if mode not in VALID_MODES:
-        raise typer.BadParameter(
-            f"mode must be one of: {', '.join(sorted(VALID_MODES))}"
-        )
-
-
-def _validate_group_by(group_by: str) -> None:
-    if group_by not in VALID_GROUPINGS:
-        raise typer.BadParameter(
-            f"group-by must be one of: {', '.join(sorted(VALID_GROUPINGS))}"
-        )
-
-
-def _validate_house_system(house_system: str) -> None:
-    if house_system not in VALID_HOUSE_SYSTEMS:
-        raise typer.BadParameter(
-            f"houses must be one of: {', '.join(HOUSE_SYSTEMS)}"
-        )
 
 
 
@@ -463,11 +451,11 @@ def _print_house_comparison(ci: ChartInput, mode: str, *, details: bool) -> None
     lon = ci.lon if ci.lon is not None else 0.0
     charts = {
         sys: Chart.build(when, lat, lon, house_system=sys)
-        for sys in HOUSE_SYSTEMS
+        for sys in HouseSystem
     }
-    base = charts["porphyry"]
+    base = charts[HouseSystem.porphyry]
     entries = _collect_entries(base, mode, details)
-    house_columns = {sys: _entity_houses(charts[sys], details) for sys in HOUSE_SYSTEMS}
+    house_columns = {sys: _entity_houses(charts[sys], details) for sys in HouseSystem}
 
     header = (
         f"[bold]Chart for[/bold] {when.isoformat()}  "
@@ -486,11 +474,11 @@ def _print_house_comparison(ci: ChartInput, mode: str, *, details: bool) -> None
     table.add_column("Sign")
     table.add_column("Degree", justify="right")
     table.add_column("Lon", justify="right")
-    for sys in HOUSE_SYSTEMS:
+    for sys in HouseSystem:
         table.add_column(sys.capitalize(), justify="right")
 
     for i, e in enumerate(entries):
-        houses_row = [house_columns[s][i] for s in HOUSE_SYSTEMS]
+        houses_row = [house_columns[s][i] for s in HouseSystem]
         baseline = houses_row[0]
         cells: list = [
             e["kind"],
@@ -629,16 +617,16 @@ def chart_add(
     tz: str = typer.Option(
         "UTC", "--tz", help="IANA timezone of the birth time, e.g. America/Chicago."
     ),
-    mode: str = typer.Option(
-        "realsky", "--mode", help="Zodiac mode: realsky, tropical, or vedic."
+    mode: ZodiacMode = typer.Option(
+        ZodiacMode.realsky, "--mode", help="Zodiac mode."
     ),
     force: bool = typer.Option(
         False, "--force", help="Overwrite an existing saved chart with the same name."
     ),
-    houses: str = typer.Option(
-        "porphyry",
+    houses: HouseSystem = typer.Option(
+        HouseSystem.porphyry,
         "--houses",
-        help=f"House system: {', '.join(HOUSE_SYSTEMS)}.",
+        help="House system.",
     ),
     cusps: bool = typer.Option(
         False, "--cusps", help="Also print the house cusps for the chosen system."
@@ -649,16 +637,13 @@ def chart_add(
     aspects: bool = typer.Option(
         False, "--aspects", help="Print aspect tables (uses all bodies with --details, planets+Asc otherwise)."
     ),
-    group_by: str = typer.Option(
-        "category",
+    group_by: GroupBy = typer.Option(
+        GroupBy.category,
         "--group-by",
-        help="Group entries by: category (default), sign, or house.",
+        help="Group entries by category, sign, or house.",
     ),
 ) -> None:
     """Save a named birth chart to ./charts/ and print it."""
-    _validate_mode(mode)
-    _validate_group_by(group_by)
-    _validate_house_system(houses)
     if (lat is None) != (lon is None):
         raise typer.BadParameter("--lat and --lon must both be provided or both omitted.")
     ci = ChartInput(name=name, date=date, time=time, tz=tz, lat=lat, lon=lon)
@@ -718,12 +703,10 @@ def chart_cusps(
     lat: float = typer.Option(None, "--lat", help="One-off chart latitude (N positive)."),
     lon: float = typer.Option(None, "--lon", help="One-off chart longitude (E positive)."),
     tz: str = typer.Option("UTC", "--tz", help="IANA timezone, e.g. America/Chicago."),
-    mode: str = typer.Option("realsky", "--mode", help="Zodiac mode: realsky, tropical, or vedic."),
-    houses: str = typer.Option("porphyry", "--houses", help=f"House system: {', '.join(HOUSE_SYSTEMS)}."),
+    mode: ZodiacMode = typer.Option(ZodiacMode.realsky, "--mode", help="Zodiac mode."),
+    houses: HouseSystem = typer.Option(HouseSystem.porphyry, "--houses", help="House system."),
 ) -> None:
     """Print house cusps for a saved or one-off chart."""
-    _validate_mode(mode)
-    _validate_house_system(houses)
     one_off = lat is not None or lon is not None
     if one_off:
         if lat is None or lon is None:
@@ -771,13 +754,13 @@ def chart_show(
     tz: str = typer.Option(
         "UTC", "--tz", help="One-off chart IANA timezone, e.g. America/Chicago."
     ),
-    mode: str = typer.Option(
-        "realsky", "--mode", help="Zodiac mode: realsky, tropical, or vedic."
+    mode: ZodiacMode = typer.Option(
+        ZodiacMode.realsky, "--mode", help="Zodiac mode."
     ),
-    houses: str = typer.Option(
-        "porphyry",
+    houses: HouseSystem = typer.Option(
+        HouseSystem.porphyry,
         "--houses",
-        help=f"House system: {', '.join(HOUSE_SYSTEMS)}.",
+        help="House system.",
     ),
     cusps: bool = typer.Option(
         False, "--cusps", help="Also print the house cusps for the chosen system."
@@ -788,10 +771,10 @@ def chart_show(
     aspects: bool = typer.Option(
         False, "--aspects", help="Print aspect tables (uses all bodies with --details, planets+Asc otherwise)."
     ),
-    group_by: str = typer.Option(
-        "category",
+    group_by: GroupBy = typer.Option(
+        GroupBy.category,
         "--group-by",
-        help="Group entries by: category (default), sign, or house.",
+        help="Group entries by category, sign, or house.",
     ),
     fmt: str = typer.Option(
         "table", "--format", help="Output format: table (default) or json."
@@ -804,8 +787,6 @@ def chart_show(
     ),
 ) -> None:
     """Display a chart by saved name, or compute a one-off chart from birth parameters."""
-    _validate_mode(mode)
-
     one_off = lat is not None or lon is not None
     if one_off:
         if lat is None or lon is None:
@@ -819,9 +800,6 @@ def chart_show(
                 f"{exc}\nIf you meant a one-off chart, also pass --lat and --lon "
                 f"(and the first argument should be a YYYY-MM-DD date)."
             ) from exc
-
-    _validate_group_by(group_by)
-    _validate_house_system(houses)
 
     if fmt == "json":
         when = ci.to_datetime()
@@ -1014,10 +992,8 @@ def chart_transits(
     date: str | None = typer.Argument(None, help="Transit date YYYY-MM-DD (default: today)."),
     time: str | None = typer.Argument(None, help="Transit time HH:MM 24h (default: now)."),
     tz: str = typer.Option("UTC", "--tz", help="IANA timezone for the transit date/time."),
-    mode: str = typer.Option("realsky", "--mode", help="Zodiac mode: realsky, tropical, or vedic."),
-    houses: str = typer.Option(
-        "porphyry", "--houses", help=f"House system: {', '.join(HOUSE_SYSTEMS)}."
-    ),
+    mode: ZodiacMode = typer.Option(ZodiacMode.realsky, "--mode", help="Zodiac mode."),
+    houses: HouseSystem = typer.Option(HouseSystem.porphyry, "--houses", help="House system."),
     details: bool = typer.Option(
         False, "--details", help="Include angles, nodes, and points."
     ),
@@ -1029,8 +1005,6 @@ def chart_transits(
     ),
 ) -> None:
     """Compare a saved natal chart against current (or specified date) transiting planets."""
-    _validate_mode(mode)
-    _validate_house_system(houses)
     try:
         ci = store.load(name)
     except FileNotFoundError as exc:
@@ -1054,14 +1028,12 @@ def chart_transits(
 def chart_compare(
     name_a: str = typer.Argument(..., help="First saved chart name."),
     name_b: str = typer.Argument(..., help="Second saved chart name."),
-    mode: str = typer.Option("realsky", "--mode", help="Zodiac mode: realsky, tropical, or vedic."),
-    houses: str = typer.Option("porphyry", "--houses", help=f"House system: {', '.join(HOUSE_SYSTEMS)}."),
+    mode: ZodiacMode = typer.Option(ZodiacMode.realsky, "--mode", help="Zodiac mode."),
+    houses: HouseSystem = typer.Option(HouseSystem.porphyry, "--houses", help="House system."),
     details: bool = typer.Option(False, "--details", help="Include angles, nodes, and points in inter-aspects."),
     aspects: bool = typer.Option(False, "--aspects", help="Print inter-aspect tables."),
 ) -> None:
     """Show synastry (inter-aspects) between two saved charts."""
-    _validate_mode(mode)
-    _validate_house_system(houses)
     try:
         ci_a = store.load(name_a)
         ci_b = store.load(name_b)
