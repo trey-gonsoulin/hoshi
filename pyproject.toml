@@ -22,5 +22,13 @@ build-backend = "hatchling.build"
 url = "https://pypi.org/simple"
 default = true
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["hoshi"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
