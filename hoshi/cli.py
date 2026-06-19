@@ -614,6 +614,9 @@ def chart_add(
     lon: float | None = typer.Option(
         None, "--lon", help="Birth longitude, degrees (E positive). Omit if unknown."
     ),
+    location: str | None = typer.Option(
+        None, "--location", help="Birth location to geocode, e.g. 'Austin, TX'. Cannot be used with --lat/--lon."
+    ),
     tz: str = typer.Option(
         "UTC", "--tz", help="IANA timezone of the birth time, e.g. America/Chicago."
     ),
@@ -644,6 +647,18 @@ def chart_add(
     ),
 ) -> None:
     """Save a named birth chart to ./charts/ and print it."""
+    if location is not None and (lat is not None or lon is not None):
+        raise typer.BadParameter("Cannot use --location together with --lat/--lon.")
+    if location is not None:
+        from geopy.geocoders import Nominatim
+        geo = Nominatim(user_agent="hoshi")
+        result = geo.geocode(location)
+        if result is None:
+            raise typer.BadParameter(f"Could not geocode location: {location!r}")
+        lat = result.latitude
+        lon = result.longitude
+        typer.echo(f"Resolved location: {result.address}")
+        typer.echo(f"Coordinates: {lat:.4f}°N, {lon:.4f}°E")
     if (lat is None) != (lon is None):
         raise typer.BadParameter("--lat and --lon must both be provided or both omitted.")
     ci = ChartInput(name=name, date=date, time=time, tz=tz, lat=lat, lon=lon)
