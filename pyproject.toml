@@ -5,6 +5,7 @@ description = "Real-sky astrology birth chart CLI."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "geopy>=2.4.1",
     "pydantic>=2.13.4",
     "rich>=15.0.0",
     "skyfield>=1.54",
@@ -19,7 +20,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [[tool.uv.index]]
-url = "https://pypi.org/simple"
+url = "https://pypi.org/simple/"
 default = true
 
 [tool.pytest.ini_options]
