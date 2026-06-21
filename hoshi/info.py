@@ -100,7 +100,13 @@ PLANETS: dict[str, Info] = {
     ),
     "Neptune": Info(
         name="Neptune",
-        keywords=["imagination", "spirituality", "illusion", "compassion", "transcendence"],
+        keywords=[
+            "imagination",
+            "spirituality",
+            "illusion",
+            "compassion",
+            "transcendence",
+        ],
         meaning=(
             "Neptune dissolves boundaries between the real and the imagined. It governs dreams, "
             "intuition, spirituality, and the longing for something beyond ordinary reality. "
@@ -133,8 +139,16 @@ PLANETS: dict[str, Info] = {
 SIGNS: dict[str, SignInfo] = {
     "Aries": SignInfo(
         name="Aries",
-        element="Fire", modality="Cardinal", ruler="Mars",
-        keywords=["initiative", "courage", "independence", "impulsiveness", "pioneering"],
+        element="Fire",
+        modality="Cardinal",
+        ruler="Mars",
+        keywords=[
+            "initiative",
+            "courage",
+            "independence",
+            "impulsiveness",
+            "pioneering",
+        ],
         meaning=(
             "Aries is the spark of initiation — bold, direct, and eager to act. It embodies the "
             "raw drive to begin, to lead, and to assert individuality. Planets in Aries express "
@@ -144,8 +158,16 @@ SIGNS: dict[str, SignInfo] = {
     ),
     "Taurus": SignInfo(
         name="Taurus",
-        element="Earth", modality="Fixed", ruler="Venus",
-        keywords=["stability", "sensuality", "patience", "determination", "material security"],
+        element="Earth",
+        modality="Fixed",
+        ruler="Venus",
+        keywords=[
+            "stability",
+            "sensuality",
+            "patience",
+            "determination",
+            "material security",
+        ],
         meaning=(
             "Taurus grounds energy into the physical world — building, preserving, and savoring "
             "what is tangible. It brings steadiness, loyalty, and an appreciation for comfort and "
@@ -155,7 +177,9 @@ SIGNS: dict[str, SignInfo] = {
     ),
     "Gemini": SignInfo(
         name="Gemini",
-        element="Air", modality="Mutable", ruler="Mercury",
+        element="Air",
+        modality="Mutable",
+        ruler="Mercury",
         keywords=["curiosity", "adaptability", "communication", "duality", "wit"],
         meaning=(
             "Gemini is the sign of the inquiring mind — versatile, sociable, and endlessly "
@@ -166,7 +190,9 @@ SIGNS: dict[str, SignInfo] = {
     ),
     "Cancer": SignInfo(
         name="Cancer",
-        element="Water", modality="Cardinal", ruler="Moon",
+        element="Water",
+        modality="Cardinal",
+        ruler="Moon",
         keywords=["nurturing", "sensitivity", "protection", "home", "emotional depth"],
         meaning=(
             "Cancer initiates through feeling — creating safety, tending bonds, and honoring "
@@ -177,7 +203,9 @@ SIGNS: dict[str, SignInfo] = {
     ),
     "Leo": SignInfo(
         name="Leo",
-        element="Fire", modality="Fixed", ruler="Sun",
+        element="Fire",
+        modality="Fixed",
+        ruler="Sun",
         keywords=["creativity", "confidence", "generosity", "drama", "self-expression"],
         meaning=(
             "Leo radiates warmth, pride, and a need to be seen. It is the sign of creative "
@@ -188,7 +216,9 @@ SIGNS: dict[str, SignInfo] = {
     ),
     "Virgo": SignInfo(
         name="Virgo",
-        element="Earth", modality="Mutable", ruler="Mercury",
+        element="Earth",
+        modality="Mutable",
+        ruler="Mercury",
         keywords=["analysis", "service", "precision", "humility", "craftsmanship"],
         meaning=(
             "Virgo refines and improves — applying careful analysis, practical skill, and a deep "
@@ -199,7 +229,9 @@ SIGNS: dict[str, SignInfo] = {
     ),
     "Libra": SignInfo(
         name="Libra",
-        element="Air", modality="Cardinal", ruler="Venus",
+        element="Air",
+        modality="Cardinal",
+        ruler="Venus",
         keywords=["balance", "partnership", "diplomacy", "aesthetics", "justice"],
         meaning=(
             "Libra initiates through relationship — seeking harmony, fairness, and the beauty "
@@ -210,7 +242,9 @@ SIGNS: dict[str, SignInfo] = {
     ),
     "Scorpio": SignInfo(
         name="Scorpio",
-        element="Water", modality="Fixed", ruler="Pluto",
+        element="Water",
+        modality="Fixed",
+        ruler="Pluto",
         keywords=["intensity", "depth", "secrecy", "transformation", "resilience"],
         meaning=(
             "Scorpio probes beneath the surface — seeking truth, power, and emotional honesty "
@@ -221,7 +255,9 @@ SIGNS: dict[str, SignInfo] = {
     ),
     "Ophiuchus": SignInfo(
         name="Ophiuchus",
-        element="Water", modality="Fixed", ruler="Chiron",
+        element="Water",
+        modality="Fixed",
+        ruler="Chiron",
         keywords=["healing", "wisdom", "integration", "serpent-bearer", "liminality"],
         meaning=(
             "Ophiuchus, the serpent-bearer, is the thirteenth constellation along the ecliptic "
@@ -234,7 +270,9 @@ SIGNS: dict[str, SignInfo] = {
     ),
     "Sagittarius": SignInfo(
         name="Sagittarius",
-        element="Fire", modality="Mutable", ruler="Jupiter",
+        element="Fire",
+        modality="Mutable",
+        ruler="Jupiter",
         keywords=["exploration", "philosophy", "optimism", "freedom", "truth-seeking"],
         meaning=(
             "Sagittarius aims at the far horizon — pursuing meaning, adventure, and the big "
@@ -245,7 +283,9 @@ SIGNS: dict[str, SignInfo] = {
     ),
     "Capricorn": SignInfo(
         name="Capricorn",
-        element="Earth", modality="Cardinal", ruler="Saturn",
+        element="Earth",
+        modality="Cardinal",
+        ruler="Saturn",
         keywords=["ambition", "responsibility", "strategy", "endurance", "authority"],
         meaning=(
             "Capricorn builds toward lasting achievement — patient, strategic, and willing to "
@@ -256,8 +296,16 @@ SIGNS: dict[str, SignInfo] = {
     ),
     "Aquarius": SignInfo(
         name="Aquarius",
-        element="Air", modality="Fixed", ruler="Uranus",
-        keywords=["individuality", "humanitarianism", "innovation", "detachment", "idealism"],
+        element="Air",
+        modality="Fixed",
+        ruler="Uranus",
+        keywords=[
+            "individuality",
+            "humanitarianism",
+            "innovation",
+            "detachment",
+            "idealism",
+        ],
         meaning=(
             "Aquarius operates at the intersection of intellect and community — championing "
             "progress, originality, and the collective good. It values freedom of thought and "
@@ -267,8 +315,16 @@ SIGNS: dict[str, SignInfo] = {
     ),
     "Pisces": SignInfo(
         name="Pisces",
-        element="Water", modality="Mutable", ruler="Neptune",
-        keywords=["intuition", "compassion", "imagination", "dissolution", "transcendence"],
+        element="Water",
+        modality="Mutable",
+        ruler="Neptune",
+        keywords=[
+            "intuition",
+            "compassion",
+            "imagination",
+            "dissolution",
+            "transcendence",
+        ],
         meaning=(
             "Pisces dissolves boundaries — merging with the emotional and spiritual currents "
             "that flow beneath conscious awareness. It is the sign of empathy, artistic vision, "
@@ -282,7 +338,13 @@ ANGLES: dict[str, Info] = {
     "Ascendant": Info(
         name="Ascendant",
         aliases=["asc", "rising", "rising sign"],
-        keywords=["self-image", "appearance", "first impression", "persona", "approach to life"],
+        keywords=[
+            "self-image",
+            "appearance",
+            "first impression",
+            "persona",
+            "approach to life",
+        ],
         meaning=(
             "The Ascendant (rising sign) is the zodiac degree on the eastern horizon at the "
             "moment of birth. It defines the lens through which you meet the world — your "
@@ -315,7 +377,13 @@ ANGLES: dict[str, Info] = {
     "Descendant": Info(
         name="Descendant",
         aliases=["dsc", "dc"],
-        keywords=["partnership", "projection", "other people", "relationships", "shadow"],
+        keywords=[
+            "partnership",
+            "projection",
+            "other people",
+            "relationships",
+            "shadow",
+        ],
         meaning=(
             "The Descendant sits directly opposite the Ascendant on the western horizon and "
             "marks the cusp of the seventh house. It describes the qualities you seek in close "
@@ -325,7 +393,13 @@ ANGLES: dict[str, Info] = {
     ),
     "Vertex": Info(
         name="Vertex",
-        keywords=["fate", "encounters", "turning points", "destined meetings", "catalyst"],
+        keywords=[
+            "fate",
+            "encounters",
+            "turning points",
+            "destined meetings",
+            "catalyst",
+        ],
         meaning=(
             "The Vertex is a sensitive point on the western side of the chart, often called "
             "the 'point of fate.' It is associated with pivotal encounters and events that feel "
@@ -412,7 +486,12 @@ ASPECTS: dict[str, Info] = {
     ),
     "Semi-sextile": Info(
         name="Semi-sextile (30°)",
-        keywords=["irritation", "subtle growth", "adjacent signs", "incremental change"],
+        keywords=[
+            "irritation",
+            "subtle growth",
+            "adjacent signs",
+            "incremental change",
+        ],
         meaning=(
             "A semi-sextile links adjacent signs, creating a mild friction between energies that "
             "are close in the zodiac but fundamentally different in element and modality. It is "
@@ -497,7 +576,13 @@ HOUSES: dict[int, Info] = {
     ),
     3: Info(
         name="3rd House",
-        keywords=["communication", "siblings", "local travel", "learning", "perception"],
+        keywords=[
+            "communication",
+            "siblings",
+            "local travel",
+            "learning",
+            "perception",
+        ],
         meaning=(
             "The third house rules everyday communication, short journeys, and the immediate "
             "environment — siblings, neighbors, and early education. It describes how your mind "
@@ -547,7 +632,13 @@ HOUSES: dict[int, Info] = {
     ),
     8: Info(
         name="8th House",
-        keywords=["transformation", "shared resources", "intimacy", "death", "the occult"],
+        keywords=[
+            "transformation",
+            "shared resources",
+            "intimacy",
+            "death",
+            "the occult",
+        ],
         meaning=(
             "The eighth house plunges into shared power — joint finances, inheritance, sexuality, "
             "and psychological transformation. It governs what is hidden and what must be "
@@ -587,7 +678,13 @@ HOUSES: dict[int, Info] = {
     ),
     12: Info(
         name="12th House",
-        keywords=["solitude", "the unconscious", "hidden enemies", "spirituality", "surrender"],
+        keywords=[
+            "solitude",
+            "the unconscious",
+            "hidden enemies",
+            "spirituality",
+            "surrender",
+        ],
         meaning=(
             "The twelfth house is the most hidden part of the chart — the realm of the "
             "unconscious, solitude, and experiences that dissolve the ego. It governs "
@@ -602,7 +699,12 @@ POINTS: dict[str, Info] = {
     "N.Node": Info(
         name="North Node",
         aliases=["n.node", "north node", "rahu", "dragon's head"],
-        keywords=["destiny", "growth direction", "soul purpose", "unfamiliar territory"],
+        keywords=[
+            "destiny",
+            "growth direction",
+            "soul purpose",
+            "unfamiliar territory",
+        ],
         meaning=(
             "The North Node of the Moon points toward the qualities and experiences you are "
             "growing into in this lifetime. It represents your evolutionary direction — the "
@@ -700,7 +802,13 @@ POINTS: dict[str, Info] = {
     ),
     "Nemesis": Info(
         name="Lot of Nemesis",
-        aliases=["nemesis", "lot of nemesis", "part of nemesis", "discipline", "lot of discipline"],
+        aliases=[
+            "nemesis",
+            "lot of nemesis",
+            "part of nemesis",
+            "discipline",
+            "lot of discipline",
+        ],
         keywords=["downfall", "reckoning", "enemies", "karmic consequence"],
         meaning=(
             "The Lot of Nemesis, derived from Saturn, warns of the area where overreach invites "

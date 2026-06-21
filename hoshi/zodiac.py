@@ -74,7 +74,9 @@ def _iau_index(lon: float, precession: float = 0.0) -> int:
     for i, c in enumerate(IAU):
         lo = n360(c.lo + precession)
         hi = n360(c.hi + precession)
-        if lo > hi:  # wraps past 360 (Pisces, or any sign near 0° after precession shift)
+        if (
+            lo > hi
+        ):  # wraps past 360 (Pisces, or any sign near 0° after precession shift)
             if lon >= lo or lon < hi:
                 return i
         else:

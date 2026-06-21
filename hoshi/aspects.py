@@ -19,20 +19,24 @@ MICRO_ORB = 1.0
 
 ASPECT_DEFS: list[AspectDef] = [
     # Major
-    AspectDef(name="Conjunction",    symbol="☌",  angle=0.0,         orb=MAJOR_ORB, kind="Major"),
-    AspectDef(name="Opposition",     symbol="☍",  angle=180.0,       orb=MAJOR_ORB, kind="Major"),
-    AspectDef(name="Trine",          symbol="△",  angle=120.0,       orb=MAJOR_ORB, kind="Major"),
-    AspectDef(name="Square",         symbol="□",  angle=90.0,        orb=MAJOR_ORB, kind="Major"),
-    AspectDef(name="Sextile",        symbol="⚹",  angle=60.0,        orb=MAJOR_ORB, kind="Major"),
+    AspectDef(name="Conjunction", symbol="☌", angle=0.0, orb=MAJOR_ORB, kind="Major"),
+    AspectDef(name="Opposition", symbol="☍", angle=180.0, orb=MAJOR_ORB, kind="Major"),
+    AspectDef(name="Trine", symbol="△", angle=120.0, orb=MAJOR_ORB, kind="Major"),
+    AspectDef(name="Square", symbol="□", angle=90.0, orb=MAJOR_ORB, kind="Major"),
+    AspectDef(name="Sextile", symbol="⚹", angle=60.0, orb=MAJOR_ORB, kind="Major"),
     # Minor
-    AspectDef(name="Inconjunct",     symbol="⚻",  angle=150.0,       orb=MINOR_ORB, kind="Minor"),
-    AspectDef(name="Semi-sextile",   symbol="⚺",  angle=30.0,        orb=MINOR_ORB, kind="Minor"),
-    AspectDef(name="Semi-square",    symbol="∠",  angle=45.0,        orb=MINOR_ORB, kind="Minor"),
-    AspectDef(name="Sesquiquadrate", symbol="⚼",  angle=135.0,       orb=MINOR_ORB, kind="Minor"),
+    AspectDef(name="Inconjunct", symbol="⚻", angle=150.0, orb=MINOR_ORB, kind="Minor"),
+    AspectDef(name="Semi-sextile", symbol="⚺", angle=30.0, orb=MINOR_ORB, kind="Minor"),
+    AspectDef(name="Semi-square", symbol="∠", angle=45.0, orb=MINOR_ORB, kind="Minor"),
+    AspectDef(
+        name="Sesquiquadrate", symbol="⚼", angle=135.0, orb=MINOR_ORB, kind="Minor"
+    ),
     # Micro
-    AspectDef(name="Quintile",       symbol="Q",  angle=72.0,        orb=MICRO_ORB, kind="Micro"),
-    AspectDef(name="Bi-quintile",    symbol="bQ", angle=144.0,       orb=MICRO_ORB, kind="Micro"),
-    AspectDef(name="Septile",        symbol="S",  angle=360.0 / 7,   orb=MICRO_ORB, kind="Micro"),
+    AspectDef(name="Quintile", symbol="Q", angle=72.0, orb=MICRO_ORB, kind="Micro"),
+    AspectDef(
+        name="Bi-quintile", symbol="bQ", angle=144.0, orb=MICRO_ORB, kind="Micro"
+    ),
+    AspectDef(name="Septile", symbol="S", angle=360.0 / 7, orb=MICRO_ORB, kind="Micro"),
 ]
 
 KIND_ORDER = ["Major", "Minor", "Micro"]
@@ -56,12 +60,14 @@ def _fmt_orb(orb: float) -> str:
 
 
 # Pairs that are definitionally opposite — always 180° apart, never informative.
-_AXIS_PAIRS: frozenset[frozenset[str]] = frozenset({
-    frozenset({"Asc", "Dsc"}),
-    frozenset({"MC", "IC"}),
-    frozenset({"Vertex", "Antivertex"}),
-    frozenset({"N.Node", "S.Node"}),
-})
+_AXIS_PAIRS: frozenset[frozenset[str]] = frozenset(
+    {
+        frozenset({"Asc", "Dsc"}),
+        frozenset({"MC", "IC"}),
+        frozenset({"Vertex", "Antivertex"}),
+        frozenset({"N.Node", "S.Node"}),
+    }
+)
 
 _ANGLE_LABELS: dict[str, str] = {
     "asc": "Asc",
@@ -130,7 +136,9 @@ def compute_aspects(chart: Chart, details: bool = True) -> list[Aspect]:
     return aspects
 
 
-def compute_inter_aspects(chart_a: Chart, chart_b: Chart, details: bool = True) -> list[Aspect]:
+def compute_inter_aspects(
+    chart_a: Chart, chart_b: Chart, details: bool = True
+) -> list[Aspect]:
     """Return all significant aspects between bodies of two different charts."""
     bodies_a = _bodies(chart_a, details)
     bodies_b = _bodies(chart_b, details)

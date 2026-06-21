@@ -20,7 +20,9 @@ CHARTS_DIR = Path("charts")
 class ChartInput(BaseModel, frozen=True):
     name: str
     date: str  # YYYY-MM-DD
-    time: str | None = None  # HH:MM (24h); None = unknown, noon UTC used for computation
+    time: str | None = (
+        None  # HH:MM (24h); None = unknown, noon UTC used for computation
+    )
     tz: str = "UTC"  # IANA timezone; ignored when time is None
     lat: float | None = None  # degrees N positive; None = unknown
     lon: float | None = None  # degrees E positive; None = unknown
@@ -63,7 +65,11 @@ def save(chart_input: ChartInput, *, overwrite: bool = False) -> Path:
             f"Pass --force to overwrite."
         )
     CHARTS_DIR.mkdir(exist_ok=True)
-    path.write_text(chart_input.model_copy(update={"name": chart_input.name.lower()}).model_dump_json(indent=2))
+    path.write_text(
+        chart_input.model_copy(
+            update={"name": chart_input.name.lower()}
+        ).model_dump_json(indent=2)
+    )
     return path
 
 

@@ -1,5 +1,3 @@
-import json
-
 import pytest
 
 from hoshi import store
@@ -14,7 +12,9 @@ def charts_dir(tmp_path, monkeypatch):
 
 class TestChartInput:
     def test_to_datetime_with_time(self):
-        ci = ChartInput(name="test", date="2000-01-01", time="14:30", tz="America/Chicago")
+        ci = ChartInput(
+            name="test", date="2000-01-01", time="14:30", tz="America/Chicago"
+        )
         dt = ci.to_datetime()
         assert dt.hour == 14
         assert dt.minute == 30

@@ -1,5 +1,4 @@
 import json
-from datetime import datetime, timezone
 from unittest.mock import patch
 
 import pytest
@@ -17,10 +16,21 @@ def _full_mock_chart():
 
     planets = [
         make_planet(pid, i * 30.0)
-        for i, pid in enumerate([
-            "sun", "moon", "mercury", "venus", "mars",
-            "jupiter", "saturn", "uranus", "neptune", "pluto", "chiron",
-        ])
+        for i, pid in enumerate(
+            [
+                "sun",
+                "moon",
+                "mercury",
+                "venus",
+                "mars",
+                "jupiter",
+                "saturn",
+                "uranus",
+                "neptune",
+                "pluto",
+                "chiron",
+            ]
+        )
     ]
     angles = [
         make_angle("asc", 0.0),
@@ -71,10 +81,20 @@ class TestChartAdd:
             patch("hoshi.cli.store.save") as save_mock,
             patch("hoshi.cli.store.load", return_value=ci),
         ):
-            result = runner.invoke(app, [
-                "chart", "add", "test", "2000-01-01", "12:00",
-                "--lat", "0.0", "--lon", "0.0",
-            ])
+            result = runner.invoke(
+                app,
+                [
+                    "chart",
+                    "add",
+                    "test",
+                    "2000-01-01",
+                    "12:00",
+                    "--lat",
+                    "0.0",
+                    "--lon",
+                    "0.0",
+                ],
+            )
             assert result.exit_code == 0
             save_mock.assert_called_once()
 

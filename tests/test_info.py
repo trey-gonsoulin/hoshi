@@ -1,8 +1,7 @@
-import pytest
 from typer.testing import CliRunner
 
 from hoshi.cli import app
-from hoshi.info import ANGLES, ASPECTS, HOUSES, PLANETS, POINTS, SIGNS
+from hoshi.info import ASPECTS, HOUSES, PLANETS, SIGNS
 
 runner = CliRunner()
 
@@ -220,6 +219,7 @@ class TestInfoDataCompleteness:
 
     def test_all_aspects_have_entries(self):
         from hoshi.aspects import ASPECT_DEFS
+
         for adef in ASPECT_DEFS:
             assert adef.name in ASPECTS, f"Missing info for aspect {adef.name}"
 

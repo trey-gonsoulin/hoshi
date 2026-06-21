@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from hoshi.chart import Chart, HouseSystem, Placed
+from hoshi.chart import Chart, Placed
 from hoshi.ephemeris import PlanetPosition
 from hoshi.houses import Angles
 from hoshi.points import LunarElements
@@ -41,19 +41,36 @@ class TestChartBuild:
     def mock_deps(self, monkeypatch):
         fake_positions = {
             pid: PlanetPosition(lon=i * 30.0, lat=0.0, retrograde=False)
-            for i, pid in enumerate([
-                "sun", "moon", "mercury", "venus", "mars",
-                "jupiter", "saturn", "uranus", "neptune", "pluto", "chiron",
-            ])
+            for i, pid in enumerate(
+                [
+                    "sun",
+                    "moon",
+                    "mercury",
+                    "venus",
+                    "mars",
+                    "jupiter",
+                    "saturn",
+                    "uranus",
+                    "neptune",
+                    "pluto",
+                    "chiron",
+                ]
+            )
         }
-        angles = Angles(asc=0.0, mc=270.0, ic=90.0, dsc=180.0, vertex=200.0, antivertex=20.0)
+        angles = Angles(
+            asc=0.0, mc=270.0, ic=90.0, dsc=180.0, vertex=200.0, antivertex=20.0
+        )
         lunar = LunarElements(om=125.0, w=45.0)
 
         monkeypatch.setattr("hoshi.chart.positions", lambda _: fake_positions)
         monkeypatch.setattr("hoshi.chart.lahiri_ayanamsa", lambda _: 23.85)
         monkeypatch.setattr("hoshi.chart.ecliptic_precession", lambda _: 0.0)
-        monkeypatch.setattr("hoshi.chart.Angles.compute", classmethod(lambda cls, *a, **kw: angles))
-        monkeypatch.setattr("hoshi.chart.LunarElements.at", classmethod(lambda cls, _: lunar))
+        monkeypatch.setattr(
+            "hoshi.chart.Angles.compute", classmethod(lambda cls, *a, **kw: angles)
+        )
+        monkeypatch.setattr(
+            "hoshi.chart.LunarElements.at", classmethod(lambda cls, _: lunar)
+        )
         return {"angles": angles, "lunar": lunar}
 
     def test_planet_count(self, mock_deps):

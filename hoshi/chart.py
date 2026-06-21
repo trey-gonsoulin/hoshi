@@ -6,7 +6,13 @@ from enum import StrEnum
 
 from pydantic import BaseModel
 
-from hoshi.ephemeris import PLANET_ORDER, PlanetPosition, ecliptic_precession, lahiri_ayanamsa, positions
+from hoshi.ephemeris import (
+    PLANET_ORDER,
+    PlanetPosition,
+    ecliptic_precession,
+    lahiri_ayanamsa,
+    positions,
+)
 from hoshi.houses import (
     Angles,
     arc13_cusps,
@@ -29,7 +35,9 @@ class Placed(BaseModel, frozen=True):
     vedic: Placement
 
     @classmethod
-    def for_longitude(cls, lon: float, ayanamsa: float, precession: float = 0.0) -> "Placed":
+    def for_longitude(
+        cls, lon: float, ayanamsa: float, precession: float = 0.0
+    ) -> "Placed":
         return cls(
             lon=lon,
             realsky=Placement.realsky(lon, precession),
@@ -103,9 +111,11 @@ class Chart(BaseModel, frozen=True):
             cusps = arc13_cusps(angles.asc)
 
         if house_system == "arc13":
+
             def house_of(lon: float) -> int:
                 return house_13_arc(lon, angles.asc)
         else:
+
             def house_of(lon: float) -> int:
                 return house_from_cusps(lon, cusps)
 

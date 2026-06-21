@@ -1,4 +1,3 @@
-import math
 from datetime import datetime, timezone
 
 import pytest
@@ -39,20 +38,26 @@ class TestEqualCusps:
 
 class TestPorphyryCusps:
     def test_cardinal_cusps_pinned(self):
-        angles = Angles(asc=10.0, mc=280.0, ic=100.0, dsc=190.0, vertex=200.0, antivertex=20.0)
+        angles = Angles(
+            asc=10.0, mc=280.0, ic=100.0, dsc=190.0, vertex=200.0, antivertex=20.0
+        )
         cusps = porphyry_cusps(angles)
-        assert cusps[0] == pytest.approx(10.0)   # asc
-        assert cusps[3] == pytest.approx(100.0)   # ic
-        assert cusps[6] == pytest.approx(190.0)   # dsc
-        assert cusps[9] == pytest.approx(280.0)   # mc
+        assert cusps[0] == pytest.approx(10.0)  # asc
+        assert cusps[3] == pytest.approx(100.0)  # ic
+        assert cusps[6] == pytest.approx(190.0)  # dsc
+        assert cusps[9] == pytest.approx(280.0)  # mc
 
     def test_twelve_cusps(self):
-        angles = Angles(asc=0.0, mc=270.0, ic=90.0, dsc=180.0, vertex=200.0, antivertex=20.0)
+        angles = Angles(
+            asc=0.0, mc=270.0, ic=90.0, dsc=180.0, vertex=200.0, antivertex=20.0
+        )
         cusps = porphyry_cusps(angles)
         assert len(cusps) == 12
 
     def test_trisection(self):
-        angles = Angles(asc=0.0, mc=270.0, ic=90.0, dsc=180.0, vertex=200.0, antivertex=20.0)
+        angles = Angles(
+            asc=0.0, mc=270.0, ic=90.0, dsc=180.0, vertex=200.0, antivertex=20.0
+        )
         cusps = porphyry_cusps(angles)
         # Q1: asc(0) to ic(90), trisected at 30 and 60
         assert cusps[1] == pytest.approx(30.0)
