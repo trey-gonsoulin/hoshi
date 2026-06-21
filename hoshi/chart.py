@@ -1,6 +1,7 @@
 """Build a complete chart: positions placed in all three zodiac modes,
 plus angles, Placidus cusps, and house numbers."""
 
+from collections.abc import Callable
 from datetime import datetime
 from enum import StrEnum
 
@@ -45,6 +46,12 @@ class Placed(BaseModel, frozen=True):
             vedic=Placement.vedic(lon, ayanamsa),
         )
 
+    def placement(self, mode: str) -> Placement:
+        """Return the placement for the named zodiac mode (validated)."""
+        if mode not in ("realsky", "tropical", "vedic"):
+            raise ValueError(f"Unknown zodiac mode: {mode!r}")
+        return getattr(self, mode)
+
 
 class HouseSystem(StrEnum):
     porphyry = "porphyry"
@@ -57,13 +64,13 @@ class PlanetChart(BaseModel, frozen=True):
     pid: str
     pos: PlanetPosition
     placed: Placed
-    house: int
+    house: int | None = None  # None when location is unknown
 
 
 class AngleChart(BaseModel, frozen=True):
     name: str  # asc / mc / ic / dsc / vertex / antivertex
     placed: Placed
-    house: int
+    house: int | None = None
 
 
 class PointChart(BaseModel, frozen=True):
@@ -71,7 +78,7 @@ class PointChart(BaseModel, frozen=True):
 
     name: str
     placed: Placed
-    house: int
+    house: int | None = None
 
 
 class Chart(BaseModel, frozen=True):
@@ -119,15 +126,8 @@ class Chart(BaseModel, frozen=True):
             def house_of(lon: float) -> int:
                 return house_from_cusps(lon, cusps)
 
-        planets = [
-            PlanetChart(
-                pid=pid,
-                pos=pos[pid],
-                placed=Placed.for_longitude(pos[pid].lon, ayan, prec),
-                house=house_of(pos[pid].lon),
-            )
-            for pid in PLANET_ORDER
-        ]
+        planets = _build_planets(pos, ayan, prec, house_of)
+        point_charts = _build_points(lunar, ayan, prec, house_of)
         angle_charts = [
             AngleChart(
                 name=name,
@@ -136,21 +136,6 @@ class Chart(BaseModel, frozen=True):
             )
             for name in ("asc", "mc", "ic", "dsc", "vertex", "antivertex")
         ]
-
-        point_lons: dict[str, float] = {
-            "N.Node": lunar.north_node,
-            "S.Node": lunar.south_node,
-            "Lilith": lunar.lilith,
-        }
-
-        def to_point(name: str, lon: float) -> PointChart:
-            return PointChart(
-                name=name,
-                placed=Placed.for_longitude(lon, ayan, prec),
-                house=house_of(lon),
-            )
-
-        point_charts = [to_point(name, lon) for name, lon in point_lons.items()]
 
         lot_lons = hermetic_lots(
             angles.asc,
@@ -162,7 +147,14 @@ class Chart(BaseModel, frozen=True):
             pos["jupiter"].lon,
             pos["saturn"].lon,
         )
-        lot_charts = [to_point(name, lot_lons[name]) for name in HERMETIC_LOT_NAMES]
+        lot_charts = [
+            PointChart(
+                name=name,
+                placed=Placed.for_longitude(lot_lons[name], ayan, prec),
+                house=house_of(lot_lons[name]),
+            )
+            for name in HERMETIC_LOT_NAMES
+        ]
 
         return cls(
             when=when,
@@ -185,30 +177,6 @@ class Chart(BaseModel, frozen=True):
         pos = positions(when)
         lunar = LunarElements.at(when)
 
-        planets = [
-            PlanetChart(
-                pid=pid,
-                pos=pos[pid],
-                placed=Placed.for_longitude(pos[pid].lon, ayan, prec),
-                house=0,
-            )
-            for pid in PLANET_ORDER
-        ]
-
-        point_lons: dict[str, float] = {
-            "N.Node": lunar.north_node,
-            "S.Node": lunar.south_node,
-            "Lilith": lunar.lilith,
-        }
-        point_charts = [
-            PointChart(
-                name=name,
-                placed=Placed.for_longitude(lon, ayan, prec),
-                house=0,
-            )
-            for name, lon in point_lons.items()
-        ]
-
         return cls(
             when=when,
             lat=0.0,
@@ -216,8 +184,51 @@ class Chart(BaseModel, frozen=True):
             ayanamsa=ayan,
             house_system="",
             angles=[],
-            planets=planets,
-            points=point_charts,
+            planets=_build_planets(pos, ayan, prec),
+            points=_build_points(lunar, ayan, prec),
             lots=[],
             cusps=[],
         )
+
+
+def _no_house(lon: float) -> None:
+    """House assignment for charts with no location — house is unknown."""
+    return None
+
+
+def _build_planets(
+    pos: dict[str, PlanetPosition],
+    ayan: float,
+    prec: float,
+    house_of: Callable[[float], int | None] = _no_house,
+) -> list[PlanetChart]:
+    return [
+        PlanetChart(
+            pid=pid,
+            pos=pos[pid],
+            placed=Placed.for_longitude(pos[pid].lon, ayan, prec),
+            house=house_of(pos[pid].lon),
+        )
+        for pid in PLANET_ORDER
+    ]
+
+
+def _build_points(
+    lunar: LunarElements,
+    ayan: float,
+    prec: float,
+    house_of: Callable[[float], int | None] = _no_house,
+) -> list[PointChart]:
+    point_lons: dict[str, float] = {
+        "N.Node": lunar.north_node,
+        "S.Node": lunar.south_node,
+        "Lilith": lunar.lilith,
+    }
+    return [
+        PointChart(
+            name=name,
+            placed=Placed.for_longitude(lon, ayan, prec),
+            house=house_of(lon),
+        )
+        for name, lon in point_lons.items()
+    ]

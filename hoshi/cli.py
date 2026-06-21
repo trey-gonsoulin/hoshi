@@ -1,5 +1,6 @@
 """Typer CLI entry point."""
 
+from collections.abc import Mapping
 from datetime import datetime
 from enum import StrEnum
 from zoneinfo import ZoneInfo
@@ -7,11 +8,18 @@ from zoneinfo import ZoneInfo
 import typer
 from rich.console import Console
 
+from pydantic import BaseModel
+
 from hoshi import store
 from hoshi.aspects import compute_aspects, compute_inter_aspects
 from hoshi.chart import Chart, HouseSystem, Placed
 from hoshi.dignities import DIGNITY_SYMBOLS, dignity_for, element_modality_tally
-from hoshi.ephemeris import ecliptic_precession, lahiri_ayanamsa, positions
+from hoshi.ephemeris import (
+    HorizonsError,
+    ecliptic_precession,
+    lahiri_ayanamsa,
+    positions,
+)
 from hoshi.houses import house_13_arc, house_from_cusps
 from hoshi.output import (
     BodyEntry,
@@ -104,41 +112,85 @@ def _output(result: OutputModel, fmt: OutputFormat) -> None:
 # ---------------------------------------------------------------------------
 
 
+# A latitude of exactly 0° makes the Vertex calculation (cot(lat)) divide by
+# zero, so charts with unknown location are computed at a hair off the equator.
+# Location-derived output (angles, houses, lots) is suppressed anyway.
+_PLACEHOLDER_LAT = 0.001
+_PLACEHOLDER_LON = 0.0
+
+
+def chart_from_input(ci: ChartInput, houses: HouseSystem | str) -> Chart:
+    """Build a Chart from stored input, substituting placeholder coordinates
+    when the location is unknown (location-derived output is suppressed later)."""
+    lat = ci.lat if ci.lat is not None else _PLACEHOLDER_LAT
+    lon = ci.lon if ci.lon is not None else _PLACEHOLDER_LON
+    return Chart.build(ci.to_datetime(), lat, lon, house_system=houses)
+
+
+def _resolve_chart_input(
+    target: str, time: str, lat: float | None, lon: float | None, tz: str
+) -> ChartInput:
+    """Resolve a command target to a ChartInput: a one-off chart when --lat/--lon
+    are given, otherwise a saved chart loaded by name."""
+    one_off = lat is not None or lon is not None
+    if one_off:
+        if lat is None or lon is None:
+            raise typer.BadParameter("One-off charts require both --lat and --lon.")
+        return ChartInput(name="", date=target, time=time, tz=tz, lat=lat, lon=lon)
+    try:
+        return store.load(target)
+    except FileNotFoundError as exc:
+        raise typer.BadParameter(
+            f"{exc}\nIf you meant a one-off chart, also pass --lat and --lon "
+            f"(and the first argument should be a YYYY-MM-DD date)."
+        ) from exc
+
+
+class BodySelection(BaseModel, frozen=True):
+    """Which body groups to include when assembling display rows.
+
+    Replaces a row of boolean parameters on `_build_bodies`; callers construct
+    one explicitly. `details` pulls in nodes/points (and, with `lots`, lots);
+    `angles`/`lots`/`houses` gate those columns/sections independently.
+    """
+
+    details: bool = False
+    angles: bool = True
+    lots: bool = True
+    houses: bool = True
+    uncertain_pids: frozenset[str] = frozenset()
+
+
 def _uncertain_pids(ci: ChartInput, mode: str) -> frozenset[str]:
     """Return the set of planet pids whose sign changes at any point on the birth date."""
     d = datetime.fromisoformat(ci.date)
     tz = ZoneInfo(ci.tz)
     start = d.replace(hour=0, minute=0, second=0, tzinfo=tz)
     end = d.replace(hour=23, minute=59, second=59, tzinfo=tz)
-    pos_start = positions(start)
-    pos_end = positions(end)
+    # Chiron isn't inspected below, so skip its Horizons round-trip.
+    pos_start = positions(start, include_chiron=False)
+    pos_end = positions(end, include_chiron=False)
     ayan = lahiri_ayanamsa(start)
     prec_start = ecliptic_precession(start)
     prec_end = ecliptic_precession(end)
     uncertain: set[str] = set()
     for pid in ("sun", "moon", "mercury", "venus", "mars"):
-        s = getattr(
-            Placed.for_longitude(pos_start[pid].lon, ayan, prec_start), mode
-        ).name
-        e = getattr(Placed.for_longitude(pos_end[pid].lon, ayan, prec_end), mode).name
-        if s != e:
+        s = Placed.for_longitude(pos_start[pid].lon, ayan, prec_start).placement(mode)
+        e = Placed.for_longitude(pos_end[pid].lon, ayan, prec_end).placement(mode)
+        if s.name != e.name:
             uncertain.add(pid)
     return frozenset(uncertain)
 
 
 def _build_bodies(
-    chart: Chart,
-    mode: str,
-    details: bool,
-    *,
-    uncertain_pids: frozenset[str] = frozenset(),
-    include_angles: bool = True,
-    include_lots: bool = True,
-    include_houses: bool = True,
+    chart: Chart, mode: str, sel: BodySelection = BodySelection()
 ) -> list[BodyEntry]:
+    def house_of(h: int | None) -> int | None:
+        return h if sel.houses else None
+
     bodies: list[BodyEntry] = []
     for p in chart.planets:
-        pl = getattr(p.placed, mode)
+        pl = p.placed.placement(mode)
         dig = dignity_for(p.pid.capitalize(), pl.name)
         bodies.append(
             BodyEntry(
@@ -147,18 +199,20 @@ def _build_bodies(
                 sign=pl.name,
                 degree=round(pl.deg, 4),
                 lon=round(p.placed.lon, 4),
-                house=p.house if include_houses else None,
+                house=house_of(p.house),
                 rx=p.pos.retrograde,
-                approximate=p.pid in uncertain_pids,
+                approximate=p.pid in sel.uncertain_pids,
                 dignity=DIGNITY_SYMBOLS.get(dig, "") if dig else "",
             )
         )
-    if include_angles:
+    if sel.angles:
         angles = (
-            chart.angles if details else [a for a in chart.angles if a.name == "asc"]
+            chart.angles
+            if sel.details
+            else [a for a in chart.angles if a.name == "asc"]
         )
         for a in angles:
-            pl = getattr(a.placed, mode)
+            pl = a.placed.placement(mode)
             bodies.append(
                 BodyEntry(
                     kind="Angle",
@@ -166,12 +220,12 @@ def _build_bodies(
                     sign=pl.name,
                     degree=round(pl.deg, 4),
                     lon=round(a.placed.lon, 4),
-                    house=a.house if include_houses else None,
+                    house=house_of(a.house),
                 )
             )
-    if details:
+    if sel.details:
         for pt in chart.points:
-            pl = getattr(pt.placed, mode)
+            pl = pt.placed.placement(mode)
             kind = "Node" if pt.name in NODE_NAMES else "Point"
             bodies.append(
                 BodyEntry(
@@ -180,12 +234,12 @@ def _build_bodies(
                     sign=pl.name,
                     degree=round(pl.deg, 4),
                     lon=round(pt.placed.lon, 4),
-                    house=pt.house if include_houses else None,
+                    house=house_of(pt.house),
                 )
             )
-        if include_lots:
+        if sel.lots:
             for pt in chart.lots:
-                pl = getattr(pt.placed, mode)
+                pl = pt.placed.placement(mode)
                 bodies.append(
                     BodyEntry(
                         kind="Lot",
@@ -193,21 +247,16 @@ def _build_bodies(
                         sign=pl.name,
                         degree=round(pl.deg, 4),
                         lon=round(pt.placed.lon, 4),
-                        house=pt.house if include_houses else None,
+                        house=house_of(pt.house),
                     )
                 )
     return bodies
 
 
 def _build_cusp_entries(chart: Chart, mode: str) -> list[CuspEntry]:
-    place_cusp = {
-        "realsky": Placement.realsky,
-        "tropical": Placement.tropical,
-        "vedic": lambda c: Placement.vedic(c, chart.ayanamsa),
-    }[mode]
     entries: list[CuspEntry] = []
     for i, c in enumerate(chart.cusps, start=1):
-        p = place_cusp(c)
+        p = Placement.for_mode(c, mode, ayanamsa=chart.ayanamsa)
         entries.append(CuspEntry(house=i, sign=p.name, degree=p.deg, lon=c))
     return entries
 
@@ -253,7 +302,7 @@ def _build_transit_bodies(
 
     bodies: list[BodyEntry] = []
     for p in transit.planets:
-        pl = getattr(p.placed, mode)
+        pl = p.placed.placement(mode)
         bodies.append(
             BodyEntry(
                 kind="Planet",
@@ -267,7 +316,7 @@ def _build_transit_bodies(
         )
     if details:
         for pt in transit.points:
-            pl = getattr(pt.placed, mode)
+            pl = pt.placed.placement(mode)
             kind = "Node" if pt.name in NODE_NAMES else "Point"
             bodies.append(
                 BodyEntry(
@@ -327,11 +376,13 @@ def _build_chart_output(
     bodies = _build_bodies(
         chart,
         mode,
-        details,
-        uncertain_pids=uncertain,
-        include_angles=show_full,
-        include_lots=show_full,
-        include_houses=show_full,
+        BodySelection(
+            details=details,
+            angles=show_full,
+            lots=show_full,
+            houses=show_full,
+            uncertain_pids=uncertain,
+        ),
     )
     cusp_entries = _build_cusp_entries(chart, mode) if show_full else []
     tallies = _build_tallies(chart, mode, show_full=show_full) if details else None
@@ -365,17 +416,17 @@ def _build_house_comparison(
     ci: ChartInput, mode: str, *, details: bool
 ) -> HouseComparisonOutput:
     when = ci.to_datetime()
-    lat = ci.lat if ci.lat is not None else 0.001
-    lon = ci.lon if ci.lon is not None else 0.0
+    lat = ci.lat if ci.lat is not None else _PLACEHOLDER_LAT
+    lon = ci.lon if ci.lon is not None else _PLACEHOLDER_LON
     charts = {sys: Chart.build(when, lat, lon, house_system=sys) for sys in HouseSystem}
     base = charts[HouseSystem.porphyry]
-    bodies = _build_bodies(base, mode, details)
+    bodies = _build_bodies(base, mode, BodySelection(details=details))
 
     systems = [str(s) for s in HouseSystem]
-    house_columns: dict[str, list[int]] = {}
+    house_columns: dict[str, list[int | None]] = {}
     for sys in HouseSystem:
         c = charts[sys]
-        houses: list[int] = [p.house for p in c.planets]
+        houses: list[int | None] = [p.house for p in c.planets]
         angles = c.angles if details else [a for a in c.angles if a.name == "asc"]
         houses.extend(a.house for a in angles)
         if details:
@@ -397,7 +448,7 @@ def _build_house_comparison(
     )
 
 
-def _fuzzy_match(query: str, candidates: dict[str, object]) -> object | None:
+def _fuzzy_match(query: str, candidates: Mapping[str, object]) -> object | None:
     q = query.lower().replace(" ", "")
     for key, item in candidates.items():
         if key.lower().replace(" ", "") == q:
@@ -483,9 +534,11 @@ def chart_add(
         result = geo.geocode(location)
         if result is None:
             raise typer.BadParameter(f"Could not geocode location: {location!r}")
-        lat = result.latitude
-        lon = result.longitude
-        typer.echo(f"Resolved location: {result.address}")
+        # geopy types geocode() as possibly-a-coroutine (async adapters); the
+        # sync Nominatim path returns a Location, so these attrs are present.
+        lat = result.latitude  # type: ignore[reportAttributeAccessIssue]
+        lon = result.longitude  # type: ignore[reportAttributeAccessIssue]
+        typer.echo(f"Resolved location: {result.address}")  # type: ignore[reportAttributeAccessIssue]
         typer.echo(f"Coordinates: {lat:.4f}°N, {lon:.4f}°E")
     if (lat is None) != (lon is None):
         raise typer.BadParameter(
@@ -500,10 +553,7 @@ def chart_add(
     if fmt == OutputFormat.table:
         typer.echo("")
 
-    when = ci.to_datetime()
-    chart_lat = ci.lat if ci.lat is not None else 0.001
-    chart_lon = ci.lon if ci.lon is not None else 0.0
-    chart = Chart.build(when, chart_lat, chart_lon, house_system=houses)
+    chart = chart_from_input(ci, houses)
     output = _build_chart_output(
         ci,
         chart,
@@ -566,31 +616,19 @@ def chart_cusps(
     ),
 ) -> None:
     """Print house cusps for a saved or one-off chart."""
-    one_off = lat is not None or lon is not None
-    if one_off:
-        if lat is None or lon is None:
-            raise typer.BadParameter("One-off charts require both --lat and --lon.")
-        ci = ChartInput(name="", date=target, time=time, tz=tz, lat=lat, lon=lon)
-    else:
-        try:
-            ci = store.load(target)
-        except FileNotFoundError as exc:
-            raise typer.BadParameter(str(exc)) from exc
-        if not ci.time_known:
-            raise typer.BadParameter(
-                f"Chart {ci.name!r} has no birth time — house cusps cannot be computed."
-            )
-        if not ci.location_known:
-            raise typer.BadParameter(
-                f"Chart {ci.name!r} has no birth location — house cusps cannot be computed."
-            )
+    ci = _resolve_chart_input(target, time, lat, lon, tz)
+    if not ci.time_known:
+        raise typer.BadParameter(
+            f"Chart {ci.name!r} has no birth time — house cusps cannot be computed."
+        )
+    if not ci.location_known:
+        raise typer.BadParameter(
+            f"Chart {ci.name!r} has no birth location — house cusps cannot be computed."
+        )
     try:
-        when = ci.to_datetime()
+        chart = chart_from_input(ci, houses)
     except ValueError as exc:
         raise typer.BadParameter(f"Could not parse date/time: {exc}") from exc
-    chart_lat = ci.lat if ci.lat is not None else 0.001
-    chart_lon = ci.lon if ci.lon is not None else 0.0
-    chart = Chart.build(when, chart_lat, chart_lon, house_system=houses)
     cusp_entries = _build_cusp_entries(chart, mode)
     output = CuspsOutput(house_system=chart.house_system, cusps=cusp_entries)
     _output(output, fmt)
@@ -648,19 +686,7 @@ def chart_show(
     ),
 ) -> None:
     """Display a chart by saved name, or compute a one-off chart from birth parameters."""
-    one_off = lat is not None or lon is not None
-    if one_off:
-        if lat is None or lon is None:
-            raise typer.BadParameter("One-off charts require both --lat and --lon.")
-        ci = ChartInput(name="", date=target, time=time, tz=tz, lat=lat, lon=lon)
-    else:
-        try:
-            ci = store.load(target)
-        except FileNotFoundError as exc:
-            raise typer.BadParameter(
-                f"{exc}\nIf you meant a one-off chart, also pass --lat and --lon "
-                f"(and the first argument should be a YYYY-MM-DD date)."
-            ) from exc
+    ci = _resolve_chart_input(target, time, lat, lon, tz)
 
     if compare_houses:
         if not ci.time_known or not ci.location_known:
@@ -671,10 +697,7 @@ def chart_show(
         _output(output, fmt)
         return
 
-    when = ci.to_datetime()
-    chart_lat = ci.lat if ci.lat is not None else 0.001
-    chart_lon = ci.lon if ci.lon is not None else 0.0
-    chart = Chart.build(when, chart_lat, chart_lon, house_system=houses)
+    chart = chart_from_input(ci, houses)
     output = _build_chart_output(
         ci,
         chart,
@@ -756,12 +779,8 @@ def chart_transits(
 
     natal_time_known = ci.time_known
     natal_loc_known = ci.location_known
-    natal_lat = ci.lat if ci.lat is not None else 0.001
-    natal_lon = ci.lon if ci.lon is not None else 0.0
 
-    chart_natal = Chart.build(
-        ci.to_datetime(), natal_lat, natal_lon, house_system=houses
-    )
+    chart_natal = chart_from_input(ci, houses)
     chart_transit = Chart.positions_only(transit_dt)
 
     warnings: list[str] = []
@@ -787,11 +806,13 @@ def chart_transits(
         natal_bodies = _build_bodies(
             chart_natal,
             mode,
-            details,
-            uncertain_pids=natal_uncertain,
-            include_angles=False,
-            include_lots=False,
-            include_houses=False,
+            BodySelection(
+                details=details,
+                angles=False,
+                lots=False,
+                houses=False,
+                uncertain_pids=natal_uncertain,
+            ),
         )
 
     aspect_list = (
@@ -839,18 +860,8 @@ def chart_compare(
     except FileNotFoundError as exc:
         raise typer.BadParameter(str(exc)) from exc
 
-    chart_a = Chart.build(
-        ci_a.to_datetime(),
-        ci_a.lat if ci_a.lat is not None else 0.001,
-        ci_a.lon if ci_a.lon is not None else 0.0,
-        house_system=houses,
-    )
-    chart_b = Chart.build(
-        ci_b.to_datetime(),
-        ci_b.lat if ci_b.lat is not None else 0.001,
-        ci_b.lon if ci_b.lon is not None else 0.0,
-        house_system=houses,
-    )
+    chart_a = chart_from_input(ci_a, houses)
+    chart_b = chart_from_input(ci_b, houses)
 
     show_full_a = ci_a.time_known and ci_a.location_known
     show_full_b = ci_b.time_known and ci_b.location_known
@@ -867,18 +878,16 @@ def chart_compare(
     bodies_a = _build_bodies(
         chart_a,
         mode,
-        details,
-        include_angles=show_full_a,
-        include_lots=show_full_a,
-        include_houses=False,
+        BodySelection(
+            details=details, angles=show_full_a, lots=show_full_a, houses=False
+        ),
     )
     bodies_b = _build_bodies(
         chart_b,
         mode,
-        details,
-        include_angles=show_full_b,
-        include_lots=show_full_b,
-        include_houses=False,
+        BodySelection(
+            details=details, angles=show_full_b, lots=show_full_b, houses=False
+        ),
     )
 
     aspect_list = compute_inter_aspects(chart_a, chart_b, details) if aspects else None
@@ -934,6 +943,27 @@ def _build_info_list(
     )
 
 
+def _render_info(
+    name: str | None,
+    fmt: OutputFormat,
+    catalog: Mapping[str, object],
+    *,
+    title: str,
+    noun: str,
+    extra_cols: list[str] | None = None,
+) -> None:
+    """Render one item (fuzzy-matched) or the whole catalog for an `info` command."""
+    if name is not None:
+        item = _fuzzy_match(name, catalog)
+        if item is None:
+            raise typer.BadParameter(f"Unknown {noun}: {name!r}")
+        _output(_build_info_detail(item), fmt)
+    else:
+        _output(
+            _build_info_list(title, list(catalog.values()), extra_cols=extra_cols), fmt
+        )
+
+
 @info_app.command(name="planets")
 def info_planets(
     name: str | None = typer.Argument(
@@ -946,13 +976,7 @@ def info_planets(
     """Reference info on the planets."""
     from hoshi.info import PLANETS
 
-    if name is not None:
-        item = _fuzzy_match(name, PLANETS)
-        if item is None:
-            raise typer.BadParameter(f"Unknown planet: {name!r}")
-        _output(_build_info_detail(item), fmt)
-    else:
-        _output(_build_info_list("Planets", list(PLANETS.values())), fmt)
+    _render_info(name, fmt, PLANETS, title="Planets", noun="planet")
 
 
 @info_app.command(name="signs")
@@ -965,20 +989,14 @@ def info_signs(
     """Reference info on the zodiac signs (13 real-sky signs including Ophiuchus)."""
     from hoshi.info import SIGNS
 
-    if name is not None:
-        item = _fuzzy_match(name, SIGNS)
-        if item is None:
-            raise typer.BadParameter(f"Unknown sign: {name!r}")
-        _output(_build_info_detail(item), fmt)
-    else:
-        _output(
-            _build_info_list(
-                "Signs",
-                list(SIGNS.values()),
-                extra_cols=["Element", "Modality", "Ruler"],
-            ),
-            fmt,
-        )
+    _render_info(
+        name,
+        fmt,
+        SIGNS,
+        title="Signs",
+        noun="sign",
+        extra_cols=["Element", "Modality", "Ruler"],
+    )
 
 
 @info_app.command(name="angles")
@@ -993,13 +1011,7 @@ def info_angles(
     """Reference info on chart angles."""
     from hoshi.info import ANGLES
 
-    if name is not None:
-        item = _fuzzy_match(name, ANGLES)
-        if item is None:
-            raise typer.BadParameter(f"Unknown angle: {name!r}")
-        _output(_build_info_detail(item), fmt)
-    else:
-        _output(_build_info_list("Angles", list(ANGLES.values())), fmt)
+    _render_info(name, fmt, ANGLES, title="Angles", noun="angle")
 
 
 @info_app.command(name="aspects")
@@ -1014,13 +1026,7 @@ def info_aspects(
     """Reference info on aspects."""
     from hoshi.info import ASPECTS
 
-    if name is not None:
-        item = _fuzzy_match(name, ASPECTS)
-        if item is None:
-            raise typer.BadParameter(f"Unknown aspect: {name!r}")
-        _output(_build_info_detail(item), fmt)
-    else:
-        _output(_build_info_list("Aspects", list(ASPECTS.values())), fmt)
+    _render_info(name, fmt, ASPECTS, title="Aspects", noun="aspect")
 
 
 @info_app.command(name="houses")
@@ -1064,7 +1070,11 @@ def info_points(
 
 
 def main() -> None:
-    app()
+    try:
+        app()
+    except HorizonsError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise SystemExit(1) from exc
 
 
 if __name__ == "__main__":

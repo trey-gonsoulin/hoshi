@@ -33,17 +33,22 @@ constraint-dependencies = [
 ]
 
 [[tool.uv.index]]
-url = "https://pypi.org/simple"
+url = "https://artifacts.apple.com/api/pypi/pypi-private/simple"
 default = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
 
 [tool.hatch.build.targets.wheel]
 packages = ["hoshi"]
 
 [dependency-groups]
 dev = [
+    "pyright>=1.1.410",
     "pytest>=9.1.1",
     "ruff>=0.15.18",
 ]

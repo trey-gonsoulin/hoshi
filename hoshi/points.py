@@ -3,7 +3,7 @@ Part of Fortune.
 
 True nodes and apogee come from JPL Horizons osculating orbital elements
 (EPHEM_TYPE=ELEMENTS, target=301 Moon, center=500@399 geocentric, J2000
-ecliptic). Per-minute cache in `.lunar_cache.json` in the cwd.
+ecliptic). Per-minute cache in `~/.cache/hoshi/lunar.json`.
 
 Part of Fortune is computed locally from ASC + Sun + Moon longitudes.
 """
@@ -13,15 +13,16 @@ from datetime import datetime, timezone
 from pydantic import BaseModel
 
 from hoshi.ephemeris import (
-    _cache_dir,
-    _timescale,
+    HorizonsError,
+    cache_dir,
     horizons_fetch,
     json_cache_get,
     json_cache_put,
+    timescale,
 )
 
 
-LUNAR_CACHE_PATH = _cache_dir() / "lunar.json"
+LUNAR_CACHE_PATH = cache_dir() / "lunar.json"
 
 
 class LunarElements(BaseModel, frozen=True):
@@ -66,7 +67,7 @@ class LunarElements(BaseModel, frozen=True):
         if cached is not None:
             return cls.model_validate(cached)
 
-        jd = _timescale().from_datetime(when_utc).tdb
+        jd = timescale().from_datetime(when_utc).tdb
         body = horizons_fetch(
             {
                 "format": "text",
@@ -98,12 +99,12 @@ def _parse_horizons_elements(body: str) -> tuple[float, float]:
         start = lines.index("$$SOE")
         end = lines.index("$$EOE")
     except ValueError as exc:
-        raise RuntimeError(
+        raise HorizonsError(
             f"Horizons response missing $$SOE/$$EOE:\n{body[:500]}"
         ) from exc
     rows = [ln for ln in lines[start + 1 : end] if ln.strip()]
     if not rows:
-        raise RuntimeError("Horizons ELEMENTS response had no data rows")
+        raise HorizonsError("Horizons ELEMENTS response had no data rows")
     cols = [c.strip() for c in rows[0].split(",")]
     return float(cols[5]), float(cols[6])  # OM, W
 

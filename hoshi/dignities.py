@@ -6,6 +6,7 @@ The exact Nuastro table may differ; these are a reasonable baseline.
 """
 
 from hoshi.chart import Chart
+from hoshi.zodiac import SIGN_ATTRS
 
 
 # ---------------------------------------------------------------------------
@@ -115,61 +116,13 @@ DIGNITY_SYMBOLS: dict[str, str] = {
 # Elements and modalities
 # ---------------------------------------------------------------------------
 
-# Tropical signs in order — index matches TROP_NAMES.
-_SIGN_ELEMENT: list[str] = [
-    "Fire",
-    "Earth",
-    "Air",
-    "Water",  # Aries Taurus Gemini Cancer
-    "Fire",
-    "Earth",
-    "Air",
-    "Water",  # Leo Virgo Libra Scorpio
-    "Fire",
-    "Earth",
-    "Air",
-    "Water",  # Sagittarius Capricorn Aquarius Pisces
-]
-
-_SIGN_MODALITY: list[str] = [
-    "Cardinal",
-    "Fixed",
-    "Mutable",
-    "Cardinal",  # Aries Taurus Gemini Cancer
-    "Fixed",
-    "Mutable",
-    "Cardinal",
-    "Fixed",  # Leo Virgo Libra Scorpio
-    "Mutable",
-    "Cardinal",
-    "Fixed",
-    "Mutable",  # Sagittarius Capricorn Aquarius Pisces
-]
-
-# Tropical sign name → (element, modality)
-from hoshi.zodiac import TROP_NAMES  # noqa: E402 — avoids circular at module level
-
-_TROP_SIGN_ATTRS: dict[str, tuple[str, str]] = {
-    name: (_SIGN_ELEMENT[i], _SIGN_MODALITY[i]) for i, name in enumerate(TROP_NAMES)
-}
-
-# Ophiuchus: Water / Fixed (Nuastro convention)
-_REALSKY_EXTRA: dict[str, tuple[str, str]] = {
-    "Ophiuchus": ("Water", "Fixed"),
-}
-
-
-def _sign_attrs(sign: str) -> tuple[str, str] | None:
-    """Return (element, modality) for a sign name, or None if unknown."""
-    return _TROP_SIGN_ATTRS.get(sign) or _REALSKY_EXTRA.get(sign)
-
 
 def _tally_bodies(bodies: list, mode: str) -> dict[str, dict[str, int]]:
     elements: dict[str, int] = {}
     modalities: dict[str, int] = {}
     for body in bodies:
-        placement = getattr(body.placed, mode)
-        attrs = _sign_attrs(placement.name)
+        placement = body.placed.placement(mode)
+        attrs = SIGN_ATTRS.get(placement.name)
         if attrs is None:
             continue
         elem, mod = attrs

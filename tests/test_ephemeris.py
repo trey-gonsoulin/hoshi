@@ -78,7 +78,7 @@ class TestLahiriAyanamsa:
             def from_datetime(self, dt):
                 return FakeTime()
 
-        monkeypatch.setattr("hoshi.ephemeris._timescale", lambda: FakeTS())
+        monkeypatch.setattr("hoshi.ephemeris.timescale", lambda: FakeTS())
         when = datetime(2000, 1, 1, 12, 0, tzinfo=timezone.utc)
         assert lahiri_ayanamsa(when) == pytest.approx(23.85)
 
@@ -90,7 +90,7 @@ class TestLahiriAyanamsa:
             def from_datetime(self, dt):
                 return FakeTime()
 
-        monkeypatch.setattr("hoshi.ephemeris._timescale", lambda: FakeTS())
+        monkeypatch.setattr("hoshi.ephemeris.timescale", lambda: FakeTS())
         when = datetime(2100, 1, 1, 12, 0, tzinfo=timezone.utc)
         expected = 23.85 + 100 * (50.29 / 3600.0)
         assert lahiri_ayanamsa(when) == pytest.approx(expected)
@@ -109,7 +109,7 @@ class TestEclipticPrecession:
             def from_datetime(self, dt):
                 return FakeTime()
 
-        monkeypatch.setattr("hoshi.ephemeris._timescale", lambda: FakeTS())
+        monkeypatch.setattr("hoshi.ephemeris.timescale", lambda: FakeTS())
         when = datetime(2000, 1, 1, 12, 0, tzinfo=timezone.utc)
         assert ecliptic_precession(when) == pytest.approx(0.0)
 
@@ -121,7 +121,7 @@ class TestEclipticPrecession:
             def from_datetime(self, dt):
                 return FakeTime()
 
-        monkeypatch.setattr("hoshi.ephemeris._timescale", lambda: FakeTS())
+        monkeypatch.setattr("hoshi.ephemeris.timescale", lambda: FakeTS())
         when = datetime(2050, 1, 1, 12, 0, tzinfo=timezone.utc)
         expected = 50 * (50.29 / 3600.0)
         assert ecliptic_precession(when) == pytest.approx(expected)
@@ -185,7 +185,7 @@ class TestPositions:
                 return FakeTime()
 
         monkeypatch.setattr("hoshi.ephemeris._load_ephemeris", lambda: FakeEph())
-        monkeypatch.setattr("hoshi.ephemeris._timescale", lambda: FakeTS())
+        monkeypatch.setattr("hoshi.ephemeris.timescale", lambda: FakeTS())
         monkeypatch.setattr(
             "hoshi.ephemeris._chiron_position",
             lambda _: fake_pos,
@@ -197,6 +197,79 @@ class TestPositions:
         for pp in result.values():
             assert isinstance(pp, PlanetPosition)
 
+    def test_exclude_chiron_skips_horizons(self, monkeypatch):
+        from hoshi.ephemeris import PlanetPosition
+
+        self._patch_skyfield(monkeypatch)
+
+        def _boom(_):
+            raise AssertionError("_chiron_position should not be called")
+
+        monkeypatch.setattr("hoshi.ephemeris._chiron_position", _boom)
+
+        when = datetime(2000, 1, 1, 12, 0, tzinfo=timezone.utc)
+        result = positions(when, include_chiron=False)
+        assert "chiron" not in result
+        assert set(result.keys()) == {p for p in PLANET_ORDER if p != "chiron"}
+        assert all(isinstance(pp, PlanetPosition) for pp in result.values())
+
+    def _patch_skyfield(self, monkeypatch):
+        """Stub Skyfield ephemeris/timescale so positions() needs no network."""
+
+        class FakeAngle:
+            def __init__(self, deg):
+                self._deg = deg
+
+            @property
+            def degrees(self):
+                return self._deg
+
+        class FakeAstrometric:
+            def ecliptic_latlon(self, epoch=None):
+                return FakeAngle(0.0), FakeAngle(100.0), None
+
+        class FakeBody:
+            def observe(self, target):
+                return FakeAstrometric()
+
+        class FakeEarth:
+            def at(self, t):
+                return FakeBody()
+
+        class FakeEph:
+            def __getitem__(self, key):
+                return FakeEarth() if key == "earth" else "target"
+
+        class FakeTime:
+            tt = tdb = ut1 = 2451545.0
+
+            def __add__(self, other):
+                return self
+
+            def replace(self, **kw):
+                return self
+
+        class FakeTS:
+            def from_datetime(self, dt):
+                return FakeTime()
+
+        monkeypatch.setattr("hoshi.ephemeris._load_ephemeris", lambda: FakeEph())
+        monkeypatch.setattr("hoshi.ephemeris.timescale", lambda: FakeTS())
+
     def test_naive_raises(self):
         with pytest.raises(ValueError, match="timezone-aware"):
             positions(datetime(2000, 1, 1))
+
+
+class TestHorizonsFetch:
+    def test_network_failure_wrapped(self, monkeypatch):
+        import urllib.error
+
+        from hoshi.ephemeris import HorizonsError, horizons_fetch
+
+        def _raise(*args, **kwargs):
+            raise urllib.error.URLError("no route to host")
+
+        monkeypatch.setattr("urllib.request.urlopen", _raise)
+        with pytest.raises(HorizonsError, match="Could not reach JPL Horizons"):
+            horizons_fetch({"format": "text"})

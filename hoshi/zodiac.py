@@ -35,34 +35,43 @@ IAU: list[IAUSign] = [
     IAUSign(name=n, abbr=a, lo=lo, hi=hi) for n, a, lo, hi in _IAU_ROWS
 ]
 
-TROP_NAMES = [
-    "Aries",
-    "Taurus",
-    "Gemini",
-    "Cancer",
-    "Leo",
-    "Virgo",
-    "Libra",
-    "Scorpio",
-    "Sagittarius",
-    "Capricorn",
-    "Aquarius",
-    "Pisces",
+
+class SignInfo(BaseModel, frozen=True):
+    """A tropical sign's name, abbreviation, element, and modality."""
+
+    name: str
+    abbr: str
+    element: str
+    modality: str
+
+
+# The twelve tropical signs, in zodiac order. Single source of truth for
+# names, abbreviations, elements, and modalities — derive parallel lists from
+# this rather than maintaining hand-aligned arrays.
+TROP_SIGNS: list[SignInfo] = [
+    SignInfo(name="Aries", abbr="Ari", element="Fire", modality="Cardinal"),
+    SignInfo(name="Taurus", abbr="Tau", element="Earth", modality="Fixed"),
+    SignInfo(name="Gemini", abbr="Gem", element="Air", modality="Mutable"),
+    SignInfo(name="Cancer", abbr="Cnc", element="Water", modality="Cardinal"),
+    SignInfo(name="Leo", abbr="Leo", element="Fire", modality="Fixed"),
+    SignInfo(name="Virgo", abbr="Vir", element="Earth", modality="Mutable"),
+    SignInfo(name="Libra", abbr="Lib", element="Air", modality="Cardinal"),
+    SignInfo(name="Scorpio", abbr="Sco", element="Water", modality="Fixed"),
+    SignInfo(name="Sagittarius", abbr="Sgr", element="Fire", modality="Mutable"),
+    SignInfo(name="Capricorn", abbr="Cap", element="Earth", modality="Cardinal"),
+    SignInfo(name="Aquarius", abbr="Aqr", element="Air", modality="Fixed"),
+    SignInfo(name="Pisces", abbr="Psc", element="Water", modality="Mutable"),
 ]
-TROP_ABBR = [
-    "Ari",
-    "Tau",
-    "Gem",
-    "Cnc",
-    "Leo",
-    "Vir",
-    "Lib",
-    "Sco",
-    "Sgr",
-    "Cap",
-    "Aqr",
-    "Psc",
-]
+
+TROP_NAMES = [s.name for s in TROP_SIGNS]
+TROP_ABBR = [s.abbr for s in TROP_SIGNS]
+
+# Sign name → (element, modality), covering all 13 real-sky signs.
+# Ophiuchus is Water / Fixed by Nuastro convention.
+SIGN_ATTRS: dict[str, tuple[str, str]] = {
+    s.name: (s.element, s.modality) for s in TROP_SIGNS
+}
+SIGN_ATTRS["Ophiuchus"] = ("Water", "Fixed")
 
 
 def n360(v: float) -> float:
@@ -122,6 +131,28 @@ class Placement(BaseModel, frozen=True):
         s = n360(lon - ayanamsa)
         i = int(s // 30)
         return cls(name=TROP_NAMES[i], abbr=TROP_ABBR[i], deg=s - i * 30)
+
+    @classmethod
+    def for_mode(
+        cls,
+        lon: float,
+        mode: str,
+        *,
+        ayanamsa: float = 0.0,
+        precession: float = 0.0,
+    ) -> "Placement":
+        """Place a longitude according to the named zodiac mode.
+
+        Single dispatch point for the three modes so callers don't repeat the
+        mode→method mapping (and a bad mode fails here, at the boundary).
+        """
+        if mode == "realsky":
+            return cls.realsky(lon, precession)
+        if mode == "tropical":
+            return cls.tropical(lon)
+        if mode == "vedic":
+            return cls.vedic(lon, ayanamsa)
+        raise ValueError(f"Unknown zodiac mode: {mode!r}")
 
 
 def format_deg(d: float) -> str:

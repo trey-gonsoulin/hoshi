@@ -49,16 +49,22 @@ def _sign_order(mode: str) -> list[str]:
     return [s.name for s in IAU] if mode == "realsky" else TROP_NAMES
 
 
-def _render_section(
-    console: Console,
+def _body_table(
     title: str,
     bodies: list[BodyEntry],
     *,
-    show_houses: bool,
     show_kind: bool = False,
     show_sign: bool = True,
     show_rx: bool = True,
-) -> None:
+    show_houses: bool = False,
+    show_dignity: bool = False,
+) -> Table:
+    """Build a body table with a consistent column set and styled cells.
+
+    Columns (in order): [Kind] Name [Sign] Degree Lon [Rx] [H] [Dig]. Every
+    body-row renderer routes through this so column order and the
+    approximate/retrograde styling live in one place.
+    """
     table = _new_table(title)
     if show_kind:
         table.add_column("Kind")
@@ -71,6 +77,8 @@ def _render_section(
         table.add_column("Rx", justify="center")
     if show_houses:
         table.add_column("H", justify="right")
+    if show_dignity:
+        table.add_column("Dig", justify="center")
     for b in bodies:
         cells: list = []
         if show_kind:
@@ -84,35 +92,40 @@ def _render_section(
             cells.append(_rx_str(b.rx))
         if show_houses:
             cells.append(str(b.house) if b.house else "")
+        if show_dignity:
+            cells.append(b.dignity or "")
         table.add_row(*cells)
-    console.print(table)
+    return table
+
+
+def _render_section(
+    console: Console,
+    title: str,
+    bodies: list[BodyEntry],
+    *,
+    show_houses: bool,
+    show_kind: bool = False,
+    show_sign: bool = True,
+    show_rx: bool = True,
+) -> None:
+    console.print(
+        _body_table(
+            title,
+            bodies,
+            show_kind=show_kind,
+            show_sign=show_sign,
+            show_rx=show_rx,
+            show_houses=show_houses,
+        )
+    )
 
 
 def _render_planets_section(
     console: Console, bodies: list[BodyEntry], *, show_houses: bool
 ) -> None:
-    table = _new_table("Planets")
-    table.add_column("Name", style="bold")
-    table.add_column("Sign")
-    table.add_column("Degree", justify="right")
-    table.add_column("Lon", justify="right")
-    table.add_column("Rx", justify="center")
-    if show_houses:
-        table.add_column("H", justify="right")
-    table.add_column("Dig", justify="center")
-    for b in bodies:
-        row: list = [
-            b.name,
-            _styled(b.sign, b.approximate),
-            _styled(format_deg(b.degree), b.approximate),
-            _styled(f"{b.lon:.2f}°", b.approximate),
-            _rx_str(b.rx),
-        ]
-        if show_houses:
-            row.append(str(b.house) if b.house else "")
-        row.append(b.dignity or "")
-        table.add_row(*row)
-    console.print(table)
+    console.print(
+        _body_table("Planets", bodies, show_houses=show_houses, show_dignity=True)
+    )
 
 
 def _render_by_sign(
@@ -129,26 +142,11 @@ def _render_by_sign(
         grouped.setdefault(b.sign, []).append(b)
     for sign in sorted(grouped, key=lambda s: rank.get(s, 99)):
         rows = sorted(grouped[sign], key=lambda b: b.degree)
-        table = _new_table(sign)
-        table.add_column("Kind")
-        table.add_column("Name", style="bold")
-        table.add_column("Degree", justify="right")
-        table.add_column("Lon", justify="right")
-        table.add_column("Rx", justify="center")
-        if show_houses:
-            table.add_column("H", justify="right")
-        for b in rows:
-            cells: list = [
-                b.kind,
-                b.name,
-                _styled(format_deg(b.degree), b.approximate),
-                _styled(f"{b.lon:.2f}°", b.approximate),
-                _rx_str(b.rx),
-            ]
-            if show_houses:
-                cells.append(str(b.house) if b.house else "")
-            table.add_row(*cells)
-        console.print(table)
+        console.print(
+            _body_table(
+                sign, rows, show_kind=True, show_sign=False, show_houses=show_houses
+            )
+        )
 
 
 def _render_by_house(
@@ -163,24 +161,7 @@ def _render_by_house(
             grouped.setdefault(b.house, []).append(b)
     for i, sign in enumerate(cusp_signs, start=1):
         rows = sorted(grouped.get(i, []), key=lambda b: (b.lon - asc_lon) % 360.0)
-        table = _new_table(f"H{i} — {sign}")
-        table.add_column("Kind")
-        table.add_column("Name", style="bold")
-        table.add_column("Sign")
-        table.add_column("Degree", justify="right")
-        table.add_column("Lon", justify="right")
-        table.add_column("Rx", justify="center")
-        for b in rows:
-            cells: list = [
-                b.kind,
-                b.name,
-                _styled(b.sign, b.approximate),
-                _styled(format_deg(b.degree), b.approximate),
-                _styled(f"{b.lon:.2f}°", b.approximate),
-                _rx_str(b.rx),
-            ]
-            table.add_row(*cells)
-        console.print(table)
+        console.print(_body_table(f"H{i} — {sign}", rows, show_kind=True))
 
 
 def _render_aspects(console: Console, aspects: list[Aspect], prefix: str = "") -> None:
@@ -265,9 +246,6 @@ class OutputModel(BaseModel):
     @abstractmethod
     def render(self, console: Console) -> None: ...
 
-    def model_dump_json(self, **kwargs) -> str:
-        return super().model_dump_json(**kwargs)
-
     def dump_yaml(self) -> str:
         return yaml.dump(
             self.model_dump(mode="json"),
@@ -317,7 +295,7 @@ class TallyRow(BaseModel, frozen=True):
     total: int
 
 
-class TallyOutput(OutputModel, frozen=True):
+class TallyOutput(OutputModel):
     elements: dict[str, TallyRow]
     modalities: dict[str, TallyRow]
 
@@ -687,7 +665,7 @@ class HouseComparisonOutput(OutputModel):
     header: ChartHeader = ChartHeader()
     bodies: list[BodyEntry] = []
     systems: list[str] = []
-    house_columns: dict[str, list[int]] = {}
+    house_columns: dict[str, list[int | None]] = {}
 
     def render(self, console: Console) -> None:
         h = self.header
