@@ -33,7 +33,7 @@ constraint-dependencies = [
 ]
 
 [[tool.uv.index]]
-url = "https://artifacts.apple.com/api/pypi/pypi-private/simple"
+url = "https://pypi.org/simple"
 default = true
 
 [tool.pytest.ini_options]
