@@ -58,7 +58,6 @@ dev = [
 version_toml = ["pyproject.toml:project.version"]
 branch = "main"
 commit_message = "chore(release): v{version}"
-build_command = "uv build"
 
 [tool.semantic_release.changelog.default_templates]
 changelog_file = "CHANGELOG.md"
