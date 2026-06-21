@@ -6,7 +6,7 @@ Traditional astrology divides the sky into 12 equal 30° signs. Real-sky astrolo
 
 ## Setup
 
-Requires Python 3.13+ and [uv](https://docs.astral.sh/uv/).
+Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
 
 ```sh
 uv sync
