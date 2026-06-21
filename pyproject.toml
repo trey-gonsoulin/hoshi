@@ -25,10 +25,6 @@ hoshi = "hoshi.cli:main"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[[tool.uv.index]]
-url = "https://artifacts.apple.com/api/pypi/pypi-private/simple"
-default = true
-
 [tool.uv]
 constraint-dependencies = [
     "future>=1.0.0",
