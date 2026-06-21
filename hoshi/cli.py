@@ -890,15 +890,10 @@ def _collect_transit_entries(
         entries.append(
             row("Planet", p.pid.capitalize(), p.placed, p.placed.lon, "℞" if p.pos.retrograde else "")
         )
-    angles = transit.angles if details else [a for a in transit.angles if a.name == "asc"]
-    for a in angles:
-        entries.append(row("Angle", ANGLE_DISPLAY_NAMES[a.name], a.placed, a.placed.lon))
     if details:
         for pt in transit.points:
             kind = "Node" if pt.name in NODE_NAMES else "Point"
             entries.append(row(kind, pt.name, pt.placed, pt.placed.lon))
-        for pt in transit.lots:
-            entries.append(row("Lot", pt.name, pt.placed, pt.placed.lon))
     return entries
 
 
@@ -948,8 +943,8 @@ def _print_transits(
         natal_entries = _collect_entries(
             chart_natal, mode, details,
             uncertain_pids=natal_uncertain_pids,
-            include_angles=natal_show_full,
-            include_lots=natal_show_full,
+            include_angles=False,
+            include_lots=False,
         )
         title = "Natal vs Transits" + ("  (H = natal house)" if natal_loc_known else "")
         table = _new_table(title)
@@ -988,14 +983,12 @@ def _print_transits(
         title_suffix = "  (H = natal house)" if natal_loc_known else ""
         if details:
             _print_section("Planets", by_kind.get("Planet", []), transit_house_label)
-            _print_section("Angles", by_kind.get("Angle", []), transit_house_label)
             _print_section("Nodes", by_kind.get("Node", []), transit_house_label)
             _print_section("Points", by_kind.get("Point", []), transit_house_label)
-            _print_section("Lots", by_kind.get("Lot", []), transit_house_label)
         else:
             _print_section(
                 f"Transiting Planets{title_suffix}",
-                by_kind.get("Planet", []) + by_kind.get("Angle", []),
+                by_kind.get("Planet", []),
                 transit_house_label,
             )
 
