@@ -108,6 +108,38 @@ bodies) counts.
 
 - Use `uv` for dependency and run management (`uv add`, `uv run`).
 
+## Commit message format
+
+This repo uses [Conventional Commits](https://www.conventionalcommits.org/) for
+`python-semantic-release` to automate versioning. Every commit message must
+follow this format:
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+**Types** (only these trigger releases):
+- `fix:` — bug fix → **patch** bump (0.0.x)
+- `feat:` — new feature → **minor** bump (0.x.0)
+- Append `!` after the type/scope (e.g. `feat!:`) or add a `BREAKING CHANGE:` footer → **major** bump (x.0.0)
+
+**Types** (no release, but still use them):
+- `chore:` — maintenance, dependency updates
+- `docs:` — documentation only
+- `refactor:` — code restructuring with no behavior change
+- `test:` — adding or updating tests
+- `ci:` — CI/CD changes
+- `style:` — formatting, whitespace
+
+**Scope** is optional and names the area of change, e.g. `feat(cli):`, `fix(ephemeris):`.
+
+Keep the first line under 72 characters. Use the body for additional context
+when the "why" isn't obvious from the summary line alone.
+
 ## Code change checklist
 
 Before considering any code change complete, verify all of the following:
