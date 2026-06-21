@@ -913,7 +913,7 @@ def _print_transits(
     natal_lon = ci_natal.lon if ci_natal.lon is not None else 0.0
 
     chart_natal = Chart.build(ci_natal.to_datetime(), natal_lat, natal_lon, house_system=house_system)
-    chart_transit = Chart.build(transit_dt, natal_lat, natal_lon, house_system=house_system)
+    chart_transit = Chart.positions_only(transit_dt)
 
     label = f"[yellow]\\[{ci_natal.name.title()}][/yellow]"
     houses_str = f"  houses: [magenta]{chart_natal.house_system}[/magenta]" if natal_loc_known else ""

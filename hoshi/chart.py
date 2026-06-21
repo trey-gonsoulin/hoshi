@@ -166,3 +166,48 @@ class Chart(BaseModel, frozen=True):
             lots=lot_charts,
             cusps=cusps,
         )
+
+    @classmethod
+    def positions_only(cls, when: datetime) -> "Chart":
+        """Compute planet and point positions without angles, cusps, or lots."""
+        ayan = lahiri_ayanamsa(when)
+        prec = ecliptic_precession(when)
+        pos = positions(when)
+        lunar = LunarElements.at(when)
+
+        planets = [
+            PlanetChart(
+                pid=pid,
+                pos=pos[pid],
+                placed=Placed.for_longitude(pos[pid].lon, ayan, prec),
+                house=0,
+            )
+            for pid in PLANET_ORDER
+        ]
+
+        point_lons: dict[str, float] = {
+            "N.Node": lunar.north_node,
+            "S.Node": lunar.south_node,
+            "Lilith": lunar.lilith,
+        }
+        point_charts = [
+            PointChart(
+                name=name,
+                placed=Placed.for_longitude(lon, ayan, prec),
+                house=0,
+            )
+            for name, lon in point_lons.items()
+        ]
+
+        return cls(
+            when=when,
+            lat=0.0,
+            lon=0.0,
+            ayanamsa=ayan,
+            house_system="",
+            angles=[],
+            planets=planets,
+            points=point_charts,
+            lots=[],
+            cusps=[],
+        )
