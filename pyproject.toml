@@ -8,15 +8,14 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-    "geopy>=2.4.1",
-    "pydantic>=2.13.4",
-    "pyyaml>=6.0.3",
-    "rich>=15.0.0",
-    "skyfield>=1.54",
-    "typer>=0.26.7",
+    "geopy>=2.0",
+    "pydantic>=2.8",
+    "pyyaml>=6.0.2",
+    "rich>=10.0.0",
+    "skyfield>=1.49",
+    "typer>=0.12.4",
 ]
 
 [project.scripts]
@@ -29,6 +28,13 @@ build-backend = "hatchling.build"
 [[tool.uv.index]]
 url = "https://artifacts.apple.com/api/pypi/pypi-private/simple"
 default = true
+
+[tool.uv]
+constraint-dependencies = [
+    "future>=1.0.0",
+    "numpy>=2.1.0",
+    "sgp4>=2.13",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
