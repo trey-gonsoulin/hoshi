@@ -1,4 +1,3 @@
-import json
 from datetime import datetime, timezone
 
 import pytest
@@ -74,9 +73,11 @@ class TestLahiriAyanamsa:
     def test_at_j2000(self, monkeypatch):
         class FakeTime:
             tt = 2451545.0
+
         class FakeTS:
             def from_datetime(self, dt):
                 return FakeTime()
+
         monkeypatch.setattr("hoshi.ephemeris._timescale", lambda: FakeTS())
         when = datetime(2000, 1, 1, 12, 0, tzinfo=timezone.utc)
         assert lahiri_ayanamsa(when) == pytest.approx(23.85)
@@ -84,9 +85,11 @@ class TestLahiriAyanamsa:
     def test_linear_growth(self, monkeypatch):
         class FakeTime:
             tt = 2451545.0 + 365.25 * 100  # 100 years later
+
         class FakeTS:
             def from_datetime(self, dt):
                 return FakeTime()
+
         monkeypatch.setattr("hoshi.ephemeris._timescale", lambda: FakeTS())
         when = datetime(2100, 1, 1, 12, 0, tzinfo=timezone.utc)
         expected = 23.85 + 100 * (50.29 / 3600.0)
@@ -101,9 +104,11 @@ class TestEclipticPrecession:
     def test_at_j2000(self, monkeypatch):
         class FakeTime:
             tt = 2451545.0
+
         class FakeTS:
             def from_datetime(self, dt):
                 return FakeTime()
+
         monkeypatch.setattr("hoshi.ephemeris._timescale", lambda: FakeTS())
         when = datetime(2000, 1, 1, 12, 0, tzinfo=timezone.utc)
         assert ecliptic_precession(when) == pytest.approx(0.0)
@@ -111,9 +116,11 @@ class TestEclipticPrecession:
     def test_linear(self, monkeypatch):
         class FakeTime:
             tt = 2451545.0 + 365.25 * 50
+
         class FakeTS:
             def from_datetime(self, dt):
                 return FakeTime()
+
         monkeypatch.setattr("hoshi.ephemeris._timescale", lambda: FakeTS())
         when = datetime(2050, 1, 1, 12, 0, tzinfo=timezone.utc)
         expected = 50 * (50.29 / 3600.0)
@@ -133,6 +140,7 @@ class TestPositions:
         class FakeAngle:
             def __init__(self, deg):
                 self._deg = deg
+
             @property
             def degrees(self):
                 return self._deg
@@ -140,12 +148,14 @@ class TestPositions:
         class FakeAstrometric:
             def __init__(self, lon):
                 self._lon = lon
+
             def ecliptic_latlon(self, epoch=None):
                 return FakeAngle(0.0), FakeAngle(self._lon), None
 
         class FakeBody:
             def __init__(self, lon):
                 self._lon = lon
+
             def observe(self, target):
                 return FakeAstrometric(self._lon)
 
@@ -163,8 +173,10 @@ class TestPositions:
             tt = 2451545.0
             tdb = 2451545.0
             ut1 = 2451545.0
+
             def __add__(self, other):
                 return self
+
             def replace(self, **kw):
                 return self
 

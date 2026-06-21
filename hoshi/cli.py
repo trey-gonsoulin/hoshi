@@ -103,6 +103,7 @@ def _output(result: OutputModel, fmt: OutputFormat) -> None:
 # Builder helpers
 # ---------------------------------------------------------------------------
 
+
 def _uncertain_pids(ci: ChartInput, mode: str) -> frozenset[str]:
     """Return the set of planet pids whose sign changes at any point on the birth date."""
     d = datetime.fromisoformat(ci.date)
@@ -116,7 +117,9 @@ def _uncertain_pids(ci: ChartInput, mode: str) -> frozenset[str]:
     prec_end = ecliptic_precession(end)
     uncertain: set[str] = set()
     for pid in ("sun", "moon", "mercury", "venus", "mars"):
-        s = getattr(Placed.for_longitude(pos_start[pid].lon, ayan, prec_start), mode).name
+        s = getattr(
+            Placed.for_longitude(pos_start[pid].lon, ayan, prec_start), mode
+        ).name
         e = getattr(Placed.for_longitude(pos_end[pid].lon, ayan, prec_end), mode).name
         if s != e:
             uncertain.add(pid)
@@ -137,52 +140,62 @@ def _build_bodies(
     for p in chart.planets:
         pl = getattr(p.placed, mode)
         dig = dignity_for(p.pid.capitalize(), pl.name)
-        bodies.append(BodyEntry(
-            kind="Planet",
-            name=p.pid.capitalize(),
-            sign=pl.name,
-            degree=round(pl.deg, 4),
-            lon=round(p.placed.lon, 4),
-            house=p.house if include_houses else None,
-            rx=p.pos.retrograde,
-            approximate=p.pid in uncertain_pids,
-            dignity=DIGNITY_SYMBOLS.get(dig, "") if dig else "",
-        ))
-    if include_angles:
-        angles = chart.angles if details else [a for a in chart.angles if a.name == "asc"]
-        for a in angles:
-            pl = getattr(a.placed, mode)
-            bodies.append(BodyEntry(
-                kind="Angle",
-                name=ANGLE_DISPLAY_NAMES[a.name],
+        bodies.append(
+            BodyEntry(
+                kind="Planet",
+                name=p.pid.capitalize(),
                 sign=pl.name,
                 degree=round(pl.deg, 4),
-                lon=round(a.placed.lon, 4),
-                house=a.house if include_houses else None,
-            ))
+                lon=round(p.placed.lon, 4),
+                house=p.house if include_houses else None,
+                rx=p.pos.retrograde,
+                approximate=p.pid in uncertain_pids,
+                dignity=DIGNITY_SYMBOLS.get(dig, "") if dig else "",
+            )
+        )
+    if include_angles:
+        angles = (
+            chart.angles if details else [a for a in chart.angles if a.name == "asc"]
+        )
+        for a in angles:
+            pl = getattr(a.placed, mode)
+            bodies.append(
+                BodyEntry(
+                    kind="Angle",
+                    name=ANGLE_DISPLAY_NAMES[a.name],
+                    sign=pl.name,
+                    degree=round(pl.deg, 4),
+                    lon=round(a.placed.lon, 4),
+                    house=a.house if include_houses else None,
+                )
+            )
     if details:
         for pt in chart.points:
             pl = getattr(pt.placed, mode)
             kind = "Node" if pt.name in NODE_NAMES else "Point"
-            bodies.append(BodyEntry(
-                kind=kind,
-                name=pt.name,
-                sign=pl.name,
-                degree=round(pl.deg, 4),
-                lon=round(pt.placed.lon, 4),
-                house=pt.house if include_houses else None,
-            ))
-        if include_lots:
-            for pt in chart.lots:
-                pl = getattr(pt.placed, mode)
-                bodies.append(BodyEntry(
-                    kind="Lot",
+            bodies.append(
+                BodyEntry(
+                    kind=kind,
                     name=pt.name,
                     sign=pl.name,
                     degree=round(pl.deg, 4),
                     lon=round(pt.placed.lon, 4),
                     house=pt.house if include_houses else None,
-                ))
+                )
+            )
+        if include_lots:
+            for pt in chart.lots:
+                pl = getattr(pt.placed, mode)
+                bodies.append(
+                    BodyEntry(
+                        kind="Lot",
+                        name=pt.name,
+                        sign=pl.name,
+                        degree=round(pl.deg, 4),
+                        lon=round(pt.placed.lon, 4),
+                        house=pt.house if include_houses else None,
+                    )
+                )
     return bodies
 
 
@@ -200,7 +213,9 @@ def _build_cusp_entries(chart: Chart, mode: str) -> list[CuspEntry]:
 
 
 def _build_tallies(chart: Chart, mode: str, *, show_full: bool = True) -> TallyOutput:
-    tally = element_modality_tally(chart, mode, include_angles=show_full, include_lots=show_full)
+    tally = element_modality_tally(
+        chart, mode, include_angles=show_full, include_lots=show_full
+    )
     return TallyOutput(
         elements={
             k: TallyRow(
@@ -220,7 +235,12 @@ def _build_tallies(chart: Chart, mode: str, *, show_full: bool = True) -> TallyO
 
 
 def _build_transit_bodies(
-    transit: Chart, natal: Chart, mode: str, details: bool, *, natal_loc_known: bool = True
+    transit: Chart,
+    natal: Chart,
+    mode: str,
+    details: bool,
+    *,
+    natal_loc_known: bool = True,
 ) -> list[BodyEntry]:
     natal_asc = next(a.placed.lon for a in natal.angles if a.name == "asc")
 
@@ -234,27 +254,31 @@ def _build_transit_bodies(
     bodies: list[BodyEntry] = []
     for p in transit.planets:
         pl = getattr(p.placed, mode)
-        bodies.append(BodyEntry(
-            kind="Planet",
-            name=p.pid.capitalize(),
-            sign=pl.name,
-            degree=round(pl.deg, 4),
-            lon=round(p.placed.lon, 4),
-            house=natal_house(p.placed.lon),
-            rx=p.pos.retrograde,
-        ))
+        bodies.append(
+            BodyEntry(
+                kind="Planet",
+                name=p.pid.capitalize(),
+                sign=pl.name,
+                degree=round(pl.deg, 4),
+                lon=round(p.placed.lon, 4),
+                house=natal_house(p.placed.lon),
+                rx=p.pos.retrograde,
+            )
+        )
     if details:
         for pt in transit.points:
             pl = getattr(pt.placed, mode)
             kind = "Node" if pt.name in NODE_NAMES else "Point"
-            bodies.append(BodyEntry(
-                kind=kind,
-                name=pt.name,
-                sign=pl.name,
-                degree=round(pl.deg, 4),
-                lon=round(pt.placed.lon, 4),
-                house=natal_house(pt.placed.lon),
-            ))
+            bodies.append(
+                BodyEntry(
+                    kind=kind,
+                    name=pt.name,
+                    sign=pl.name,
+                    degree=round(pl.deg, 4),
+                    lon=round(pt.placed.lon, 4),
+                    house=natal_house(pt.placed.lon),
+                )
+            )
     return bodies
 
 
@@ -273,25 +297,37 @@ def _build_chart_output(
     show_full = time_known and loc_known
     uncertain = _uncertain_pids(ci, mode) if not time_known else frozenset()
 
-    when_str = ci.to_datetime().strftime("%Y-%m-%d") if not time_known else ci.to_datetime().isoformat()
+    when_str = (
+        ci.to_datetime().strftime("%Y-%m-%d")
+        if not time_known
+        else ci.to_datetime().isoformat()
+    )
 
     warnings: list[str] = []
     if not time_known:
         if uncertain:
             names = ", ".join(p.capitalize() for p in uncertain)
-            warnings.append(f"⚠ Birth time unknown — {names} may be in a different sign (highlighted)")
+            warnings.append(
+                f"⚠ Birth time unknown — {names} may be in a different sign (highlighted)"
+            )
         else:
-            warnings.append("⚠ Birth time unknown — all signs stable on this date, degrees approximate")
+            warnings.append(
+                "⚠ Birth time unknown — all signs stable on this date, degrees approximate"
+            )
     if not loc_known:
         warnings.append("⚠ Birth location unknown — angles and houses omitted")
 
     effective_group_by = group_by
     if group_by == "house" and not show_full:
-        warnings.append("⚠ Cannot group by house without known birth time and location; using category grouping.")
+        warnings.append(
+            "⚠ Cannot group by house without known birth time and location; using category grouping."
+        )
         effective_group_by = "category"
 
     bodies = _build_bodies(
-        chart, mode, details,
+        chart,
+        mode,
+        details,
         uncertain_pids=uncertain,
         include_angles=show_full,
         include_lots=show_full,
@@ -384,6 +420,7 @@ def _fuzzy_match(query: str, candidates: dict[str, object]) -> object | None:
 # Chart commands
 # ---------------------------------------------------------------------------
 
+
 @chart_app.command(name="add")
 def chart_add(
     name: str = typer.Argument(
@@ -400,14 +437,14 @@ def chart_add(
         None, "--lon", help="Birth longitude, degrees (E positive). Omit if unknown."
     ),
     location: str | None = typer.Option(
-        None, "--location", help="Birth location to geocode, e.g. 'Austin, TX'. Cannot be used with --lat/--lon."
+        None,
+        "--location",
+        help="Birth location to geocode, e.g. 'Austin, TX'. Cannot be used with --lat/--lon.",
     ),
     tz: str = typer.Option(
         "UTC", "--tz", help="IANA timezone of the birth time, e.g. America/Chicago."
     ),
-    mode: ZodiacMode = typer.Option(
-        ZodiacMode.realsky, "--mode", help="Zodiac mode."
-    ),
+    mode: ZodiacMode = typer.Option(ZodiacMode.realsky, "--mode", help="Zodiac mode."),
     force: bool = typer.Option(
         False, "--force", help="Overwrite an existing saved chart with the same name."
     ),
@@ -423,7 +460,9 @@ def chart_add(
         False, "--details", help="Also print all angles, nodes, and calculated points."
     ),
     aspects: bool = typer.Option(
-        False, "--aspects", help="Print aspect tables (uses all bodies with --details, planets+Asc otherwise)."
+        False,
+        "--aspects",
+        help="Print aspect tables (uses all bodies with --details, planets+Asc otherwise).",
     ),
     group_by: GroupBy = typer.Option(
         GroupBy.category,
@@ -439,6 +478,7 @@ def chart_add(
         raise typer.BadParameter("Cannot use --location together with --lat/--lon.")
     if location is not None:
         from geopy.geocoders import Nominatim
+
         geo = Nominatim(user_agent="hoshi")
         result = geo.geocode(location)
         if result is None:
@@ -448,7 +488,9 @@ def chart_add(
         typer.echo(f"Resolved location: {result.address}")
         typer.echo(f"Coordinates: {lat:.4f}°N, {lon:.4f}°E")
     if (lat is None) != (lon is None):
-        raise typer.BadParameter("--lat and --lon must both be provided or both omitted.")
+        raise typer.BadParameter(
+            "--lat and --lon must both be provided or both omitted."
+        )
     ci = ChartInput(name=name, date=date, time=time, tz=tz, lat=lat, lon=lon)
     try:
         path = store.save(ci, overwrite=force)
@@ -463,8 +505,13 @@ def chart_add(
     chart_lon = ci.lon if ci.lon is not None else 0.0
     chart = Chart.build(when, chart_lat, chart_lon, house_system=houses)
     output = _build_chart_output(
-        ci, chart, mode,
-        details=details, aspects=aspects, group_by=group_by, show_cusps=cusps,
+        ci,
+        chart,
+        mode,
+        details=details,
+        aspects=aspects,
+        group_by=group_by,
+        show_cusps=cusps,
     )
     _output(output, fmt)
 
@@ -480,7 +527,12 @@ def chart_list(
     output = ChartListOutput(
         charts=[
             ChartListEntry(
-                name=ci.name, date=ci.date, time=ci.time, tz=ci.tz, lat=ci.lat, lon=ci.lon,
+                name=ci.name,
+                date=ci.date,
+                time=ci.time,
+                tz=ci.tz,
+                lat=ci.lat,
+                lon=ci.lon,
             )
             for ci in charts
         ]
@@ -495,12 +547,20 @@ def chart_cusps(
         help="Saved chart name, OR a birth date (YYYY-MM-DD) for a one-off chart "
         "(in which case --lat and --lon are required).",
     ),
-    time: str = typer.Argument("12:00", help="Birth time for one-off charts, HH:MM (24h)."),
-    lat: float = typer.Option(None, "--lat", help="One-off chart latitude (N positive)."),
-    lon: float = typer.Option(None, "--lon", help="One-off chart longitude (E positive)."),
+    time: str = typer.Argument(
+        "12:00", help="Birth time for one-off charts, HH:MM (24h)."
+    ),
+    lat: float = typer.Option(
+        None, "--lat", help="One-off chart latitude (N positive)."
+    ),
+    lon: float = typer.Option(
+        None, "--lon", help="One-off chart longitude (E positive)."
+    ),
     tz: str = typer.Option("UTC", "--tz", help="IANA timezone, e.g. America/Chicago."),
     mode: ZodiacMode = typer.Option(ZodiacMode.realsky, "--mode", help="Zodiac mode."),
-    houses: HouseSystem = typer.Option(HouseSystem.porphyry, "--houses", help="House system."),
+    houses: HouseSystem = typer.Option(
+        HouseSystem.porphyry, "--houses", help="House system."
+    ),
     fmt: OutputFormat = typer.Option(
         OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
     ),
@@ -555,9 +615,7 @@ def chart_show(
     tz: str = typer.Option(
         "UTC", "--tz", help="One-off chart IANA timezone, e.g. America/Chicago."
     ),
-    mode: ZodiacMode = typer.Option(
-        ZodiacMode.realsky, "--mode", help="Zodiac mode."
-    ),
+    mode: ZodiacMode = typer.Option(ZodiacMode.realsky, "--mode", help="Zodiac mode."),
     houses: HouseSystem = typer.Option(
         HouseSystem.porphyry,
         "--houses",
@@ -570,7 +628,9 @@ def chart_show(
         False, "--details", help="Also print all angles, nodes, and calculated points."
     ),
     aspects: bool = typer.Option(
-        False, "--aspects", help="Print aspect tables (uses all bodies with --details, planets+Asc otherwise)."
+        False,
+        "--aspects",
+        help="Print aspect tables (uses all bodies with --details, planets+Asc otherwise).",
     ),
     group_by: GroupBy = typer.Option(
         GroupBy.category,
@@ -616,8 +676,13 @@ def chart_show(
     chart_lon = ci.lon if ci.lon is not None else 0.0
     chart = Chart.build(when, chart_lat, chart_lon, house_system=houses)
     output = _build_chart_output(
-        ci, chart, mode,
-        details=details, aspects=aspects, group_by=group_by, show_cusps=cusps,
+        ci,
+        chart,
+        mode,
+        details=details,
+        aspects=aspects,
+        group_by=group_by,
+        show_cusps=cusps,
     )
     _output(output, fmt)
 
@@ -644,11 +709,19 @@ def chart_delete(
 @chart_app.command(name="transits")
 def chart_transits(
     name: str = typer.Argument(..., help="Saved natal chart name."),
-    date: str | None = typer.Argument(None, help="Transit date YYYY-MM-DD (default: today)."),
-    time: str | None = typer.Argument(None, help="Transit time HH:MM 24h (default: now)."),
-    tz: str = typer.Option("UTC", "--tz", help="IANA timezone for the transit date/time."),
+    date: str | None = typer.Argument(
+        None, help="Transit date YYYY-MM-DD (default: today)."
+    ),
+    time: str | None = typer.Argument(
+        None, help="Transit time HH:MM 24h (default: now)."
+    ),
+    tz: str = typer.Option(
+        "UTC", "--tz", help="IANA timezone for the transit date/time."
+    ),
     mode: ZodiacMode = typer.Option(ZodiacMode.realsky, "--mode", help="Zodiac mode."),
-    houses: HouseSystem = typer.Option(HouseSystem.porphyry, "--houses", help="House system."),
+    houses: HouseSystem = typer.Option(
+        HouseSystem.porphyry, "--houses", help="House system."
+    ),
     details: bool = typer.Option(
         False, "--details", help="Include angles, nodes, and points."
     ),
@@ -656,7 +729,9 @@ def chart_transits(
         False, "--aspects", help="Print inter-aspect tables (natal × transit)."
     ),
     natal: bool = typer.Option(
-        False, "--natal", help="Show natal placements alongside transits in a side-by-side table."
+        False,
+        "--natal",
+        help="Show natal placements alongside transits in a side-by-side table.",
     ),
     fmt: OutputFormat = typer.Option(
         OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
@@ -684,23 +759,35 @@ def chart_transits(
     natal_lat = ci.lat if ci.lat is not None else 0.001
     natal_lon = ci.lon if ci.lon is not None else 0.0
 
-    chart_natal = Chart.build(ci.to_datetime(), natal_lat, natal_lon, house_system=houses)
+    chart_natal = Chart.build(
+        ci.to_datetime(), natal_lat, natal_lon, house_system=houses
+    )
     chart_transit = Chart.positions_only(transit_dt)
 
     warnings: list[str] = []
     if not natal_time_known:
         warnings.append("⚠ Natal time unknown — natal planet degrees approximate")
     if not natal_loc_known:
-        warnings.append("⚠ Natal location unknown — natal house placement of transits omitted")
+        warnings.append(
+            "⚠ Natal location unknown — natal house placement of transits omitted"
+        )
 
     transit_bodies = _build_transit_bodies(
-        chart_transit, chart_natal, mode, details, natal_loc_known=natal_loc_known,
+        chart_transit,
+        chart_natal,
+        mode,
+        details,
+        natal_loc_known=natal_loc_known,
     )
     natal_bodies = None
     if natal:
-        natal_uncertain = _uncertain_pids(ci, mode) if not natal_time_known else frozenset()
+        natal_uncertain = (
+            _uncertain_pids(ci, mode) if not natal_time_known else frozenset()
+        )
         natal_bodies = _build_bodies(
-            chart_natal, mode, details,
+            chart_natal,
+            mode,
+            details,
             uncertain_pids=natal_uncertain,
             include_angles=False,
             include_lots=False,
@@ -734,8 +821,12 @@ def chart_compare(
     name_a: str = typer.Argument(..., help="First saved chart name."),
     name_b: str = typer.Argument(..., help="Second saved chart name."),
     mode: ZodiacMode = typer.Option(ZodiacMode.realsky, "--mode", help="Zodiac mode."),
-    houses: HouseSystem = typer.Option(HouseSystem.porphyry, "--houses", help="House system."),
-    details: bool = typer.Option(False, "--details", help="Include angles, nodes, and points in inter-aspects."),
+    houses: HouseSystem = typer.Option(
+        HouseSystem.porphyry, "--houses", help="House system."
+    ),
+    details: bool = typer.Option(
+        False, "--details", help="Include angles, nodes, and points in inter-aspects."
+    ),
     aspects: bool = typer.Option(False, "--aspects", help="Print inter-aspect tables."),
     fmt: OutputFormat = typer.Option(
         OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
@@ -767,25 +858,37 @@ def chart_compare(
     warnings: list[str] = []
     for ci in (ci_a, ci_b):
         if not ci.time_known:
-            warnings.append(f"⚠ {ci.name.title()} birth time unknown — planet positions approximate")
+            warnings.append(
+                f"⚠ {ci.name.title()} birth time unknown — planet positions approximate"
+            )
         if not ci.location_known:
             warnings.append(f"⚠ {ci.name.title()} birth location unknown")
 
     bodies_a = _build_bodies(
-        chart_a, mode, details,
-        include_angles=show_full_a, include_lots=show_full_a, include_houses=False,
+        chart_a,
+        mode,
+        details,
+        include_angles=show_full_a,
+        include_lots=show_full_a,
+        include_houses=False,
     )
     bodies_b = _build_bodies(
-        chart_b, mode, details,
-        include_angles=show_full_b, include_lots=show_full_b, include_houses=False,
+        chart_b,
+        mode,
+        details,
+        include_angles=show_full_b,
+        include_lots=show_full_b,
+        include_houses=False,
     )
 
     aspect_list = compute_inter_aspects(chart_a, chart_b, details) if aspects else None
 
     output = CompareOutput(
         header=CompareHeader(
-            name_a=ci_a.name, name_b=ci_b.name,
-            date_a=ci_a.date, date_b=ci_b.date,
+            name_a=ci_a.name,
+            name_b=ci_b.name,
+            date_a=ci_a.date,
+            date_b=ci_b.date,
             mode=mode,
         ),
         warnings=warnings,
@@ -799,6 +902,7 @@ def chart_compare(
 # ---------------------------------------------------------------------------
 # Info commands
 # ---------------------------------------------------------------------------
+
 
 def _build_info_detail(item) -> InfoDetailOutput:
     return InfoDetailOutput(
@@ -832,7 +936,9 @@ def _build_info_list(
 
 @info_app.command(name="planets")
 def info_planets(
-    name: str | None = typer.Argument(None, help="Planet name (e.g. sun, venus, chiron)."),
+    name: str | None = typer.Argument(
+        None, help="Planet name (e.g. sun, venus, chiron)."
+    ),
     fmt: OutputFormat = typer.Option(
         OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
     ),
@@ -866,14 +972,20 @@ def info_signs(
         _output(_build_info_detail(item), fmt)
     else:
         _output(
-            _build_info_list("Signs", list(SIGNS.values()), extra_cols=["Element", "Modality", "Ruler"]),
+            _build_info_list(
+                "Signs",
+                list(SIGNS.values()),
+                extra_cols=["Element", "Modality", "Ruler"],
+            ),
             fmt,
         )
 
 
 @info_app.command(name="angles")
 def info_angles(
-    name: str | None = typer.Argument(None, help="Angle name (e.g. ascendant, midheaven)."),
+    name: str | None = typer.Argument(
+        None, help="Angle name (e.g. ascendant, midheaven)."
+    ),
     fmt: OutputFormat = typer.Option(
         OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
     ),
@@ -892,7 +1004,9 @@ def info_angles(
 
 @info_app.command(name="aspects")
 def info_aspects(
-    name: str | None = typer.Argument(None, help="Aspect name (e.g. conjunction, trine)."),
+    name: str | None = typer.Argument(
+        None, help="Aspect name (e.g. conjunction, trine)."
+    ),
     fmt: OutputFormat = typer.Option(
         OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
     ),
@@ -930,7 +1044,9 @@ def info_houses(
 
 @info_app.command(name="points")
 def info_points(
-    name: str | None = typer.Argument(None, help="Point name (e.g. lilith, fortune, n.node)."),
+    name: str | None = typer.Argument(
+        None, help="Point name (e.g. lilith, fortune, n.node)."
+    ),
     fmt: OutputFormat = typer.Option(
         OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
     ),

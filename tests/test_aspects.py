@@ -20,20 +20,26 @@ class TestFmtOrb:
 
 class TestComputeAspects:
     def test_conjunction(self):
-        chart = make_chart(planets=[make_planet("sun", 100.0), make_planet("moon", 100.0)])
+        chart = make_chart(
+            planets=[make_planet("sun", 100.0), make_planet("moon", 100.0)]
+        )
         aspects = compute_aspects(chart)
         assert len(aspects) == 1
         assert aspects[0].name == "Conjunction"
         assert aspects[0].orb == pytest.approx(0.0)
 
     def test_opposition(self):
-        chart = make_chart(planets=[make_planet("sun", 0.0), make_planet("moon", 180.0)])
+        chart = make_chart(
+            planets=[make_planet("sun", 0.0), make_planet("moon", 180.0)]
+        )
         aspects = compute_aspects(chart)
         assert len(aspects) == 1
         assert aspects[0].name == "Opposition"
 
     def test_trine(self):
-        chart = make_chart(planets=[make_planet("sun", 0.0), make_planet("moon", 120.0)])
+        chart = make_chart(
+            planets=[make_planet("sun", 0.0), make_planet("moon", 120.0)]
+        )
         aspects = compute_aspects(chart)
         assert len(aspects) == 1
         assert aspects[0].name == "Trine"
@@ -57,20 +63,26 @@ class TestComputeAspects:
 
     def test_orb_just_inside(self):
         # Trine = 120, major orb = 4.0; 123.9 is 3.9 away -> inside
-        chart = make_chart(planets=[make_planet("sun", 0.0), make_planet("moon", 123.9)])
+        chart = make_chart(
+            planets=[make_planet("sun", 0.0), make_planet("moon", 123.9)]
+        )
         aspects = compute_aspects(chart)
         assert len(aspects) == 1
         assert aspects[0].name == "Trine"
 
     def test_orb_just_outside(self):
         # 124.1 is 4.1 away from 120 -> outside the 4.0 orb
-        chart = make_chart(planets=[make_planet("sun", 0.0), make_planet("moon", 124.1)])
+        chart = make_chart(
+            planets=[make_planet("sun", 0.0), make_planet("moon", 124.1)]
+        )
         aspects = compute_aspects(chart)
         assert len(aspects) == 0
 
     def test_shortest_arc(self):
         # 1 and 359 should have a diff of 2 (not 358), giving Conjunction
-        chart = make_chart(planets=[make_planet("sun", 1.0), make_planet("moon", 359.0)])
+        chart = make_chart(
+            planets=[make_planet("sun", 1.0), make_planet("moon", 359.0)]
+        )
         aspects = compute_aspects(chart)
         assert len(aspects) == 1
         assert aspects[0].name == "Conjunction"
@@ -94,9 +106,7 @@ class TestComputeAspects:
         assert len(pairs) == len(set(pairs))
 
     def test_axis_pair_excluded(self):
-        chart = make_chart(
-            angles=[make_angle("asc", 0.0), make_angle("dsc", 180.0)]
-        )
+        chart = make_chart(angles=[make_angle("asc", 0.0), make_angle("dsc", 180.0)])
         aspects = compute_aspects(chart)
         asc_dsc = [a for a in aspects if {a.body_a, a.body_b} == {"Asc", "Dsc"}]
         assert len(asc_dsc) == 0
@@ -106,7 +116,9 @@ class TestComputeAspects:
             points=[make_point("N.Node", 0.0), make_point("S.Node", 180.0)]
         )
         aspects = compute_aspects(chart)
-        node_pairs = [a for a in aspects if {a.body_a, a.body_b} == {"N.Node", "S.Node"}]
+        node_pairs = [
+            a for a in aspects if {a.body_a, a.body_b} == {"N.Node", "S.Node"}
+        ]
         assert len(node_pairs) == 0
 
     def test_minor_semi_sextile(self):

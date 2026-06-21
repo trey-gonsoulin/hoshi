@@ -25,6 +25,7 @@ from hoshi.zodiac import IAU, TROP_NAMES, format_deg
 # Shared table helpers
 # ---------------------------------------------------------------------------
 
+
 def _new_table(title: str) -> Table:
     return Table(
         title=title,
@@ -138,7 +139,8 @@ def _render_by_sign(
             table.add_column("H", justify="right")
         for b in rows:
             cells: list = [
-                b.kind, b.name,
+                b.kind,
+                b.name,
                 _styled(format_deg(b.degree), b.approximate),
                 _styled(f"{b.lon:.2f}°", b.approximate),
                 _rx_str(b.rx),
@@ -170,7 +172,8 @@ def _render_by_house(
         table.add_column("Rx", justify="center")
         for b in rows:
             cells: list = [
-                b.kind, b.name,
+                b.kind,
+                b.name,
                 _styled(b.sign, b.approximate),
                 _styled(format_deg(b.degree), b.approximate),
                 _styled(f"{b.lon:.2f}°", b.approximate),
@@ -180,9 +183,7 @@ def _render_by_house(
         console.print(table)
 
 
-def _render_aspects(
-    console: Console, aspects: list[Aspect], prefix: str = ""
-) -> None:
+def _render_aspects(console: Console, aspects: list[Aspect], prefix: str = "") -> None:
     if not aspects:
         return
     by_kind: dict[str, list[Aspect]] = {}
@@ -201,8 +202,12 @@ def _render_aspects(
         table.add_column("Orb", justify="right")
         for asp in group:
             table.add_row(
-                asp.body_a, asp.symbol, asp.body_b,
-                asp.name, f"{asp.angle:.0f}°", fmt_orb(asp.orb),
+                asp.body_a,
+                asp.symbol,
+                asp.body_b,
+                asp.name,
+                f"{asp.angle:.0f}°",
+                fmt_orb(asp.orb),
             )
         console.print(table)
 
@@ -210,6 +215,7 @@ def _render_aspects(
 # ---------------------------------------------------------------------------
 # Abstract base
 # ---------------------------------------------------------------------------
+
 
 def _flatten_for_csv(data: dict | list, parent_key: str = "") -> list[dict[str, str]]:
     """Best-effort flattening of nested model data into CSV rows.
@@ -221,7 +227,13 @@ def _flatten_for_csv(data: dict | list, parent_key: str = "") -> list[dict[str, 
         rows: list[dict[str, str]] = []
         for item in data:
             if isinstance(item, dict):
-                rows.append({k: str(v) for k, v in item.items() if not isinstance(v, (dict, list))})
+                rows.append(
+                    {
+                        k: str(v)
+                        for k, v in item.items()
+                        if not isinstance(v, (dict, list))
+                    }
+                )
             else:
                 rows.append({"value": str(item)})
         return rows
@@ -234,7 +246,10 @@ def _flatten_for_csv(data: dict | list, parent_key: str = "") -> list[dict[str, 
             break
 
     if list_field is not None:
-        return [{k: str(v) for k, v in item.items() if not isinstance(v, (dict, list))} for item in list_field]
+        return [
+            {k: str(v) for k, v in item.items() if not isinstance(v, (dict, list))}
+            for item in list_field
+        ]
 
     # Single-record: flatten scalar fields into one row
     return [{k: str(v) for k, v in data.items() if not isinstance(v, (dict, list))}]
@@ -276,6 +291,7 @@ class OutputModel(BaseModel):
 # ---------------------------------------------------------------------------
 # Building-block models
 # ---------------------------------------------------------------------------
+
 
 class BodyEntry(BaseModel, frozen=True):
     kind: str
@@ -322,9 +338,13 @@ class TallyOutput(OutputModel, frozen=True):
             er = self.elements.get(e)
             mr = self.modalities.get(m)
             table.add_row(
-                e, str(er.primary) if er else "", str(er.total) if er else "",
+                e,
+                str(er.primary) if er else "",
+                str(er.total) if er else "",
                 "",
-                m, str(mr.primary) if mr else "", str(mr.total) if mr else "",
+                m,
+                str(mr.primary) if mr else "",
+                str(mr.total) if mr else "",
             )
         console.print(table)
 
@@ -341,6 +361,7 @@ class ChartHeader(BaseModel, frozen=True):
 # ---------------------------------------------------------------------------
 # Command output models
 # ---------------------------------------------------------------------------
+
 
 class ChartOutput(OutputModel):
     chart: ChartHeader = ChartHeader()
@@ -365,8 +386,14 @@ class ChartOutput(OutputModel):
 
     def render(self, console: Console) -> None:
         h = self.chart
-        loc_str = f"([cyan]{h.lat:.4f}°[/cyan], [cyan]{h.lon:.4f}°[/cyan])  " if h.lat is not None else ""
-        houses_str = f"  houses: [magenta]{h.house_system}[/magenta]" if h.house_system else ""
+        loc_str = (
+            f"([cyan]{h.lat:.4f}°[/cyan], [cyan]{h.lon:.4f}°[/cyan])  "
+            if h.lat is not None
+            else ""
+        )
+        houses_str = (
+            f"  houses: [magenta]{h.house_system}[/magenta]" if h.house_system else ""
+        )
         header = f"[bold]Chart for[/bold] {h.when}  {loc_str}mode: [magenta]{h.mode}[/magenta]{houses_str}"
         if h.name:
             header = f"[yellow]\\[{h.name.title()}][/yellow] " + header
@@ -385,18 +412,41 @@ class ChartOutput(OutputModel):
             for b in self.bodies:
                 by_kind.setdefault(b.kind, []).append(b)
             if self.details:
-                _render_planets_section(console, by_kind.get("Planet", []), show_houses=self.show_houses)
+                _render_planets_section(
+                    console, by_kind.get("Planet", []), show_houses=self.show_houses
+                )
                 if self.show_houses:
-                    _render_section(console, "Angles", by_kind.get("Angle", []), show_houses=self.show_houses)
-                _render_section(console, "Nodes", by_kind.get("Node", []), show_houses=self.show_houses)
-                _render_section(console, "Points", by_kind.get("Point", []), show_houses=self.show_houses)
+                    _render_section(
+                        console,
+                        "Angles",
+                        by_kind.get("Angle", []),
+                        show_houses=self.show_houses,
+                    )
+                _render_section(
+                    console,
+                    "Nodes",
+                    by_kind.get("Node", []),
+                    show_houses=self.show_houses,
+                )
+                _render_section(
+                    console,
+                    "Points",
+                    by_kind.get("Point", []),
+                    show_houses=self.show_houses,
+                )
                 if self.show_houses:
-                    _render_section(console, "Lots", by_kind.get("Lot", []), show_houses=self.show_houses)
+                    _render_section(
+                        console,
+                        "Lots",
+                        by_kind.get("Lot", []),
+                        show_houses=self.show_houses,
+                    )
                 if self.tallies:
                     self.tallies.render(console)
             else:
                 _render_section(
-                    console, "Placements",
+                    console,
+                    "Placements",
                     by_kind.get("Planet", []) + by_kind.get("Angle", []),
                     show_houses=self.show_houses,
                 )
@@ -407,7 +457,9 @@ class ChartOutput(OutputModel):
             self._render_cusps(console)
 
     def _render_cusps(self, console: Console) -> None:
-        table = _new_table(f"{self.chart.house_system.capitalize() if self.chart.house_system else ''} cusps")
+        table = _new_table(
+            f"{self.chart.house_system.capitalize() if self.chart.house_system else ''} cusps"
+        )
         table.add_column("House", justify="right")
         table.add_column("Sign")
         table.add_column("Degree", justify="right")
@@ -490,7 +542,9 @@ class TransitsOutput(OutputModel):
 
     def render(self, console: Console) -> None:
         h = self.header
-        houses_str = f"  houses: [magenta]{h.house_system}[/magenta]" if h.house_system else ""
+        houses_str = (
+            f"  houses: [magenta]{h.house_system}[/magenta]" if h.house_system else ""
+        )
         console.print(
             f"[bold]Transits:[/bold] [yellow]\\[{h.name.title()}][/yellow] natal {h.natal_date}  →  "
             f"transit {h.transit_when}  "
@@ -507,9 +561,24 @@ class TransitsOutput(OutputModel):
                 by_kind.setdefault(b.kind, []).append(b)
             house_label: str | None = "H" if self.show_houses else None
             if self.details:
-                _render_section(console, "Planets", by_kind.get("Planet", []), show_houses=self.show_houses)
-                _render_section(console, "Nodes", by_kind.get("Node", []), show_houses=self.show_houses)
-                _render_section(console, "Points", by_kind.get("Point", []), show_houses=self.show_houses)
+                _render_section(
+                    console,
+                    "Planets",
+                    by_kind.get("Planet", []),
+                    show_houses=self.show_houses,
+                )
+                _render_section(
+                    console,
+                    "Nodes",
+                    by_kind.get("Node", []),
+                    show_houses=self.show_houses,
+                )
+                _render_section(
+                    console,
+                    "Points",
+                    by_kind.get("Point", []),
+                    show_houses=self.show_houses,
+                )
             else:
                 title_suffix = "  (H = natal house)" if self.show_houses else ""
                 _render_section(
@@ -524,7 +593,9 @@ class TransitsOutput(OutputModel):
             _render_aspects(console, self.aspects, prefix)
 
     def _render_side_by_side(self, console: Console) -> None:
-        title = "Natal vs Transits" + ("  (H = natal house)" if self.show_houses else "")
+        title = "Natal vs Transits" + (
+            "  (H = natal house)" if self.show_houses else ""
+        )
         table = _new_table(title)
         table.add_column("Name", style="bold")
         table.add_column("Natal Sign")
@@ -642,12 +713,17 @@ class HouseComparisonOutput(OutputModel):
             houses_row = [self.house_columns[s][i] for s in self.systems]
             baseline = houses_row[0] if houses_row else 0
             cells: list = [
-                b.kind, b.name, b.sign,
-                format_deg(b.degree), f"{b.lon:.2f}°",
+                b.kind,
+                b.name,
+                b.sign,
+                format_deg(b.degree),
+                f"{b.lon:.2f}°",
             ]
             for h_val in houses_row:
                 cells.append(
-                    Text(str(h_val), style="bold yellow") if h_val != baseline else str(h_val)
+                    Text(str(h_val), style="bold yellow")
+                    if h_val != baseline
+                    else str(h_val)
                 )
             table.add_row(*cells)
         console.print(table)

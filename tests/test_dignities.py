@@ -1,5 +1,3 @@
-import pytest
-
 from hoshi.dignities import dignity_for, element_modality_tally
 from tests.conftest import make_angle, make_chart, make_planet, make_point
 
@@ -58,7 +56,7 @@ class TestElementModalityTally:
         # Aries = Cardinal, Taurus = Fixed, Gemini = Mutable
         chart = make_chart(
             planets=[
-                make_planet("sun", 15.0),   # Aries - Cardinal
+                make_planet("sun", 15.0),  # Aries - Cardinal
                 make_planet("moon", 45.0),  # Taurus - Fixed
                 make_planet("mars", 75.0),  # Gemini - Mutable
             ]
