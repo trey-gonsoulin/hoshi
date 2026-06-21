@@ -30,6 +30,8 @@ app = typer.Typer(
 )
 chart_app = typer.Typer(help="Create, view, list, and delete birth charts.")
 app.add_typer(chart_app, name="chart")
+info_app = typer.Typer(help="Reference info on astrological concepts.")
+app.add_typer(info_app, name="info")
 
 
 ANGLE_DISPLAY_NAMES: dict[str, str] = {
@@ -1084,6 +1086,151 @@ def chart_compare(
             )
     if aspects:
         _print_inter_aspects(chart_a, chart_b, ci_a.name, ci_b.name, details)
+
+
+def _print_info_list(title: str, items: list, *, extra_cols: list[tuple[str, str]] | None = None) -> None:
+    table = _new_table(title)
+    table.add_column("Name", style="bold")
+    if extra_cols:
+        for col_name, _ in extra_cols:
+            table.add_column(col_name)
+    table.add_column("Keywords")
+    for item in items:
+        row: list[str] = [item.name]
+        if extra_cols:
+            for _, attr in extra_cols:
+                row.append(getattr(item, attr, ""))
+        row.append(", ".join(item.keywords))
+        table.add_row(*row)
+    console.print(table)
+
+
+def _print_info_detail(item) -> None:
+    console.print(f"[bold cyan]{item.name}[/bold cyan]")
+    if hasattr(item, "element"):
+        console.print(f"  Element: [magenta]{item.element}[/magenta]  Modality: [magenta]{item.modality}[/magenta]  Ruler: [magenta]{item.ruler}[/magenta]")
+    console.print(f"  Keywords: {', '.join(item.keywords)}")
+    console.print()
+    console.print(item.meaning)
+
+
+def _fuzzy_match(query: str, candidates: dict[str, object]) -> object | None:
+    q = query.lower().replace(" ", "")
+    for key, item in candidates.items():
+        if key.lower().replace(" ", "") == q:
+            return item
+    for item in candidates.values():
+        for alias in getattr(item, "aliases", []):
+            if alias.lower().replace(" ", "") == q:
+                return item
+    for key, item in candidates.items():
+        if key.lower().startswith(query.lower()):
+            return item
+    for item in candidates.values():
+        for alias in getattr(item, "aliases", []):
+            if alias.lower().startswith(query.lower()):
+                return item
+    return None
+
+
+@info_app.command(name="planets")
+def info_planets(
+    name: str | None = typer.Argument(None, help="Planet name (e.g. sun, venus, chiron)."),
+) -> None:
+    """Reference info on the planets."""
+    from hoshi.info import PLANETS
+
+    if name is not None:
+        item = _fuzzy_match(name, PLANETS)
+        if item is None:
+            raise typer.BadParameter(f"Unknown planet: {name!r}")
+        _print_info_detail(item)
+    else:
+        _print_info_list("Planets", list(PLANETS.values()))
+
+
+@info_app.command(name="signs")
+def info_signs(
+    name: str | None = typer.Argument(None, help="Sign name (e.g. aries, ophiuchus)."),
+) -> None:
+    """Reference info on the zodiac signs (13 real-sky signs including Ophiuchus)."""
+    from hoshi.info import SIGNS
+
+    if name is not None:
+        item = _fuzzy_match(name, SIGNS)
+        if item is None:
+            raise typer.BadParameter(f"Unknown sign: {name!r}")
+        _print_info_detail(item)
+    else:
+        _print_info_list(
+            "Signs",
+            list(SIGNS.values()),
+            extra_cols=[("Element", "element"), ("Modality", "modality"), ("Ruler", "ruler")],
+        )
+
+
+@info_app.command(name="angles")
+def info_angles(
+    name: str | None = typer.Argument(None, help="Angle name (e.g. ascendant, midheaven)."),
+) -> None:
+    """Reference info on chart angles."""
+    from hoshi.info import ANGLES
+
+    if name is not None:
+        item = _fuzzy_match(name, ANGLES)
+        if item is None:
+            raise typer.BadParameter(f"Unknown angle: {name!r}")
+        _print_info_detail(item)
+    else:
+        _print_info_list("Angles", list(ANGLES.values()))
+
+
+@info_app.command(name="aspects")
+def info_aspects(
+    name: str | None = typer.Argument(None, help="Aspect name (e.g. conjunction, trine)."),
+) -> None:
+    """Reference info on aspects."""
+    from hoshi.info import ASPECTS
+
+    if name is not None:
+        item = _fuzzy_match(name, ASPECTS)
+        if item is None:
+            raise typer.BadParameter(f"Unknown aspect: {name!r}")
+        _print_info_detail(item)
+    else:
+        _print_info_list("Aspects", list(ASPECTS.values()))
+
+
+@info_app.command(name="houses")
+def info_houses(
+    number: int | None = typer.Argument(None, help="House number (1–12)."),
+) -> None:
+    """Reference info on the twelve houses."""
+    from hoshi.info import HOUSES
+
+    if number is not None:
+        item = HOUSES.get(number)
+        if item is None:
+            raise typer.BadParameter(f"Unknown house number: {number}")
+        _print_info_detail(item)
+    else:
+        _print_info_list("Houses", list(HOUSES.values()))
+
+
+@info_app.command(name="points")
+def info_points(
+    name: str | None = typer.Argument(None, help="Point name (e.g. lilith, fortune, n.node)."),
+) -> None:
+    """Reference info on calculated points (nodes, Lilith, Hermetic lots)."""
+    from hoshi.info import POINTS
+
+    if name is not None:
+        item = _fuzzy_match(name, POINTS)
+        if item is None:
+            raise typer.BadParameter(f"Unknown point: {name!r}")
+        _print_info_detail(item)
+    else:
+        _print_info_list("Points", list(POINTS.values()))
 
 
 def main() -> None:
