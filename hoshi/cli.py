@@ -584,6 +584,62 @@ def _print_inter_aspects(
     _aspect_tables(aspects, prefix)
 
 
+def _print_compare_placements(
+    chart_a: Chart,
+    chart_b: Chart,
+    ci_a: ChartInput,
+    ci_b: ChartInput,
+    mode: str,
+    details: bool,
+) -> None:
+    """Side-by-side placement comparison between two charts."""
+    show_full_a = ci_a.time_known and ci_a.location_known
+    show_full_b = ci_b.time_known and ci_b.location_known
+
+    entries_a = _collect_entries(
+        chart_a, mode, details,
+        include_angles=show_full_a, include_lots=show_full_a,
+    )
+    entries_b = _collect_entries(
+        chart_b, mode, details,
+        include_angles=show_full_b, include_lots=show_full_b,
+    )
+
+    index_a = {e["name"]: e for e in entries_a}
+    index_b = {e["name"]: e for e in entries_b}
+    all_names = list(dict.fromkeys(e["name"] for e in entries_a + entries_b))
+
+    table = _new_table("Placements")
+    table.add_column("Body", style="bold")
+    table.add_column(f"{ci_a.name.title()} Sign")
+    table.add_column("Deg", justify="right")
+    table.add_column("Rx", justify="center")
+    table.add_column("│", style="dim", width=1)
+    table.add_column(f"{ci_b.name.title()} Sign")
+    table.add_column("Deg", justify="right")
+    table.add_column("Rx", justify="center")
+
+    for name in all_names:
+        ea = index_a.get(name)
+        eb = index_b.get(name)
+        row: list[str] = [name]
+        if ea:
+            row.append(ea["placement"].name)
+            row.append(format_deg(ea["placement"].deg))
+            row.append(ea.get("rx", "") or "")
+        else:
+            row.extend(["—", "—", ""])
+        row.append("│")
+        if eb:
+            row.append(eb["placement"].name)
+            row.append(format_deg(eb["placement"].deg))
+            row.append(eb.get("rx", "") or "")
+        else:
+            row.extend(["—", "—", ""])
+        table.add_row(*row)
+    console.print(table)
+
+
 def _print_cusps(chart: Chart, mode: str) -> None:
     place_cusp = {
         "realsky": Placement.realsky,
@@ -1077,6 +1133,7 @@ def chart_compare(
             console.print(
                 f"[yellow]⚠ {ci.name.title()} birth location unknown[/yellow]"
             )
+    _print_compare_placements(chart_a, chart_b, ci_a, ci_b, mode, details)
     if aspects:
         _print_inter_aspects(chart_a, chart_b, ci_a.name, ci_b.name, details)
 
