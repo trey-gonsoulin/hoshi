@@ -76,6 +76,8 @@ class GroupBy(StrEnum):
 class OutputFormat(StrEnum):
     table = "table"
     json = "json"
+    yaml = "yaml"
+    csv = "csv"
 
 
 @app.callback()
@@ -89,6 +91,10 @@ NODE_NAMES = {"N.Node", "S.Node"}
 def _output(result: OutputModel, fmt: OutputFormat) -> None:
     if fmt == OutputFormat.json:
         print(result.model_dump_json(indent=2))
+    elif fmt == OutputFormat.yaml:
+        print(result.dump_yaml(), end="")
+    elif fmt == OutputFormat.csv:
+        print(result.dump_csv(), end="")
     else:
         result.render(console)
 
@@ -425,7 +431,7 @@ def chart_add(
         help="Group entries by category, sign, or house.",
     ),
     fmt: OutputFormat = typer.Option(
-        OutputFormat.table, "--format", help="Output format: table or json."
+        OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
     ),
 ) -> None:
     """Save a named birth chart to ./charts/ and print it."""
@@ -466,7 +472,7 @@ def chart_add(
 @chart_app.command(name="list")
 def chart_list(
     fmt: OutputFormat = typer.Option(
-        OutputFormat.table, "--format", help="Output format: table or json."
+        OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
     ),
 ) -> None:
     """List all saved charts."""
@@ -496,7 +502,7 @@ def chart_cusps(
     mode: ZodiacMode = typer.Option(ZodiacMode.realsky, "--mode", help="Zodiac mode."),
     houses: HouseSystem = typer.Option(HouseSystem.porphyry, "--houses", help="House system."),
     fmt: OutputFormat = typer.Option(
-        OutputFormat.table, "--format", help="Output format: table or json."
+        OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
     ),
 ) -> None:
     """Print house cusps for a saved or one-off chart."""
@@ -572,7 +578,7 @@ def chart_show(
         help="Group entries by category, sign, or house.",
     ),
     fmt: OutputFormat = typer.Option(
-        OutputFormat.table, "--format", help="Output format: table or json."
+        OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
     ),
     compare_houses: bool = typer.Option(
         False,
@@ -623,7 +629,7 @@ def chart_delete(
         False, "--yes", "-y", help="Skip the confirmation prompt."
     ),
     fmt: OutputFormat = typer.Option(
-        OutputFormat.table, "--format", help="Output format: table or json."
+        OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
     ),
 ) -> None:
     """Delete a saved chart."""
@@ -653,7 +659,7 @@ def chart_transits(
         False, "--natal", help="Show natal placements alongside transits in a side-by-side table."
     ),
     fmt: OutputFormat = typer.Option(
-        OutputFormat.table, "--format", help="Output format: table or json."
+        OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
     ),
 ) -> None:
     """Compare a saved natal chart against current (or specified date) transiting planets."""
@@ -732,7 +738,7 @@ def chart_compare(
     details: bool = typer.Option(False, "--details", help="Include angles, nodes, and points in inter-aspects."),
     aspects: bool = typer.Option(False, "--aspects", help="Print inter-aspect tables."),
     fmt: OutputFormat = typer.Option(
-        OutputFormat.table, "--format", help="Output format: table or json."
+        OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
     ),
 ) -> None:
     """Show synastry (inter-aspects) between two saved charts."""
@@ -828,7 +834,7 @@ def _build_info_list(
 def info_planets(
     name: str | None = typer.Argument(None, help="Planet name (e.g. sun, venus, chiron)."),
     fmt: OutputFormat = typer.Option(
-        OutputFormat.table, "--format", help="Output format: table or json."
+        OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
     ),
 ) -> None:
     """Reference info on the planets."""
@@ -847,7 +853,7 @@ def info_planets(
 def info_signs(
     name: str | None = typer.Argument(None, help="Sign name (e.g. aries, ophiuchus)."),
     fmt: OutputFormat = typer.Option(
-        OutputFormat.table, "--format", help="Output format: table or json."
+        OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
     ),
 ) -> None:
     """Reference info on the zodiac signs (13 real-sky signs including Ophiuchus)."""
@@ -869,7 +875,7 @@ def info_signs(
 def info_angles(
     name: str | None = typer.Argument(None, help="Angle name (e.g. ascendant, midheaven)."),
     fmt: OutputFormat = typer.Option(
-        OutputFormat.table, "--format", help="Output format: table or json."
+        OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
     ),
 ) -> None:
     """Reference info on chart angles."""
@@ -888,7 +894,7 @@ def info_angles(
 def info_aspects(
     name: str | None = typer.Argument(None, help="Aspect name (e.g. conjunction, trine)."),
     fmt: OutputFormat = typer.Option(
-        OutputFormat.table, "--format", help="Output format: table or json."
+        OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
     ),
 ) -> None:
     """Reference info on aspects."""
@@ -907,7 +913,7 @@ def info_aspects(
 def info_houses(
     number: int | None = typer.Argument(None, help="House number (1–12)."),
     fmt: OutputFormat = typer.Option(
-        OutputFormat.table, "--format", help="Output format: table or json."
+        OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
     ),
 ) -> None:
     """Reference info on the twelve houses."""
@@ -926,7 +932,7 @@ def info_houses(
 def info_points(
     name: str | None = typer.Argument(None, help="Point name (e.g. lilith, fortune, n.node)."),
     fmt: OutputFormat = typer.Option(
-        OutputFormat.table, "--format", help="Output format: table or json."
+        OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
     ),
 ) -> None:
     """Reference info on calculated points (nodes, Lilith, Hermetic lots)."""

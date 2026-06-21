@@ -6,8 +6,11 @@ terminal via ``.render(console)``.
 
 from __future__ import annotations
 
+import csv
+import io
 from abc import abstractmethod
 
+import yaml
 from pydantic import BaseModel, Field
 from rich import box
 from rich.console import Console
@@ -208,11 +211,40 @@ def _render_aspects(
 # Abstract base
 # ---------------------------------------------------------------------------
 
+def _flatten_for_csv(data: dict | list, parent_key: str = "") -> list[dict[str, str]]:
+    """Best-effort flattening of nested model data into CSV rows.
+
+    Looks for the first list-of-dicts field to use as rows.  If the model
+    is a single-record structure (e.g. InfoDetailOutput), wraps it in one row.
+    """
+    if isinstance(data, list):
+        rows: list[dict[str, str]] = []
+        for item in data:
+            if isinstance(item, dict):
+                rows.append({k: str(v) for k, v in item.items() if not isinstance(v, (dict, list))})
+            else:
+                rows.append({"value": str(item)})
+        return rows
+
+    # Find the best list field to use as rows
+    list_field: list | None = None
+    for v in data.values():
+        if isinstance(v, list) and v and isinstance(v[0], dict):
+            list_field = v
+            break
+
+    if list_field is not None:
+        return [{k: str(v) for k, v in item.items() if not isinstance(v, (dict, list))} for item in list_field]
+
+    # Single-record: flatten scalar fields into one row
+    return [{k: str(v) for k, v in data.items() if not isinstance(v, (dict, list))}]
+
+
 class OutputModel(BaseModel):
     """Base for all command output models.
 
-    Subclasses must implement ``render``; ``model_dump_json`` is inherited
-    from Pydantic's ``BaseModel``.
+    Subclasses must implement ``render``; serialization methods for JSON,
+    YAML, and CSV are provided by the base class.
     """
 
     @abstractmethod
@@ -220,6 +252,25 @@ class OutputModel(BaseModel):
 
     def model_dump_json(self, **kwargs) -> str:
         return super().model_dump_json(**kwargs)
+
+    def dump_yaml(self) -> str:
+        return yaml.dump(
+            self.model_dump(mode="json"),
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+        )
+
+    def dump_csv(self) -> str:
+        data = self.model_dump(mode="json")
+        rows = _flatten_for_csv(data)
+        if not rows:
+            return ""
+        buf = io.StringIO()
+        writer = csv.DictWriter(buf, fieldnames=list(rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(rows)
+        return buf.getvalue()
 
 
 # ---------------------------------------------------------------------------

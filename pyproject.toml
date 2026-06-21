@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "geopy>=2.4.1",
     "pydantic>=2.13.4",
+    "pyyaml>=6.0.3",
     "rich>=15.0.0",
     "skyfield>=1.54",
     "typer>=0.26.7",
@@ -20,7 +21,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [[tool.uv.index]]
-url = "https://pypi.org/simple/"
+url = "https://artifacts.apple.com/api/pypi/pypi-private/simple"
 default = true
 
 [tool.pytest.ini_options]
