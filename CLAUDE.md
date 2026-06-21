@@ -140,6 +140,9 @@ follow this format:
 Keep the first line under 72 characters. Use the body for additional context
 when the "why" isn't obvious from the summary line alone.
 
+**Always ask for confirmation before creating a commit.** Show the proposed
+commit message and list of staged files, then wait for approval.
+
 ## Code change checklist
 
 Before considering any code change complete, verify all of the following:
