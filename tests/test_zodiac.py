@@ -1,6 +1,48 @@
 import pytest
 
-from hoshi.zodiac import Placement, format_deg, n360
+from hoshi.zodiac import (
+    SIGN_ATTRS,
+    TROP_ABBR,
+    TROP_NAMES,
+    TROP_SIGNS,
+    Placement,
+    format_deg,
+    n360,
+)
+
+
+class TestSignTable:
+    def test_derived_lists_match_table(self):
+        assert TROP_NAMES == [s.name for s in TROP_SIGNS]
+        assert TROP_ABBR == [s.abbr for s in TROP_SIGNS]
+
+    def test_twelve_tropical_signs(self):
+        assert len(TROP_SIGNS) == 12
+
+    def test_sign_attrs_covers_thirteen_realsky_signs(self):
+        assert len(SIGN_ATTRS) == 13
+        assert SIGN_ATTRS["Aries"] == ("Fire", "Cardinal")
+        assert SIGN_ATTRS["Ophiuchus"] == ("Water", "Fixed")
+
+
+class TestForMode:
+    def test_realsky_dispatch_matches_realsky(self):
+        assert Placement.for_mode(100.0, "realsky") == Placement.realsky(100.0)
+
+    def test_realsky_threads_precession(self):
+        assert Placement.for_mode(29.5, "realsky", precession=1.0).name == "Pisces"
+
+    def test_tropical_dispatch(self):
+        assert Placement.for_mode(100.0, "tropical") == Placement.tropical(100.0)
+
+    def test_vedic_threads_ayanamsa(self):
+        assert Placement.for_mode(100.0, "vedic", ayanamsa=24.0) == Placement.vedic(
+            100.0, 24.0
+        )
+
+    def test_unknown_mode_raises(self):
+        with pytest.raises(ValueError, match="Unknown zodiac mode"):
+            Placement.for_mode(100.0, "bogus")
 
 
 class TestN360:

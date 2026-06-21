@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 from pydantic import BaseModel
 
-from hoshi.ephemeris import _timescale
+from hoshi.ephemeris import timescale
 
 
 # Fixed house arcs = IAU constellation widths in zodiac order. Nuastro's
@@ -43,7 +43,31 @@ def _n360(v: float) -> float:
 
 def _julian_day_ut(when_utc: datetime) -> float:
     """JD for the UT moment. Skyfield's ut1 differs from UTC by < 1 s."""
-    return _timescale().from_datetime(when_utc).ut1
+    return timescale().from_datetime(when_utc).ut1
+
+
+def _ramc_obliquity(when_utc: datetime, geo_lon: float) -> tuple[float, float]:
+    """Return (RAMC in degrees, mean obliquity in radians) for the moment.
+
+    Shared by `Angles.compute` and `placidus_cusps` so the GMST polynomial and
+    obliquity formula live in exactly one place.
+    """
+    jd = _julian_day_ut(when_utc)
+    T = (jd - 2451545.0) / 36525.0
+    gmst = _n360(
+        280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * T * T
+    )
+    ramc = _n360(gmst + geo_lon)
+    eps = math.radians(23.439291111 - 0.013004167 * T)
+    return ramc, eps
+
+
+def _mc_from_ramc(ramc: float, eps: float) -> float:
+    """Ecliptic longitude of the Midheaven from RAMC and obliquity."""
+    ramc_r = math.radians(ramc)
+    return _n360(
+        math.degrees(math.atan2(math.sin(ramc_r), math.cos(ramc_r) * math.cos(eps)))
+    )
 
 
 class Angles(BaseModel, frozen=True):
@@ -64,19 +88,11 @@ class Angles(BaseModel, frozen=True):
             raise ValueError("`when` must be timezone-aware (use UTC)")
         when_utc = when.astimezone(timezone.utc)
 
-        jd = _julian_day_ut(when_utc)
-        T = (jd - 2451545.0) / 36525.0
-        gmst = _n360(
-            280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * T * T
-        )
-        ramc = _n360(gmst + lon)
-        eps = math.radians(23.439291111 - 0.013004167 * T)
+        ramc, eps = _ramc_obliquity(when_utc, lon)
         lat_r = math.radians(lat)
         ramc_r = math.radians(ramc)
 
-        mc = _n360(
-            math.degrees(math.atan2(math.sin(ramc_r), math.cos(ramc_r) * math.cos(eps)))
-        )
+        mc = _mc_from_ramc(ramc, eps)
 
         y_a = -math.cos(ramc_r)
         x_a = math.sin(eps) * math.tan(lat_r) + math.cos(eps) * math.sin(ramc_r)
@@ -120,24 +136,11 @@ def placidus_cusps(
         raise ValueError("`when` must be timezone-aware (use UTC)")
     when_utc = when.astimezone(timezone.utc)
 
-    jd = _julian_day_ut(when_utc)
-    T = (jd - 2451545.0) / 36525.0
-    gmst = _n360(
-        280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * T * T
-    )
-    ramc = _n360(gmst + lon)
-    eps = math.radians(23.439291111 - 0.013004167 * T)
+    ramc, eps = _ramc_obliquity(when_utc, lon)
     lat_r = math.radians(lat)
 
     # Seed MC for the iteration (the Placidus algorithm needs a starting MC).
-    mc_seed = _n360(
-        math.degrees(
-            math.atan2(
-                math.sin(math.radians(ramc)),
-                math.cos(math.radians(ramc)) * math.cos(eps),
-            )
-        )
-    )
+    mc_seed = _mc_from_ramc(ramc, eps)
 
     def cusp(fraction: float, from_ic: bool) -> float:
         base = _n360(ramc + 180.0) if from_ic else ramc

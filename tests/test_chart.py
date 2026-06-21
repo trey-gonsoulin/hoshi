@@ -29,6 +29,17 @@ class TestPlacedForLongitude:
         assert p.vedic.name == direct.name
         assert p.vedic.deg == pytest.approx(direct.deg)
 
+    def test_placement_selects_mode(self):
+        p = Placed.for_longitude(45.0, ayanamsa=23.85, precession=0.0)
+        assert p.placement("realsky") is p.realsky
+        assert p.placement("tropical") is p.tropical
+        assert p.placement("vedic") is p.vedic
+
+    def test_placement_unknown_mode_raises(self):
+        p = Placed.for_longitude(45.0, ayanamsa=23.85, precession=0.0)
+        with pytest.raises(ValueError, match="Unknown zodiac mode"):
+            p.placement("bogus")
+
     def test_realsky_matches(self):
         p = Placed.for_longitude(250.0, ayanamsa=23.85, precession=0.5)
         direct = Placement.realsky(250.0, 0.5)

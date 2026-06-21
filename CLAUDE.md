@@ -8,7 +8,7 @@ Hoshi is a Python CLI for astrological charting, with a focus on real-sky astrol
 
 ## Repo contents
 
-- `main.py` / `pyproject.toml` / `.python-version` — `uv init` skeleton. Python 3.13+.
+- `pyproject.toml` / `.python-version` — packaging and pinned interpreter. Requires Python 3.11+ (CI tests 3.11–3.13).
 - `hoshi/` — Python package. Exposed as the `hoshi` console script via `[project.scripts]`; build backend is `hatchling`. After dependency changes, run `uv sync` to reinstall.
 - `charts/` — user-saved charts (one JSON file per chart). Names are normalized to lowercase on save. Not a cache — treat as user data. Persists only inputs; charts are recomputed on `hoshi chart show`.
 - `~/.cache/hoshi/chiron.json` — per-minute cache of Horizons OBSERVER responses for Chiron. Safe to delete.
@@ -18,11 +18,11 @@ Hoshi is a Python CLI for astrological charting, with a focus on real-sky astrol
 
 | Module | Purpose |
 |--------|---------|
-| `ephemeris.py` | Skyfield positions, Horizons HTTP fetch, JSON cache helpers, `ecliptic_precession()` |
-| `zodiac.py` | IAU real-sky boundaries, tropical and sidereal placements, `Placement.realsky(lon, precession)` |
-| `houses.py` | Placidus, Porphyry, Equal, Arc-13 house cusps; angle computation |
+| `ephemeris.py` | Skyfield positions (`positions(when, include_chiron=...)`), Horizons HTTP fetch (`HorizonsError` on failure), shared `timescale()`/`cache_dir()`, JSON cache helpers, `ecliptic_precession()` |
+| `zodiac.py` | IAU real-sky boundaries, tropical/sidereal placements (`Placement.for_mode(lon, mode, ...)`), `TROP_SIGNS`/`SIGN_ATTRS` sign tables |
+| `houses.py` | Placidus, Porphyry, Equal, Arc-13 house cusps; angle computation (shared `_ramc_obliquity`/`_mc_from_ramc`) |
 | `points.py` | True lunar nodes, Black Moon Lilith, Hermetic lots |
-| `chart.py` | `Chart.build()` — assembles all bodies; `Placed.for_longitude(lon, ayanamsa, precession)` |
+| `chart.py` | `Chart.build()` — assembles all bodies; `Placed.for_longitude(...)` and `Placed.placement(mode)`; `house` is `None` when location unknown |
 | `aspects.py` | Aspect definitions and orbs; `compute_aspects()`, `compute_inter_aspects()` |
 | `dignities.py` | Planetary dignities table, element/modality tally |
 | `store.py` | Save/load/list/delete named charts in `./charts/` |

@@ -8,6 +8,7 @@ to match the IAU constellation boundaries.
 
 import json
 import ssl
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
@@ -39,23 +40,37 @@ HORIZONS_URL = "https://ssd.jpl.nasa.gov/api/horizons.api"
 CHIRON_HORIZONS_ID = "2060;"  # trailing ';' = small-body designation
 
 
-def _cache_dir() -> Path:
+def cache_dir() -> Path:
     p = Path.home() / ".cache" / "hoshi"
     p.mkdir(parents=True, exist_ok=True)
     return p
 
 
-CHIRON_CACHE_PATH = _cache_dir() / "chiron.json"
+CHIRON_CACHE_PATH = cache_dir() / "chiron.json"
+
+
+class HorizonsError(RuntimeError):
+    """Raised when a JPL Horizons request fails or returns unusable data.
+
+    Carries a user-facing message; the CLI turns it into a clean error.
+    """
 
 
 def horizons_fetch(params: dict[str, str]) -> str:
     """GET against the Horizons API with a certifi-backed SSL context.
 
     Shared by Chiron (OBSERVER ephemeris) and true lunar elements (ELEMENTS).
+    Network and HTTP failures are wrapped in `HorizonsError`.
     """
     url = f"{HORIZONS_URL}?{urllib.parse.urlencode(params)}"
-    with urllib.request.urlopen(url, timeout=20, context=_ssl_context()) as resp:
-        return resp.read().decode("utf-8")
+    try:
+        with urllib.request.urlopen(url, timeout=20, context=_ssl_context()) as resp:
+            return resp.read().decode("utf-8")
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        raise HorizonsError(
+            f"Could not reach JPL Horizons ({exc}). Check your network connection "
+            f"and try again."
+        ) from exc
 
 
 def json_cache_get(path: Path, key: str) -> dict | None:
@@ -92,7 +107,7 @@ def _load_ephemeris():
 
 
 @cache
-def _timescale():
+def timescale():
     return load.timescale()
 
 
@@ -111,17 +126,21 @@ def _ssl_context() -> ssl.SSLContext:
         return ssl.create_default_context()
 
 
-def positions(when: datetime) -> dict[str, PlanetPosition]:
+def positions(
+    when: datetime, *, include_chiron: bool = True
+) -> dict[str, PlanetPosition]:
     """Return geocentric ecliptic positions for all supported bodies at `when`.
 
-    `when` must be timezone-aware. Use UTC for reproducibility.
+    `when` must be timezone-aware. Use UTC for reproducibility. Set
+    `include_chiron=False` to skip the Horizons round-trip when Chiron isn't
+    needed (e.g. the birth-time uncertainty check).
     """
     if when.tzinfo is None:
         raise ValueError("`when` must be timezone-aware (use UTC)")
     when_utc = when.astimezone(timezone.utc)
 
     eph = _load_ephemeris()
-    ts = _timescale()
+    ts = timescale()
     t = ts.from_datetime(when_utc)
     # Sample one minute later to detect retrograde via longitude derivative.
     t_next = ts.from_datetime(when_utc.replace(microsecond=0)) + (1.0 / 1440.0)
@@ -130,13 +149,13 @@ def positions(when: datetime) -> dict[str, PlanetPosition]:
     out: dict[str, PlanetPosition] = {}
     for pid, target in SKYFIELD_TARGETS.items():
         body = eph[target]
-        astrometric = earth.at(t).observe(body)
+        astrometric = earth.at(t).observe(body)  # type: ignore[reportAttributeAccessIssue]  # skyfield stubs mistype eph[...] as ndarray
         # epoch=t requests ecliptic-of-date longitudes (matching the convention
         # online Nuastro / standard astrology software use). Skyfield's
         # default ecliptic_latlon() actually returns J2000 ecliptic, which
         # differs from of-date by the precession over years since J2000.
         lat, lon, _ = astrometric.ecliptic_latlon(epoch=t)
-        astrometric_next = earth.at(t_next).observe(body)
+        astrometric_next = earth.at(t_next).observe(body)  # type: ignore[reportAttributeAccessIssue]  # skyfield stubs mistype eph[...] as ndarray
         _, lon_next, _ = astrometric_next.ecliptic_latlon(epoch=t_next)
 
         lon_deg = lon.degrees % 360.0
@@ -151,7 +170,8 @@ def positions(when: datetime) -> dict[str, PlanetPosition]:
             retrograde=retrograde,
         )
 
-    out["chiron"] = _chiron_position(when_utc)
+    if include_chiron:
+        out["chiron"] = _chiron_position(when_utc)
     return out
 
 
@@ -160,9 +180,9 @@ def _chiron_position(when_utc: datetime) -> PlanetPosition:
 
     Skyfield can't read Horizons' small-body SPKs (data type 21), so we use
     the OBSERVER ephemeris API and parse two epochs to derive retrograde.
-    Results are cached per minute in `.chiron_cache.json` in the cwd.
+    Results are cached per minute in `~/.cache/hoshi/chiron.json`.
     """
-    ts = _timescale()
+    ts = timescale()
     t = ts.from_datetime(when_utc)
     jd = t.tdb
     jd_next = jd + 1.0 / 1440.0  # +1 minute
@@ -202,12 +222,12 @@ def _parse_horizons_ecliptic(body: str) -> tuple[float, float, float]:
         start = lines.index("$$SOE")
         end = lines.index("$$EOE")
     except ValueError as exc:
-        raise RuntimeError(
+        raise HorizonsError(
             f"Horizons response missing $$SOE/$$EOE:\n{body[:500]}"
         ) from exc
     rows = [ln for ln in lines[start + 1 : end] if ln.strip()]
     if len(rows) < 2:
-        raise RuntimeError(f"Expected 2 Horizons rows, got {len(rows)}: {rows}")
+        raise HorizonsError(f"Expected 2 Horizons rows, got {len(rows)}: {rows}")
     # CSV columns: date, solar-presence, lunar-presence, lon, lat, (trailing)
     cols0 = [c.strip() for c in rows[0].split(",")]
     cols1 = [c.strip() for c in rows[1].split(",")]
@@ -223,7 +243,7 @@ def lahiri_ayanamsa(when: datetime) -> float:
     if when.tzinfo is None:
         raise ValueError("`when` must be timezone-aware (use UTC)")
     when_utc = when.astimezone(timezone.utc)
-    ts = _timescale()
+    ts = timescale()
     t = ts.from_datetime(when_utc)
     years_since_j2000 = (t.tt - 2451545.0) / 365.25
     return 23.85 + years_since_j2000 * (50.29 / 3600.0)
@@ -237,6 +257,6 @@ def ecliptic_precession(when: datetime) -> float:
     if when.tzinfo is None:
         raise ValueError("`when` must be timezone-aware")
     when_utc = when.astimezone(timezone.utc)
-    t = _timescale().from_datetime(when_utc)
+    t = timescale().from_datetime(when_utc)
     years_since_j2000 = (t.tt - 2451545.0) / 365.25
     return years_since_j2000 * (50.29 / 3600.0)
