@@ -1,12 +1,11 @@
 """Astrological aspect detection between chart bodies."""
 
-from dataclasses import dataclass
+from pydantic import BaseModel
 
 from hoshi.chart import Chart
 
 
-@dataclass(frozen=True)
-class AspectDef:
+class AspectDef(BaseModel, frozen=True):
     name: str
     symbol: str
     angle: float
@@ -20,27 +19,26 @@ MICRO_ORB = 1.0
 
 ASPECT_DEFS: list[AspectDef] = [
     # Major
-    AspectDef("Conjunction",    "☌",  0.0,         MAJOR_ORB, "Major"),
-    AspectDef("Opposition",     "☍",  180.0,       MAJOR_ORB, "Major"),
-    AspectDef("Trine",          "△",  120.0,       MAJOR_ORB, "Major"),
-    AspectDef("Square",         "□",  90.0,        MAJOR_ORB, "Major"),
-    AspectDef("Sextile",        "⚹",  60.0,        MAJOR_ORB, "Major"),
+    AspectDef(name="Conjunction",    symbol="☌",  angle=0.0,         orb=MAJOR_ORB, kind="Major"),
+    AspectDef(name="Opposition",     symbol="☍",  angle=180.0,       orb=MAJOR_ORB, kind="Major"),
+    AspectDef(name="Trine",          symbol="△",  angle=120.0,       orb=MAJOR_ORB, kind="Major"),
+    AspectDef(name="Square",         symbol="□",  angle=90.0,        orb=MAJOR_ORB, kind="Major"),
+    AspectDef(name="Sextile",        symbol="⚹",  angle=60.0,        orb=MAJOR_ORB, kind="Major"),
     # Minor
-    AspectDef("Inconjunct",     "⚻",  150.0,       MINOR_ORB, "Minor"),
-    AspectDef("Semi-sextile",   "⚺",  30.0,        MINOR_ORB, "Minor"),
-    AspectDef("Semi-square",    "∠",  45.0,        MINOR_ORB, "Minor"),
-    AspectDef("Sesquiquadrate", "⚼",  135.0,       MINOR_ORB, "Minor"),
+    AspectDef(name="Inconjunct",     symbol="⚻",  angle=150.0,       orb=MINOR_ORB, kind="Minor"),
+    AspectDef(name="Semi-sextile",   symbol="⚺",  angle=30.0,        orb=MINOR_ORB, kind="Minor"),
+    AspectDef(name="Semi-square",    symbol="∠",  angle=45.0,        orb=MINOR_ORB, kind="Minor"),
+    AspectDef(name="Sesquiquadrate", symbol="⚼",  angle=135.0,       orb=MINOR_ORB, kind="Minor"),
     # Micro
-    AspectDef("Quintile",       "Q",  72.0,        MICRO_ORB, "Micro"),
-    AspectDef("Bi-quintile",    "bQ", 144.0,       MICRO_ORB, "Micro"),
-    AspectDef("Septile",        "S",  360.0 / 7,   MICRO_ORB, "Micro"),
+    AspectDef(name="Quintile",       symbol="Q",  angle=72.0,        orb=MICRO_ORB, kind="Micro"),
+    AspectDef(name="Bi-quintile",    symbol="bQ", angle=144.0,       orb=MICRO_ORB, kind="Micro"),
+    AspectDef(name="Septile",        symbol="S",  angle=360.0 / 7,   orb=MICRO_ORB, kind="Micro"),
 ]
 
 KIND_ORDER = ["Major", "Minor", "Micro"]
 
 
-@dataclass(frozen=True)
-class Aspect:
+class Aspect(BaseModel, frozen=True):
     body_a: str
     body_b: str
     name: str
