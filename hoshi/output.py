@@ -559,7 +559,7 @@ class TransitsOutput(OutputModel):
             by_kind: dict[str, list[BodyEntry]] = {}
             for b in self.transit_bodies:
                 by_kind.setdefault(b.kind, []).append(b)
-            house_label: str | None = "H" if self.show_houses else None
+
             if self.details:
                 _render_section(
                     console,

@@ -242,14 +242,14 @@ def house_13_arc(lon: float, asc: float) -> int:
 
 def house_from_cusps(lon: float, cusps: list[float]) -> int:
     """House assignment from a 12-cusp list (Placidus, Porphyry, Equal)."""
-    l = _n360(lon)
+    lng = _n360(lon)
     for i in range(12):
         a = cusps[i]
         b = cusps[(i + 1) % 12]
         if a <= b:
-            if a <= l < b:
+            if a <= lng < b:
                 return i + 1
         else:  # cusp range wraps past 360
-            if l >= a or l < b:
+            if lng >= a or lng < b:
                 return i + 1
     return 12
