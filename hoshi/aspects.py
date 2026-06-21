@@ -70,15 +70,6 @@ _AXIS_PAIRS: frozenset[frozenset[str]] = frozenset(
     }
 )
 
-_ANGLE_LABELS: dict[str, str] = {
-    "asc": "Asc",
-    "mc": "MC",
-    "ic": "IC",
-    "dsc": "Dsc",
-    "vertex": "Vertex",
-    "antivertex": "Antivertex",
-}
-
 
 def _bodies(chart: Chart, details: bool = True) -> list[tuple[str, float]]:
     """Collect chart bodies as (display_name, ecliptic_lon) pairs.
@@ -87,17 +78,12 @@ def _bodies(chart: Chart, details: bool = True) -> list[tuple[str, float]]:
     With details: all bodies (angles, nodes, points, lots).
     """
     out: list[tuple[str, float]] = []
-    for p in chart.planets:
-        out.append((p.pid.capitalize(), p.placed.lon))
-    for a in chart.angles:
-        label = _ANGLE_LABELS.get(a.name, a.name.capitalize())
-        if details or a.name == "asc":
-            out.append((label, a.placed.lon))
-    if details:
-        for pt in chart.points:
-            out.append((pt.name, pt.placed.lon))
-        for lot in chart.lots:
-            out.append((lot.name, lot.placed.lon))
+    for b in chart.bodies():
+        if b.kind == "Angle" and not (details or b.id == "asc"):
+            continue
+        if b.kind in ("Node", "Point", "Lot") and not details:
+            continue
+        out.append((b.label, b.placed.lon))
     return out
 
 

@@ -12,14 +12,15 @@ from pydantic import BaseModel
 
 from hoshi import store
 from hoshi.aspects import compute_aspects, compute_inter_aspects
-from hoshi.chart import Chart, HouseSystem, Placed
-from hoshi.dignities import DIGNITY_SYMBOLS, dignity_for, element_modality_tally
-from hoshi.ephemeris import (
-    HorizonsError,
-    ecliptic_precession,
-    lahiri_ayanamsa,
-    positions,
+from hoshi.chart import (
+    PLACEHOLDER_LAT,
+    PLACEHOLDER_LON,
+    Chart,
+    HouseSystem,
+    uncertain_signs,
 )
+from hoshi.dignities import DIGNITY_SYMBOLS, dignity_for, element_modality_tally
+from hoshi.ephemeris import HorizonsError
 from hoshi.houses import house_13_arc, house_from_cusps
 from hoshi.output import (
     BodyEntry,
@@ -43,7 +44,7 @@ from hoshi.output import (
     TransitsOutput,
 )
 from hoshi.store import ChartInput
-from hoshi.zodiac import Placement
+from hoshi.zodiac import Placement, ZodiacMode
 
 
 console = Console()
@@ -67,12 +68,6 @@ ANGLE_DISPLAY_NAMES: dict[str, str] = {
     "vertex": "Vertex",
     "antivertex": "Antivertex",
 }
-
-
-class ZodiacMode(StrEnum):
-    realsky = "realsky"
-    tropical = "tropical"
-    vedic = "vedic"
 
 
 class GroupBy(StrEnum):
@@ -112,19 +107,12 @@ def _output(result: OutputModel, fmt: OutputFormat) -> None:
 # ---------------------------------------------------------------------------
 
 
-# A latitude of exactly 0° makes the Vertex calculation (cot(lat)) divide by
-# zero, so charts with unknown location are computed at a hair off the equator.
-# Location-derived output (angles, houses, lots) is suppressed anyway.
-_PLACEHOLDER_LAT = 0.001
-_PLACEHOLDER_LON = 0.0
-
-
 def chart_from_input(ci: ChartInput, houses: HouseSystem | str) -> Chart:
-    """Build a Chart from stored input, substituting placeholder coordinates
-    when the location is unknown (location-derived output is suppressed later)."""
-    lat = ci.lat if ci.lat is not None else _PLACEHOLDER_LAT
-    lon = ci.lon if ci.lon is not None else _PLACEHOLDER_LON
-    return Chart.build(ci.to_datetime(), lat, lon, house_system=houses)
+    """Build a Chart from stored input (placeholder coords for unknown location).
+
+    Thin alias for `Chart.from_input`; location-derived output is suppressed
+    later based on `chart.location_known`."""
+    return Chart.from_input(ci, house_system=houses)
 
 
 def _resolve_chart_input(
@@ -159,27 +147,6 @@ class BodySelection(BaseModel, frozen=True):
     lots: bool = True
     houses: bool = True
     uncertain_pids: frozenset[str] = frozenset()
-
-
-def _uncertain_pids(ci: ChartInput, mode: str) -> frozenset[str]:
-    """Return the set of planet pids whose sign changes at any point on the birth date."""
-    d = datetime.fromisoformat(ci.date)
-    tz = ZoneInfo(ci.tz)
-    start = d.replace(hour=0, minute=0, second=0, tzinfo=tz)
-    end = d.replace(hour=23, minute=59, second=59, tzinfo=tz)
-    # Chiron isn't inspected below, so skip its Horizons round-trip.
-    pos_start = positions(start, include_chiron=False)
-    pos_end = positions(end, include_chiron=False)
-    ayan = lahiri_ayanamsa(start)
-    prec_start = ecliptic_precession(start)
-    prec_end = ecliptic_precession(end)
-    uncertain: set[str] = set()
-    for pid in ("sun", "moon", "mercury", "venus", "mars"):
-        s = Placed.for_longitude(pos_start[pid].lon, ayan, prec_start).placement(mode)
-        e = Placed.for_longitude(pos_end[pid].lon, ayan, prec_end).placement(mode)
-        if s.name != e.name:
-            uncertain.add(pid)
-    return frozenset(uncertain)
 
 
 def _build_bodies(
@@ -344,7 +311,7 @@ def _build_chart_output(
     time_known = ci.time_known
     loc_known = ci.location_known
     show_full = time_known and loc_known
-    uncertain = _uncertain_pids(ci, mode) if not time_known else frozenset()
+    uncertain = uncertain_signs(ci, mode) if not time_known else frozenset()
 
     when_str = (
         ci.to_datetime().strftime("%Y-%m-%d")
@@ -416,8 +383,8 @@ def _build_house_comparison(
     ci: ChartInput, mode: str, *, details: bool
 ) -> HouseComparisonOutput:
     when = ci.to_datetime()
-    lat = ci.lat if ci.lat is not None else _PLACEHOLDER_LAT
-    lon = ci.lon if ci.lon is not None else _PLACEHOLDER_LON
+    lat = ci.lat if ci.lat is not None else PLACEHOLDER_LAT
+    lon = ci.lon if ci.lon is not None else PLACEHOLDER_LON
     charts = {sys: Chart.build(when, lat, lon, house_system=sys) for sys in HouseSystem}
     base = charts[HouseSystem.porphyry]
     bodies = _build_bodies(base, mode, BodySelection(details=details))
@@ -801,7 +768,7 @@ def chart_transits(
     natal_bodies = None
     if natal:
         natal_uncertain = (
-            _uncertain_pids(ci, mode) if not natal_time_known else frozenset()
+            uncertain_signs(ci, mode) if not natal_time_known else frozenset()
         )
         natal_bodies = _build_bodies(
             chart_natal,

@@ -19,14 +19,34 @@ Hoshi is a Python CLI for astrological charting, with a focus on real-sky astrol
 | Module | Purpose |
 |--------|---------|
 | `ephemeris.py` | Skyfield positions (`positions(when, include_chiron=...)`), Horizons HTTP fetch (`HorizonsError` on failure), shared `timescale()`/`cache_dir()`, JSON cache helpers, `ecliptic_precession()` |
-| `zodiac.py` | IAU real-sky boundaries, tropical/sidereal placements (`Placement.for_mode(lon, mode, ...)`), `TROP_SIGNS`/`SIGN_ATTRS` sign tables |
+| `zodiac.py` | IAU real-sky boundaries, tropical/sidereal placements (`Placement.for_mode(lon, mode, ...)`), `ZodiacMode` enum, `TROP_SIGNS`/`SIGN_ATTRS` sign tables |
 | `houses.py` | Placidus, Porphyry, Equal, Arc-13 house cusps; angle computation (shared `_ramc_obliquity`/`_mc_from_ramc`) |
 | `points.py` | True lunar nodes, Black Moon Lilith, Hermetic lots |
-| `chart.py` | `Chart.build()` — assembles all bodies; `Placed.for_longitude(...)` and `Placed.placement(mode)`; `house` is `None` when location unknown |
+| `chart.py` | `Chart.build()` / `Chart.from_input()` — assembles all bodies; `Chart.bodies()`/`Chart.body(id)` uniform `BodyRef` iteration; `uncertain_signs()`; `Placed.for_longitude(...)` and `Placed.placement(mode)`; `location_known`/`time_known` flags; `house` is `None` when location unknown |
 | `aspects.py` | Aspect definitions and orbs; `compute_aspects()`, `compute_inter_aspects()` |
 | `dignities.py` | Planetary dignities table, element/modality tally |
 | `store.py` | Save/load/list/delete named charts in `./charts/` |
 | `cli.py` | Typer entry point — all `hoshi chart` subcommands |
+
+## Public SDK surface
+
+Hoshi is usable as a library, not just a CLI. The top-level `hoshi` package
+(`hoshi/__init__.py`) re-exports the stable domain types and functions with an
+explicit `__all__`; **import from `hoshi`, not the submodules**, when consuming
+Hoshi from another project. A `py.typed` marker ships so downstream
+type-checkers see the annotations. See `docs/sdk.md` for a worked example.
+
+Guidance when changing the package:
+- New public constructs go in `__all__` (and ideally `docs/sdk.md`).
+- Keep computation in the SDK layer (`chart.py`, `zodiac.py`, …); `cli.py`
+  should only handle argument parsing and display. `Chart.from_input()`,
+  `Chart.bodies()`, and `uncertain_signs()` exist so the CLI doesn't own domain
+  logic — prefer extending these over adding logic to `cli.py`.
+- `Chart.from_input(ChartInput)` substitutes placeholder coordinates for an
+  unknown location and records `location_known` / `time_known` on the chart so
+  consumers can drive their own suppression.
+- Zodiac mode is the `ZodiacMode` StrEnum (in `zodiac.py`); functions accept it
+  or its plain-string value interchangeably.
 
 ## CLI commands
 
