@@ -1,9 +1,10 @@
 """Build a complete chart: positions placed in all three zodiac modes,
 plus angles, Placidus cusps, and house numbers."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import datetime
 from enum import StrEnum
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel
 
@@ -24,7 +25,27 @@ from hoshi.houses import (
     porphyry_cusps,
 )
 from hoshi.points import HERMETIC_LOT_NAMES, LunarElements, hermetic_lots
-from hoshi.zodiac import Placement
+from hoshi.store import ChartInput
+from hoshi.zodiac import Placement, ZodiacMode
+
+
+# A latitude of exactly 0° makes the Vertex calculation (cot(lat)) divide by
+# zero, so charts with an unknown location are computed a hair off the equator.
+# Location-derived output (angles, houses, lots) should be suppressed anyway —
+# `Chart.location_known` is False on charts built this way via `from_input`.
+PLACEHOLDER_LAT = 0.001
+PLACEHOLDER_LON = 0.0
+
+# Angle ids → short canonical labels used by `BodyRef.label` (and aspects).
+_ANGLE_LABELS: dict[str, str] = {
+    "asc": "Asc",
+    "mc": "MC",
+    "ic": "IC",
+    "dsc": "Dsc",
+    "vertex": "Vertex",
+    "antivertex": "Antivertex",
+}
+_NODE_NAMES = frozenset({"N.Node", "S.Node"})
 
 
 class Placed(BaseModel, frozen=True):
@@ -46,9 +67,13 @@ class Placed(BaseModel, frozen=True):
             vedic=Placement.vedic(lon, ayanamsa),
         )
 
-    def placement(self, mode: str) -> Placement:
+    def placement(self, mode: "ZodiacMode | str") -> Placement:
         """Return the placement for the named zodiac mode (validated)."""
-        if mode not in ("realsky", "tropical", "vedic"):
+        if mode not in (
+            ZodiacMode.realsky,
+            ZodiacMode.tropical,
+            ZodiacMode.vedic,
+        ):
             raise ValueError(f"Unknown zodiac mode: {mode!r}")
         return getattr(self, mode)
 
@@ -58,6 +83,22 @@ class HouseSystem(StrEnum):
     equal = "equal"
     placidus = "placidus"
     arc13 = "arc13"
+
+
+class BodyRef(BaseModel, frozen=True):
+    """A uniform handle on any placed point in a chart.
+
+    `Chart.bodies()` yields these so consumers can iterate every body —
+    planets, angles, nodes, points, and lots — without reaching across the
+    chart's four separate lists or re-deriving display labels.
+    """
+
+    id: str  # stable key: pid for planets, name/angle-id otherwise
+    label: str  # human label, e.g. "Sun", "Asc", "N.Node", "Fortune"
+    kind: str  # Planet / Angle / Node / Point / Lot
+    placed: Placed
+    house: int | None = None
+    retrograde: bool | None = None  # only meaningful for planets
 
 
 class PlanetChart(BaseModel, frozen=True):
@@ -92,6 +133,8 @@ class Chart(BaseModel, frozen=True):
     points: list[PointChart]
     lots: list[PointChart]
     cusps: list[float]  # 12 cusps (or 13 for arc13)
+    location_known: bool = True  # False when lat/lon were placeholders
+    time_known: bool = True  # False when the birth time was unknown
 
     @classmethod
     def build(
@@ -170,6 +213,30 @@ class Chart(BaseModel, frozen=True):
         )
 
     @classmethod
+    def from_input(
+        cls,
+        ci: ChartInput,
+        house_system: HouseSystem | str = HouseSystem.porphyry,
+    ) -> "Chart":
+        """Build a chart from a (possibly incomplete) `ChartInput`.
+
+        When the location is unknown, placeholder coordinates are substituted
+        so computation succeeds; the resulting chart reports
+        `location_known=False` (and `time_known` from the input) so callers
+        know to suppress angle/house/lot output. This folds the optional
+        birth-data handling into the SDK rather than leaving it to callers.
+        """
+        lat = ci.lat if ci.lat is not None else PLACEHOLDER_LAT
+        lon = ci.lon if ci.lon is not None else PLACEHOLDER_LON
+        chart = cls.build(ci.to_datetime(), lat, lon, house_system=house_system)
+        return chart.model_copy(
+            update={
+                "location_known": ci.location_known,
+                "time_known": ci.time_known,
+            }
+        )
+
+    @classmethod
     def positions_only(cls, when: datetime) -> "Chart":
         """Compute planet and point positions without angles, cusps, or lots."""
         ayan = lahiri_ayanamsa(when)
@@ -188,7 +255,87 @@ class Chart(BaseModel, frozen=True):
             points=_build_points(lunar, ayan, prec),
             lots=[],
             cusps=[],
+            location_known=False,
         )
+
+    # -- iteration -----------------------------------------------------------
+
+    def bodies(self) -> Iterator[BodyRef]:
+        """Yield every placed body in the chart as a uniform `BodyRef`.
+
+        Order is planets, angles, nodes/points, then lots — the same order the
+        chart's individual lists use. Consumers that want a subset filter on
+        `BodyRef.kind`.
+        """
+        for p in self.planets:
+            yield BodyRef(
+                id=p.pid,
+                label=p.pid.capitalize(),
+                kind="Planet",
+                placed=p.placed,
+                house=p.house,
+                retrograde=p.pos.retrograde,
+            )
+        for a in self.angles:
+            yield BodyRef(
+                id=a.name,
+                label=_ANGLE_LABELS.get(a.name, a.name.capitalize()),
+                kind="Angle",
+                placed=a.placed,
+                house=a.house,
+            )
+        for pt in self.points:
+            yield BodyRef(
+                id=pt.name,
+                label=pt.name,
+                kind="Node" if pt.name in _NODE_NAMES else "Point",
+                placed=pt.placed,
+                house=pt.house,
+            )
+        for lot in self.lots:
+            yield BodyRef(
+                id=lot.name,
+                label=lot.name,
+                kind="Lot",
+                placed=lot.placed,
+                house=lot.house,
+            )
+
+    def body(self, id: str) -> BodyRef:
+        """Return the body with the given id (planet pid or point name).
+
+        Raises `KeyError` if no body matches.
+        """
+        for b in self.bodies():
+            if b.id == id:
+                return b
+        raise KeyError(f"No body with id {id!r} in chart")
+
+
+def uncertain_signs(ci: ChartInput, mode: "ZodiacMode | str") -> frozenset[str]:
+    """Planet pids whose sign changes across the input's birth date.
+
+    When the birth time is unknown, a planet may sit in different signs at
+    midnight and end-of-day; those placements can't be trusted. Only the
+    fast-moving bodies (Sun through Mars) are checked, and Chiron's Horizons
+    round-trip is skipped. Returns an empty set when every sign is stable.
+    """
+    d = datetime.fromisoformat(ci.date)
+    tz = ZoneInfo(ci.tz)
+    start = d.replace(hour=0, minute=0, second=0, tzinfo=tz)
+    end = d.replace(hour=23, minute=59, second=59, tzinfo=tz)
+    pos_start = positions(start, include_chiron=False)
+    pos_end = positions(end, include_chiron=False)
+    ayan = lahiri_ayanamsa(start)
+    prec_start = ecliptic_precession(start)
+    prec_end = ecliptic_precession(end)
+    uncertain: set[str] = set()
+    for pid in ("sun", "moon", "mercury", "venus", "mars"):
+        s = Placed.for_longitude(pos_start[pid].lon, ayan, prec_start).placement(mode)
+        e = Placed.for_longitude(pos_end[pid].lon, ayan, prec_end).placement(mode)
+        if s.name != e.name:
+            uncertain.add(pid)
+    return frozenset(uncertain)
 
 
 def _no_house(lon: float) -> None:

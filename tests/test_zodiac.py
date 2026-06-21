@@ -6,6 +6,7 @@ from hoshi.zodiac import (
     TROP_NAMES,
     TROP_SIGNS,
     Placement,
+    ZodiacMode,
     format_deg,
     n360,
 )
@@ -43,6 +44,19 @@ class TestForMode:
     def test_unknown_mode_raises(self):
         with pytest.raises(ValueError, match="Unknown zodiac mode"):
             Placement.for_mode(100.0, "bogus")
+
+    def test_accepts_zodiac_mode_enum(self):
+        assert Placement.for_mode(100.0, ZodiacMode.tropical) == Placement.for_mode(
+            100.0, "tropical"
+        )
+
+    def test_enum_value_equals_string(self):
+        assert ZodiacMode.realsky == "realsky"
+        assert list(ZodiacMode) == [
+            ZodiacMode.realsky,
+            ZodiacMode.tropical,
+            ZodiacMode.vedic,
+        ]
 
 
 class TestN360:

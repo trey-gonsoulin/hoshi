@@ -45,6 +45,8 @@ venv = ".venv"
 
 [tool.hatch.build.targets.wheel]
 packages = ["hoshi"]
+# Ship the PEP 561 marker so downstream type-checkers see hoshi's annotations.
+artifacts = ["hoshi/py.typed"]
 
 [dependency-groups]
 dev = [

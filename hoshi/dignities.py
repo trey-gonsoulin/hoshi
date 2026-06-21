@@ -5,8 +5,10 @@ Dignities use standard astrological assignments adapted for the real-sky
 The exact Nuastro table may differ; these are a reasonable baseline.
 """
 
-from hoshi.chart import Chart
-from hoshi.zodiac import SIGN_ATTRS
+from collections.abc import Iterable
+
+from hoshi.chart import BodyRef, Chart
+from hoshi.zodiac import SIGN_ATTRS, ZodiacMode
 
 
 # ---------------------------------------------------------------------------
@@ -117,7 +119,9 @@ DIGNITY_SYMBOLS: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 
-def _tally_bodies(bodies: list, mode: str) -> dict[str, dict[str, int]]:
+def _tally_bodies(
+    bodies: Iterable[BodyRef], mode: "ZodiacMode | str"
+) -> dict[str, dict[str, int]]:
     elements: dict[str, int] = {}
     modalities: dict[str, int] = {}
     for body in bodies:
@@ -133,7 +137,7 @@ def _tally_bodies(bodies: list, mode: str) -> dict[str, dict[str, int]]:
 
 def element_modality_tally(
     chart: Chart,
-    mode: str,
+    mode: "ZodiacMode | str",
     *,
     include_angles: bool = True,
     include_lots: bool = True,
@@ -143,13 +147,16 @@ def element_modality_tally(
     Returns {"primary": {"elements": {...}, "modalities": {...}},
              "total":   {"elements": {...}, "modalities": {...}}}
     """
-    all_bodies = list(chart.planets)
-    if include_angles:
-        all_bodies += list(chart.angles)
-    all_bodies += list(chart.points)
-    if include_lots:
-        all_bodies += list(chart.lots)
+    all_bodies = [b for b in chart.bodies() if b.kind == "Planet"]
+    total = [
+        b
+        for b in chart.bodies()
+        if b.kind == "Planet"
+        or (b.kind == "Angle" and include_angles)
+        or b.kind in ("Node", "Point")
+        or (b.kind == "Lot" and include_lots)
+    ]
     return {
-        "primary": _tally_bodies(chart.planets, mode),
-        "total": _tally_bodies(all_bodies, mode),
+        "primary": _tally_bodies(all_bodies, mode),
+        "total": _tally_bodies(total, mode),
     }

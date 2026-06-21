@@ -5,7 +5,21 @@ Ported from `nuastro-calc.js`. The IAU table is the distinguishing feature:
 expressed as tropical J2000 ecliptic-longitude ranges.
 """
 
+from enum import StrEnum
+
 from pydantic import BaseModel
+
+
+class ZodiacMode(StrEnum):
+    """The three placement schemes Hoshi supports.
+
+    A `StrEnum`, so members compare equal to their plain-string values —
+    callers may pass either `ZodiacMode.realsky` or `"realsky"`.
+    """
+
+    realsky = "realsky"
+    tropical = "tropical"
+    vedic = "vedic"
 
 
 class IAUSign(BaseModel, frozen=True):
@@ -136,7 +150,7 @@ class Placement(BaseModel, frozen=True):
     def for_mode(
         cls,
         lon: float,
-        mode: str,
+        mode: "ZodiacMode | str",
         *,
         ayanamsa: float = 0.0,
         precession: float = 0.0,
@@ -145,12 +159,13 @@ class Placement(BaseModel, frozen=True):
 
         Single dispatch point for the three modes so callers don't repeat the
         mode→method mapping (and a bad mode fails here, at the boundary).
+        Accepts a `ZodiacMode` or its plain-string value.
         """
-        if mode == "realsky":
+        if mode == ZodiacMode.realsky:
             return cls.realsky(lon, precession)
-        if mode == "tropical":
+        if mode == ZodiacMode.tropical:
             return cls.tropical(lon)
-        if mode == "vedic":
+        if mode == ZodiacMode.vedic:
             return cls.vedic(lon, ayanamsa)
         raise ValueError(f"Unknown zodiac mode: {mode!r}")
 
