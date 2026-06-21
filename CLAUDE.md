@@ -107,4 +107,12 @@ bodies) counts.
 ## Conventions
 
 - Use `uv` for dependency and run management (`uv add`, `uv run`).
-- No tests or linter configured yet.
+
+## Code change checklist
+
+Before considering any code change complete, verify all of the following:
+
+1. **Lint and format** — run `uv run ruff check --fix .` and `uv run ruff format .` to fix lint issues and enforce consistent formatting.
+2. **Tests are written** — new or changed functionality must have corresponding tests.
+3. **All tests pass** — run the full test suite (`uv run pytest`) and confirm zero failures.
+4. **Documentation is updated** — update this file (CLAUDE.md), CLI help text, and any other relevant docs to reflect the change.

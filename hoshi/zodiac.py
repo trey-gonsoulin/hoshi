@@ -102,19 +102,19 @@ class Placement(BaseModel, frozen=True):
         c = IAU[i]
         lo = n360(c.lo + precession)
         hi = n360(c.hi + precession)
-        l = n360(lon)
+        lng = n360(lon)
         if lo > hi:  # wraps past 360
-            deg = l - lo if l >= lo else (360 - lo) + l
+            deg = lng - lo if lng >= lo else (360 - lo) + lng
         else:
-            deg = l - lo
+            deg = lng - lo
         return cls(name=c.name, abbr=c.abbr, deg=deg)
 
     @classmethod
     def tropical(cls, lon: float) -> "Placement":
         """Standard 12 equal 30° signs from the vernal equinox."""
-        l = n360(lon)
-        i = int(l // 30)
-        return cls(name=TROP_NAMES[i], abbr=TROP_ABBR[i], deg=l - i * 30)
+        lng = n360(lon)
+        i = int(lng // 30)
+        return cls(name=TROP_NAMES[i], abbr=TROP_ABBR[i], deg=lng - i * 30)
 
     @classmethod
     def vedic(cls, lon: float, ayanamsa: float) -> "Placement":
