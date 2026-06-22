@@ -533,6 +533,80 @@ def chart_add(
     _output(output, fmt)
 
 
+@chart_app.command(name="import")
+def chart_import(
+    source: str = typer.Argument(
+        ...,
+        help="ADB URL or page title (e.g. 'Mercury, Freddie').",
+    ),
+    name: str | None = typer.Argument(
+        None, help="Name to save the chart under (default: from ADB page)."
+    ),
+    force: bool = typer.Option(
+        False, "--force", help="Overwrite an existing saved chart with the same name."
+    ),
+    mode: ZodiacMode = typer.Option(ZodiacMode.realsky, "--mode", help="Zodiac mode."),
+    houses: HouseSystem = typer.Option(
+        HouseSystem.porphyry, "--houses", help="House system."
+    ),
+    cusps: bool = typer.Option(
+        False, "--cusps", help="Also print the house cusps for the chosen system."
+    ),
+    details: bool = typer.Option(
+        False, "--details", help="Also print all angles, nodes, and calculated points."
+    ),
+    aspects: bool = typer.Option(
+        False,
+        "--aspects",
+        help="Print aspect tables (uses all bodies with --details, planets+Asc otherwise).",
+    ),
+    group_by: GroupBy = typer.Option(
+        GroupBy.category,
+        "--group-by",
+        help="Group entries by category, sign, or house.",
+    ),
+    fmt: OutputFormat = typer.Option(
+        OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
+    ),
+) -> None:
+    """Import a birth chart from Astro-Databank."""
+    from hoshi.adb import ADBError, adb_to_chart_input
+
+    try:
+        result = adb_to_chart_input(source, name)
+    except ADBError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    ci = result.chart_input
+    rating = result.rodden_rating
+    if fmt == OutputFormat.table:
+        typer.echo(f"Importing: {ci.name}")
+        if rating:
+            typer.echo(f"Rodden rating: {rating}")
+        if result.source_url:
+            typer.echo(f"Source: {result.source_url}")
+
+    try:
+        path = store.save(ci, overwrite=force)
+    except FileExistsError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(f"Saved chart to {path}", err=(fmt == OutputFormat.json))
+    if fmt == OutputFormat.table:
+        typer.echo("")
+
+    chart = chart_from_input(ci, houses)
+    output = _build_chart_output(
+        ci,
+        chart,
+        mode,
+        details=details,
+        aspects=aspects,
+        group_by=group_by,
+        show_cusps=cusps,
+    )
+    _output(output, fmt)
+
+
 @chart_app.command(name="list")
 def chart_list(
     fmt: OutputFormat = typer.Option(
@@ -1037,9 +1111,11 @@ def info_points(
 
 
 def main() -> None:
+    from hoshi.adb import ADBError
+
     try:
         app()
-    except HorizonsError as exc:
+    except (HorizonsError, ADBError) as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise SystemExit(1) from exc
 
