@@ -14,10 +14,12 @@ import yaml
 from pydantic import BaseModel, Field
 from rich import box
 from rich.console import Console
+from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
 from hoshi.aspects import Aspect, KIND_ORDER, fmt_orb
+from hoshi.info import HOUSES, SIGNS
 from hoshi.zodiac import IAU, TROP_NAMES, format_deg
 
 
@@ -152,16 +154,60 @@ def _render_by_sign(
 def _render_by_house(
     console: Console,
     bodies: list[BodyEntry],
-    cusp_signs: list[str],
+    cusp_entries: list[CuspEntry],
     asc_lon: float,
 ) -> None:
     grouped: dict[int, list[BodyEntry]] = {}
     for b in bodies:
         if b.house is not None:
             grouped.setdefault(b.house, []).append(b)
-    for i, sign in enumerate(cusp_signs, start=1):
-        rows = sorted(grouped.get(i, []), key=lambda b: (b.lon - asc_lon) % 360.0)
-        console.print(_body_table(f"H{i} — {sign}", rows, show_kind=True))
+    n = len(cusp_entries)
+
+    parts: list[tuple[str, str, str, str, str, str]] = []
+    for idx, cusp in enumerate(cusp_entries):
+        i = cusp.house
+        house_label = f"H{i}"
+        house_kw = HOUSES[i].keywords[0] if i in HOUSES else ""
+        sign_kw = SIGNS[cusp.sign].keywords[0] if cusp.sign in SIGNS else ""
+        next_lon = cusp_entries[(idx + 1) % n].lon
+        start = f"{cusp.lon:.2f}°"
+        end = f"{next_lon:.2f}°"
+        parts.append((house_label, house_kw, cusp.sign, sign_kw, start, end))
+
+    w_hl = max(len(p[0]) for p in parts)
+    w_hk = max(len(p[1]) for p in parts)
+    w_s = max(len(p[2]) for p in parts)
+    w_sk = max(len(p[3]) for p in parts)
+    w_st = max(len(p[4]) for p in parts)
+    w_en = max(len(p[5]) for p in parts)
+    min_title = w_hl + 1 + w_hk + 3 + w_s + 1 + w_sk + 3 + w_st + 3 + w_en
+
+    for idx, cusp in enumerate(cusp_entries):
+        hl, hk, sign, sk, start, end = parts[idx]
+        rows = sorted(
+            grouped.get(cusp.house, []), key=lambda b: (b.lon - asc_lon) % 360.0
+        )
+
+        title = (
+            f"{hl:<{w_hl}} [dim]{hk:<{w_hk}}[/dim]"
+            f" │ {sign:<{w_s}} [dim]{sk:<{w_sk}}[/dim]"
+            f" │ [dim]{start:>{w_st}} – {end:>{w_en}}[/dim]"
+        )
+        if rows:
+            table = _body_table("", rows, show_kind=True)
+            content = table
+        else:
+            content = Text("(empty)")
+        panel = Panel(
+            content,
+            title=f"[bold cyan]{title}[/bold cyan]",
+            title_align="left",
+            border_style="dim",
+            padding=(0, 1),
+            expand=False,
+        )
+        console.print()
+        console.print(panel)
 
 
 def _render_aspects(console: Console, aspects: list[Aspect], prefix: str = "") -> None:
@@ -358,10 +404,6 @@ class ChartOutput(OutputModel):
     details: bool = Field(default=False, exclude=True)
     ayanamsa: float = Field(default=0.0, exclude=True)
 
-    @property
-    def cusp_signs(self) -> list[str]:
-        return [c.sign for c in self.cusp_entries]
-
     def render(self, console: Console) -> None:
         h = self.chart
         loc_str = (
@@ -384,7 +426,7 @@ class ChartOutput(OutputModel):
         if self.group_by == "sign":
             _render_by_sign(console, self.bodies, h.mode, show_houses=self.show_houses)
         elif self.group_by == "house":
-            _render_by_house(console, self.bodies, self.cusp_signs, self.asc_lon)
+            _render_by_house(console, self.bodies, self.cusp_entries, self.asc_lon)
         else:
             by_kind: dict[str, list[BodyEntry]] = {}
             for b in self.bodies:
