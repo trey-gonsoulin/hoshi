@@ -12,7 +12,7 @@ def _capture(fn):
     return buf.getvalue()
 
 
-def test_render_by_house_shows_keywords_and_range():
+def test_render_by_house_shows_sign_and_range():
     bodies = [
         BodyEntry(
             name="Sun",
@@ -31,15 +31,12 @@ def test_render_by_house_shows_keywords_and_range():
     text = _capture(lambda c: _render_by_house(c, bodies, cusps, asc_lon=0.0))
 
     assert "H1" in text
-    assert "self" in text
     assert "Aries" in text
-    assert "initiative" in text
-    assert "0.00° – 30.00°" in text
+    assert "00°00'" in text
+    assert "30°00'" in text
 
     assert "H2" in text
-    assert "resources" in text
     assert "Taurus" in text
-    assert "stability" in text
 
     assert "Sun" in text
 
