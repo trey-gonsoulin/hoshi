@@ -19,7 +19,6 @@ from rich.table import Table
 from rich.text import Text
 
 from hoshi.aspects import Aspect, KIND_ORDER, fmt_orb
-from hoshi.info import HOUSES, SIGNS
 from hoshi.zodiac import IAU, TROP_NAMES, format_deg
 
 
@@ -28,14 +27,25 @@ from hoshi.zodiac import IAU, TROP_NAMES, format_deg
 # ---------------------------------------------------------------------------
 
 
-def _new_table(title: str) -> Table:
+def _new_table(title: str = "") -> Table:
     return Table(
-        title=title,
+        title=title or None,
         title_style="bold cyan",
         title_justify="left",
         box=box.SIMPLE_HEAD,
         header_style="bold",
         pad_edge=False,
+    )
+
+
+def _panel(title: str, content: Table | Text) -> Panel:
+    return Panel(
+        content,
+        title=f"[bold cyan]{title}[/bold cyan]",
+        title_align="left",
+        border_style="dim",
+        padding=(0, 1),
+        expand=False,
     )
 
 
@@ -110,24 +120,24 @@ def _render_section(
     show_sign: bool = True,
     show_rx: bool = True,
 ) -> None:
-    console.print(
-        _body_table(
-            title,
-            bodies,
-            show_kind=show_kind,
-            show_sign=show_sign,
-            show_rx=show_rx,
-            show_houses=show_houses,
-        )
+    table = _body_table(
+        "",
+        bodies,
+        show_kind=show_kind,
+        show_sign=show_sign,
+        show_rx=show_rx,
+        show_houses=show_houses,
     )
+    console.print()
+    console.print(_panel(title, table))
 
 
 def _render_planets_section(
     console: Console, bodies: list[BodyEntry], *, show_houses: bool
 ) -> None:
-    console.print(
-        _body_table("Planets", bodies, show_houses=show_houses, show_dignity=True)
-    )
+    table = _body_table("", bodies, show_houses=show_houses, show_dignity=True)
+    console.print()
+    console.print(_panel("Planets", table))
 
 
 def _render_by_sign(
@@ -144,11 +154,11 @@ def _render_by_sign(
         grouped.setdefault(b.sign, []).append(b)
     for sign in sorted(grouped, key=lambda s: rank.get(s, 99)):
         rows = sorted(grouped[sign], key=lambda b: b.degree)
-        console.print(
-            _body_table(
-                sign, rows, show_kind=True, show_sign=False, show_houses=show_houses
-            )
+        table = _body_table(
+            "", rows, show_kind=True, show_sign=False, show_houses=show_houses
         )
+        console.print()
+        console.print(_panel(sign, table))
 
 
 def _render_by_house(
@@ -163,51 +173,18 @@ def _render_by_house(
             grouped.setdefault(b.house, []).append(b)
     n = len(cusp_entries)
 
-    parts: list[tuple[str, str, str, str, str, str]] = []
     for idx, cusp in enumerate(cusp_entries):
-        i = cusp.house
-        house_label = f"H{i}"
-        house_kw = HOUSES[i].keywords[0] if i in HOUSES else ""
-        sign_kw = SIGNS[cusp.sign].keywords[0] if cusp.sign in SIGNS else ""
-        next_lon = cusp_entries[(idx + 1) % n].lon
-        start = f"{cusp.lon:.2f}°"
-        end = f"{next_lon:.2f}°"
-        parts.append((house_label, house_kw, cusp.sign, sign_kw, start, end))
-
-    w_hl = max(len(p[0]) for p in parts)
-    w_hk = max(len(p[1]) for p in parts)
-    w_s = max(len(p[2]) for p in parts)
-    w_sk = max(len(p[3]) for p in parts)
-    w_st = max(len(p[4]) for p in parts)
-    w_en = max(len(p[5]) for p in parts)
-    min_title = w_hl + 1 + w_hk + 3 + w_s + 1 + w_sk + 3 + w_st + 3 + w_en
-
-    for idx, cusp in enumerate(cusp_entries):
-        hl, hk, sign, sk, start, end = parts[idx]
         rows = sorted(
             grouped.get(cusp.house, []), key=lambda b: (b.lon - asc_lon) % 360.0
         )
-
-        title = (
-            f"{hl:<{w_hl}} [dim]{hk:<{w_hk}}[/dim]"
-            f" │ {sign:<{w_s}} [dim]{sk:<{w_sk}}[/dim]"
-            f" │ [dim]{start:>{w_st}} – {end:>{w_en}}[/dim]"
-        )
+        next_lon = cusp_entries[(idx + 1) % n].lon
+        title = f"H{cusp.house} │ {cusp.sign} │ {format_deg(cusp.lon)} – {format_deg(next_lon)}"
         if rows:
-            table = _body_table("", rows, show_kind=True)
-            content = table
+            content: Table | Text = _body_table("", rows, show_kind=True)
         else:
             content = Text("(empty)")
-        panel = Panel(
-            content,
-            title=f"[bold cyan]{title}[/bold cyan]",
-            title_align="left",
-            border_style="dim",
-            padding=(0, 1),
-            expand=False,
-        )
         console.print()
-        console.print(panel)
+        console.print(_panel(title, content))
 
 
 def _render_aspects(console: Console, aspects: list[Aspect], prefix: str = "") -> None:
@@ -220,7 +197,7 @@ def _render_aspects(console: Console, aspects: list[Aspect], prefix: str = "") -
         group = by_kind.get(kind)
         if not group:
             continue
-        table = _new_table(f"{prefix}{kind} Aspects")
+        table = _new_table()
         table.add_column("Body A", style="bold")
         table.add_column("", justify="center")
         table.add_column("Body B", style="bold")
@@ -236,7 +213,8 @@ def _render_aspects(console: Console, aspects: list[Aspect], prefix: str = "") -
                 f"{asp.angle:.0f}°",
                 fmt_orb(asp.orb),
             )
-        console.print(table)
+        console.print()
+        console.print(_panel(f"{prefix}{kind} Aspects", table))
 
 
 # ---------------------------------------------------------------------------
@@ -346,7 +324,7 @@ class TallyOutput(OutputModel):
     modalities: dict[str, TallyRow]
 
     def render(self, console: Console) -> None:
-        table = _new_table("Tallies")
+        table = _new_table()
         table.add_column("Element", style="bold")
         table.add_column("Primary", justify="right")
         table.add_column("Total", justify="right")
@@ -370,7 +348,8 @@ class TallyOutput(OutputModel):
                 str(mr.primary) if mr else "",
                 str(mr.total) if mr else "",
             )
-        console.print(table)
+        console.print()
+        console.print(_panel("Tallies", table))
 
 
 class ChartHeader(BaseModel, frozen=True):
@@ -477,16 +456,16 @@ class ChartOutput(OutputModel):
             self._render_cusps(console)
 
     def _render_cusps(self, console: Console) -> None:
-        table = _new_table(
-            f"{self.chart.house_system.capitalize() if self.chart.house_system else ''} cusps"
-        )
+        title = f"{self.chart.house_system.capitalize() if self.chart.house_system else ''} cusps"
+        table = _new_table()
         table.add_column("House", justify="right")
         table.add_column("Sign")
         table.add_column("Degree", justify="right")
         table.add_column("Lon", justify="right")
         for c in self.cusp_entries:
             table.add_row(f"H{c.house}", c.sign, format_deg(c.degree), f"{c.lon:.2f}°")
-        console.print(table)
+        console.print()
+        console.print(_panel(title, table))
 
 
 class ChartListEntry(BaseModel, frozen=True):
@@ -507,7 +486,7 @@ class ChartListOutput(OutputModel):
                 "No saved charts. Use `hoshi chart add NAME DATE [TIME] --lat ... --lon ...` to create one."
             )
             return
-        table = _new_table("Saved charts")
+        table = _new_table()
         table.add_column("Name", style="bold")
         table.add_column("Date")
         table.add_column("Time")
@@ -523,7 +502,8 @@ class ChartListOutput(OutputModel):
                 f"{c.lat:.4f}" if c.lat is not None else "—",
                 f"{c.lon:.4f}" if c.lon is not None else "—",
             )
-        console.print(table)
+        console.print()
+        console.print(_panel("Saved charts", table))
 
 
 class CuspsOutput(OutputModel):
@@ -531,14 +511,16 @@ class CuspsOutput(OutputModel):
     cusps: list[CuspEntry] = []
 
     def render(self, console: Console) -> None:
-        table = _new_table(f"{self.house_system.capitalize()} cusps")
+        title = f"{self.house_system.capitalize()} cusps"
+        table = _new_table()
         table.add_column("House", justify="right")
         table.add_column("Sign")
         table.add_column("Degree", justify="right")
         table.add_column("Lon", justify="right")
         for c in self.cusps:
             table.add_row(f"H{c.house}", c.sign, format_deg(c.degree), f"{c.lon:.2f}°")
-        console.print(table)
+        console.print()
+        console.print(_panel(title, table))
 
 
 class TransitHeader(BaseModel, frozen=True):
@@ -616,7 +598,7 @@ class TransitsOutput(OutputModel):
         title = "Natal vs Transits" + (
             "  (H = natal house)" if self.show_houses else ""
         )
-        table = _new_table(title)
+        table = _new_table()
         table.add_column("Name", style="bold")
         table.add_column("Natal Sign")
         table.add_column("Natal Deg", justify="right")
@@ -639,7 +621,8 @@ class TransitsOutput(OutputModel):
             if self.show_houses:
                 row.append(str(t.house) if t.house else "")
             table.add_row(*row)
-        console.print(table)
+        console.print()
+        console.print(_panel(title, table))
 
 
 class CompareHeader(BaseModel, frozen=True):
@@ -676,7 +659,7 @@ class CompareOutput(OutputModel):
         index_b = {b.name: b for b in self.bodies_b}
         all_names = list(dict.fromkeys(b.name for b in self.bodies_a + self.bodies_b))
 
-        table = _new_table("Placements")
+        table = _new_table()
         table.add_column("Body", style="bold")
         table.add_column(f"{self.header.name_a.title()} Sign")
         table.add_column("Deg", justify="right")
@@ -700,7 +683,8 @@ class CompareOutput(OutputModel):
             else:
                 row.extend(["—", "—", ""])
             table.add_row(*row)
-        console.print(table)
+        console.print()
+        console.print(_panel("Placements", table))
 
 
 class HouseComparisonOutput(OutputModel):
@@ -720,7 +704,7 @@ class HouseComparisonOutput(OutputModel):
             header = f"[yellow]\\[{h.name.title()}][/yellow] " + header
         console.print(header)
 
-        table = _new_table("House comparison (yellow = differs from Porphyry)")
+        table = _new_table()
         table.add_column("Kind")
         table.add_column("Name", style="bold")
         table.add_column("Sign")
@@ -746,7 +730,10 @@ class HouseComparisonOutput(OutputModel):
                     else str(h_val)
                 )
             table.add_row(*cells)
-        console.print(table)
+        console.print()
+        console.print(
+            _panel("House comparison (yellow = differs from Porphyry)", table)
+        )
 
 
 class InfoItem(BaseModel, frozen=True):
@@ -763,7 +750,7 @@ class InfoListOutput(OutputModel):
     extra_columns: list[str] = Field(default_factory=list, exclude=True)
 
     def render(self, console: Console) -> None:
-        table = _new_table(self.title)
+        table = _new_table()
         table.add_column("Name", style="bold")
         for col in self.extra_columns:
             table.add_column(col)
@@ -775,7 +762,8 @@ class InfoListOutput(OutputModel):
                 row.append(val or "")
             row.append(", ".join(item.keywords))
             table.add_row(*row)
-        console.print(table)
+        console.print()
+        console.print(_panel(self.title, table))
 
 
 class InfoDetailOutput(OutputModel):
