@@ -26,6 +26,7 @@ Hoshi is a Python CLI for astrological charting, with a focus on real-sky astrol
 | `aspects.py` | Aspect definitions and orbs; `compute_aspects()`, `compute_inter_aspects()` |
 | `dignities.py` | Planetary dignities table, element/modality tally |
 | `store.py` | Save/load/list/delete named charts in `./charts/` |
+| `adb.py` | Astro-Databank import via MediaWiki API; `adb_to_chart_input()` fetches + parses `ASTRODATABANK_dma` template into `ChartInput`; coordinate/time/timezone converters; `ADBError` on failure |
 | `cli.py` | Typer entry point — all `hoshi chart` subcommands |
 
 ## Public SDK surface
@@ -56,6 +57,7 @@ hoshi chart show     NAME|DATE [TIME] [--lat --lon] ...   [--format table|json] 
 hoshi chart cusps    NAME|DATE [TIME] [--lat --lon] ...   [--mode] [--houses]
 hoshi chart transits NAME [DATE [TIME]]                   [--tz] [--mode] [--houses] [--details] [--aspects] [--natal]
 hoshi chart compare  NAME1 NAME2                          [--mode] [--houses] [--aspects] [--details]
+hoshi chart import   SOURCE [NAME]                        [--force] [--mode] [--houses] [--details] [--aspects] [--group-by] [--cusps] [--format]
 hoshi chart list
 hoshi chart delete   NAME [--yes]
 ```

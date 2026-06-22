@@ -13,6 +13,7 @@ functions from here rather than the internal submodules, e.g.::
     aspects = compute_aspects(chart)
 """
 
+from hoshi.adb import ADBError, ADBResult, adb_to_chart_input
 from hoshi.aspects import (
     ASPECT_DEFS,
     Aspect,
@@ -97,4 +98,8 @@ __all__ = [
     # Dignities
     "dignity_for",
     "element_modality_tally",
+    # ADB import
+    "ADBError",
+    "ADBResult",
+    "adb_to_chart_input",
 ]
