@@ -58,8 +58,8 @@ Guidance when changing the package:
 hoshi chart add      NAME DATE [TIME] [--lat] [--lon] [--tz] [--mode] [--houses] [--details] [--aspects] [--group-by] [--cusps] [--force]
 hoshi chart show     NAME|DATE [TIME] [--lat --lon] ...   [--format table|json] [--compare-houses]
 hoshi chart cusps    NAME|DATE [TIME] [--lat --lon] ...   [--mode] [--houses]
-hoshi chart transits NAME [DATE [TIME]]                   [--tz] [--mode] [--houses] [--details] [--aspects] [--natal]
-hoshi chart compare  NAME1 NAME2                          [--mode] [--houses] [--aspects] [--details]
+hoshi chart transits NAME [DATE [TIME]]                   [--tz] [--mode] [--houses] [--details] [--aspects] [--natal] [--group-by]
+hoshi chart compare  NAME1 NAME2                          [--mode] [--houses] [--aspects] [--details] [--group-by]
 hoshi chart import   SOURCE [NAME]                        [--force] [--mode] [--houses] [--details] [--aspects] [--group-by] [--cusps] [--format]
 hoshi chart list
 hoshi chart delete   NAME [--yes]
@@ -120,6 +120,10 @@ Five major aspects (4° orb), four minor (2° orb), three micro (1° orb). See
 synastry inter-aspects via `compute_inter_aspects(chart_a, chart_b, details)`.
 Without `--details`, only planets + Asc are included. Axis pairs (Asc/Dsc,
 MC/IC, etc.) are filtered from single-chart aspects.
+
+`--group-by` controls grouping for both bodies and aspects: `category`
+(default — bodies by kind, aspects by Major/Minor/Micro), `sign`, `house`,
+or `planet` (aspects only).
 
 ## Dignities
 

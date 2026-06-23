@@ -45,6 +45,7 @@ class GroupBy(StrEnum):
     category = "category"
     sign = "sign"
     house = "house"
+    planet = "planet"
 
 
 class OutputFormat(StrEnum):
@@ -167,7 +168,7 @@ def chart_add(
     group_by: GroupBy = typer.Option(
         GroupBy.category,
         "--group-by",
-        help="Group entries by category, sign, or house.",
+        help="Group output by category (default), sign, house, or planet.",
     ),
     fmt: OutputFormat = typer.Option(
         OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
@@ -245,7 +246,7 @@ def chart_import(
     group_by: GroupBy = typer.Option(
         GroupBy.category,
         "--group-by",
-        help="Group entries by category, sign, or house.",
+        help="Group output by category (default), sign, house, or planet.",
     ),
     fmt: OutputFormat = typer.Option(
         OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
@@ -380,7 +381,7 @@ def chart_show(
     group_by: GroupBy = typer.Option(
         GroupBy.category,
         "--group-by",
-        help="Group entries by category, sign, or house.",
+        help="Group output by category (default), sign, house, or planet.",
     ),
     fmt: OutputFormat = typer.Option(
         OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
@@ -463,6 +464,11 @@ def chart_transits(
         "--natal",
         help="Show natal placements alongside transits in a side-by-side table.",
     ),
+    group_by: GroupBy = typer.Option(
+        GroupBy.category,
+        "--group-by",
+        help="Group output by category (default), sign, house, or planet.",
+    ),
     fmt: OutputFormat = typer.Option(
         OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
     ),
@@ -493,6 +499,7 @@ def chart_transits(
         details=details,
         aspects=aspects,
         natal=natal,
+        group_by=group_by,
     )
     _output(output, fmt)
 
@@ -509,6 +516,11 @@ def chart_compare(
         False, "--details", help="Include angles, nodes, and points in inter-aspects."
     ),
     aspects: bool = typer.Option(False, "--aspects", help="Print inter-aspect tables."),
+    group_by: GroupBy = typer.Option(
+        GroupBy.category,
+        "--group-by",
+        help="Group output by category (default), sign, house, or planet.",
+    ),
     fmt: OutputFormat = typer.Option(
         OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
     ),
@@ -531,6 +543,7 @@ def chart_compare(
         mode,
         details=details,
         aspects=aspects,
+        group_by=group_by,
     )
     _output(output, fmt)
 
