@@ -25,6 +25,9 @@ hoshi = "hoshi.cli:main"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.uv.workspace]
+members = ["packages/*"]
+
 [tool.uv]
 constraint-dependencies = [
     "future>=1.0.0",

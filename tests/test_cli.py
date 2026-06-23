@@ -52,28 +52,27 @@ def _full_mock_chart():
 @pytest.fixture
 def mock_chart_build():
     chart = _full_mock_chart()
-    with patch("hoshi.cli.Chart.build", return_value=chart):
+    with patch("hoshi.chart.Chart.build", return_value=chart):
         yield chart
 
 
 class TestChartFromInput:
     def test_uses_real_coords(self):
-        from hoshi.cli import chart_from_input
+        from hoshi.chart import Chart
 
         ci = ChartInput(name="x", date="2000-01-01", time="12:00", lat=40.0, lon=-70.0)
-        with patch("hoshi.cli.Chart.build", return_value=_full_mock_chart()) as build:
-            chart_from_input(ci, "porphyry")
+        with patch("hoshi.chart.Chart.build", return_value=_full_mock_chart()) as build:
+            Chart.from_input(ci, house_system="porphyry")
         _, args, _ = build.mock_calls[0]
         assert args[1] == 40.0
         assert args[2] == -70.0
 
     def test_substitutes_placeholder_when_location_unknown(self):
-        from hoshi.chart import PLACEHOLDER_LAT, PLACEHOLDER_LON
-        from hoshi.cli import chart_from_input
+        from hoshi.chart import PLACEHOLDER_LAT, PLACEHOLDER_LON, Chart
 
         ci = ChartInput(name="x", date="2000-01-01")
-        with patch("hoshi.cli.Chart.build", return_value=_full_mock_chart()) as build:
-            chart_from_input(ci, "porphyry")
+        with patch("hoshi.chart.Chart.build", return_value=_full_mock_chart()) as build:
+            Chart.from_input(ci, house_system="porphyry")
         _, args, _ = build.mock_calls[0]
         assert args[1] == PLACEHOLDER_LAT
         assert args[2] == PLACEHOLDER_LON

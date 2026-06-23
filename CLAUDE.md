@@ -8,8 +8,9 @@ Hoshi is a Python CLI for astrological charting, with a focus on real-sky astrol
 
 ## Repo contents
 
-- `pyproject.toml` / `.python-version` — packaging and pinned interpreter. Requires Python 3.11+ (CI tests 3.11–3.13).
-- `hoshi/` — Python package. Exposed as the `hoshi` console script via `[project.scripts]`; build backend is `hatchling`. After dependency changes, run `uv sync` to reinstall.
+- `pyproject.toml` / `.python-version` — packaging and pinned interpreter. Requires Python 3.11+ (CI tests 3.11–3.13). The root `pyproject.toml` also configures a **uv workspace** (`[tool.uv.workspace]`) with members under `packages/`.
+- `hoshi/` — core Python package. Exposed as the `hoshi` console script via `[project.scripts]`; build backend is `hatchling`. After dependency changes, run `uv sync` to reinstall.
+- `packages/hoshi-api/` — FastAPI REST API package (workspace member). Depends on `hoshi` as a workspace dependency. Run with `uv run --package hoshi-api hoshi-api` (starts uvicorn on port 8000). Tests in `packages/hoshi-api/tests/`.
 - `charts/` — user-saved charts (one JSON file per chart). Names are normalized to lowercase on save. Not a cache — treat as user data. Persists only inputs; charts are recomputed on `hoshi chart show`.
 - `~/.cache/hoshi/chiron.json` — per-minute cache of Horizons OBSERVER responses for Chiron. Safe to delete.
 - `~/.cache/hoshi/lunar.json` — per-minute cache of Horizons ELEMENTS responses for the Moon (true nodes and true Lilith). Safe to delete.
@@ -25,7 +26,9 @@ Hoshi is a Python CLI for astrological charting, with a focus on real-sky astrol
 | `chart.py` | `Chart.build()` / `Chart.from_input()` — assembles all bodies; `Chart.bodies()`/`Chart.body(id)` uniform `BodyRef` iteration; `uncertain_signs()`; `Placed.for_longitude(...)` and `Placed.placement(mode)`; `location_known`/`time_known` flags; `house` is `None` when location unknown |
 | `aspects.py` | Aspect definitions and orbs; `compute_aspects()`, `compute_inter_aspects()` |
 | `dignities.py` | Planetary dignities table, element/modality tally |
+| `output.py` | Pydantic output models for every command (`ChartOutput`, `TransitsOutput`, etc.) with `.build()` classmethods that assemble models from SDK types. Shared by CLI and API. |
 | `store.py` | Save/load/list/delete named charts in `./charts/` |
+| `utils.py` | Shared utilities (`fuzzy_match`) used by both CLI and API |
 | `adb.py` | Astro-Databank import via MediaWiki API; `adb_to_chart_input()` fetches + parses `ASTRODATABANK_dma` template into `ChartInput`; coordinate/time/timezone converters; `ADBError` on failure |
 | `cli.py` | Typer entry point — all `hoshi chart` subcommands |
 
@@ -125,6 +128,37 @@ the 13-sign real-sky scheme (Chiron domicile = Ophiuchus). Assignments follow
 standard conventions adapted for 13 signs.
 `element_modality_tally()` returns separate primary (planets) and total (all
 bodies) counts.
+
+## REST API (`packages/hoshi-api/`)
+
+A FastAPI application exposing the same chart functionality as the CLI via
+JSON endpoints. It imports the `hoshi` SDK and uses the `.build()` classmethods
+on the output models — the same models that back `--format json` in the CLI.
+
+**Running:** `uv run --package hoshi-api hoshi-api` (starts on `0.0.0.0:8000`
+with auto-reload). Interactive docs at `/docs`.
+
+**Route overview:**
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/charts` | Save a new chart |
+| `GET` | `/charts` | List saved charts |
+| `POST` | `/charts/compute` | Compute a one-off chart (no save) |
+| `POST` | `/charts/import` | Import from Astro-Databank |
+| `GET` | `/charts/{name}` | Show a saved chart |
+| `DELETE` | `/charts/{name}` | Delete a saved chart |
+| `GET` | `/charts/{name}/cusps` | House cusps |
+| `GET` | `/charts/{name}/transits` | Transits against natal |
+| `GET` | `/charts/{name}/compare/{other}` | Synastry |
+| `GET` | `/info/{category}` | List reference info |
+| `GET` | `/info/{category}/{name}` | Single item detail |
+
+All route handlers are synchronous (`def`, not `async def`) so uvicorn
+dispatches them to a thread pool — blocking Horizons/Skyfield calls work
+correctly without async wrappers.
+
+**Testing:** `uv run --package hoshi-api pytest packages/hoshi-api/tests/`
 
 ## Conventions
 
