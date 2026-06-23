@@ -33,8 +33,8 @@ for body in chart.bodies():             # planets, angles, nodes, points, lots
     place = body.placed.placement(ZodiacMode.realsky)
     print(f"{body.label:10} {place.name} {place.deg:5.2f}°  house {body.house}")
 
-for asp in compute_aspects(chart):
-    print(asp.body_a, asp.symbol, asp.body_b, f"orb {asp.orb:+.2f}")
+for asp in compute_aspects(chart, mode=ZodiacMode.realsky):
+    print(asp.body_a, asp.sign_a, asp.symbol, asp.body_b, asp.sign_b, f"orb {asp.orb:+.2f}")
 ```
 
 `Chart.from_input` is the recommended entry point because it handles incomplete

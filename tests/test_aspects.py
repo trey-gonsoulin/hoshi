@@ -135,6 +135,24 @@ class TestComputeAspects:
         assert aspects[0].name == "Quintile"
         assert aspects[0].kind == "Micro"
 
+    def test_signs_included_with_mode(self):
+        chart = make_chart(
+            planets=[make_planet("sun", 100.0), make_planet("moon", 100.0)]
+        )
+        aspects = compute_aspects(chart, mode="realsky")
+        assert len(aspects) == 1
+        assert aspects[0].sign_a != ""
+        assert aspects[0].sign_b != ""
+
+    def test_signs_empty_without_mode(self):
+        chart = make_chart(
+            planets=[make_planet("sun", 100.0), make_planet("moon", 100.0)]
+        )
+        aspects = compute_aspects(chart)
+        assert len(aspects) == 1
+        assert aspects[0].sign_a == ""
+        assert aspects[0].sign_b == ""
+
 
 class TestComputeInterAspects:
     def test_basic_cross_chart(self):
@@ -151,3 +169,11 @@ class TestComputeInterAspects:
         aspects = compute_inter_aspects(chart_a, chart_b)
         opp = [a for a in aspects if a.name == "Opposition"]
         assert len(opp) >= 1
+
+    def test_signs_included_with_mode(self):
+        chart_a = make_chart(planets=[make_planet("sun", 0.0)])
+        chart_b = make_chart(planets=[make_planet("moon", 120.0)])
+        aspects = compute_inter_aspects(chart_a, chart_b, mode="tropical")
+        assert len(aspects) >= 1
+        assert aspects[0].sign_a != ""
+        assert aspects[0].sign_b != ""
