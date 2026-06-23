@@ -44,7 +44,9 @@ KIND_ORDER = ["Major", "Minor", "Micro"]
 
 class Aspect(BaseModel, frozen=True):
     body_a: str
+    sign_a: str = ""
     body_b: str
+    sign_b: str = ""
     name: str
     symbol: str
     angle: float
@@ -71,24 +73,32 @@ _AXIS_PAIRS: frozenset[frozenset[str]] = frozenset(
 )
 
 
-def _bodies(chart: Chart, details: bool = True) -> list[tuple[str, float]]:
-    """Collect chart bodies as (display_name, ecliptic_lon) pairs.
+def _bodies(
+    chart: Chart, details: bool = True, mode: str = ""
+) -> list[tuple[str, float, str]]:
+    """Collect chart bodies as (display_name, ecliptic_lon, sign) tuples.
 
     Without details: planets + Asc only.
     With details: all bodies (angles, nodes, points, lots).
     """
-    out: list[tuple[str, float]] = []
+    out: list[tuple[str, float, str]] = []
     for b in chart.bodies():
         if b.kind == "Angle" and not (details or b.id == "asc"):
             continue
         if b.kind in ("Node", "Point", "Lot") and not details:
             continue
-        out.append((b.label, b.placed.lon))
+        sign = b.placed.placement(mode).name if mode else ""
+        out.append((b.label, b.placed.lon, sign))
     return out
 
 
 def _match_aspect(
-    name_a: str, lon_a: float, name_b: str, lon_b: float
+    name_a: str,
+    lon_a: float,
+    name_b: str,
+    lon_b: float,
+    sign_a: str = "",
+    sign_b: str = "",
 ) -> Aspect | None:
     """Return the tightest matching aspect for a body pair, or None.
 
@@ -105,7 +115,9 @@ def _match_aspect(
         if abs(orb) <= adef.orb:
             return Aspect(
                 body_a=name_a,
+                sign_a=sign_a,
                 body_b=name_b,
+                sign_b=sign_b,
                 name=adef.name,
                 symbol=adef.symbol,
                 angle=adef.angle,
@@ -115,18 +127,18 @@ def _match_aspect(
     return None
 
 
-def compute_aspects(chart: Chart, details: bool = True) -> list[Aspect]:
+def compute_aspects(chart: Chart, details: bool = True, mode: str = "") -> list[Aspect]:
     """Return all significant aspects between chart bodies, sorted by tightness."""
-    bodies = _bodies(chart, details)
+    bodies = _bodies(chart, details, mode)
     aspects: list[Aspect] = []
 
     for i in range(len(bodies)):
         for j in range(i + 1, len(bodies)):
-            name_a, lon_a = bodies[i]
-            name_b, lon_b = bodies[j]
+            name_a, lon_a, sign_a = bodies[i]
+            name_b, lon_b, sign_b = bodies[j]
             if frozenset({name_a, name_b}) in _AXIS_PAIRS:
                 continue
-            aspect = _match_aspect(name_a, lon_a, name_b, lon_b)
+            aspect = _match_aspect(name_a, lon_a, name_b, lon_b, sign_a, sign_b)
             if aspect is not None:
                 aspects.append(aspect)
 
@@ -135,16 +147,16 @@ def compute_aspects(chart: Chart, details: bool = True) -> list[Aspect]:
 
 
 def compute_inter_aspects(
-    chart_a: Chart, chart_b: Chart, details: bool = True
+    chart_a: Chart, chart_b: Chart, details: bool = True, mode: str = ""
 ) -> list[Aspect]:
     """Return all significant aspects between bodies of two different charts."""
-    bodies_a = _bodies(chart_a, details)
-    bodies_b = _bodies(chart_b, details)
+    bodies_a = _bodies(chart_a, details, mode)
+    bodies_b = _bodies(chart_b, details, mode)
     aspects: list[Aspect] = []
 
-    for name_a, lon_a in bodies_a:
-        for name_b, lon_b in bodies_b:
-            aspect = _match_aspect(name_a, lon_a, name_b, lon_b)
+    for name_a, lon_a, sign_a in bodies_a:
+        for name_b, lon_b, sign_b in bodies_b:
+            aspect = _match_aspect(name_a, lon_a, name_b, lon_b, sign_a, sign_b)
             if aspect is not None:
                 aspects.append(aspect)
 

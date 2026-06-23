@@ -356,6 +356,7 @@ def _render_by_house(
 def _render_aspects(console: Console, aspects: list[Aspect], prefix: str = "") -> None:
     if not aspects:
         return
+    show_signs = any(asp.sign_a or asp.sign_b for asp in aspects)
     by_kind: dict[str, list[Aspect]] = {}
     for asp in aspects:
         by_kind.setdefault(asp.kind, []).append(asp)
@@ -365,20 +366,25 @@ def _render_aspects(console: Console, aspects: list[Aspect], prefix: str = "") -
             continue
         table = _new_table()
         table.add_column("Body A", style="bold")
+        if show_signs:
+            table.add_column("Sign")
         table.add_column("", justify="center")
         table.add_column("Body B", style="bold")
+        if show_signs:
+            table.add_column("Sign")
         table.add_column("Aspect")
         table.add_column("Angle", justify="right")
         table.add_column("Orb", justify="right")
         for asp in group:
-            table.add_row(
-                asp.body_a,
-                asp.symbol,
-                asp.body_b,
-                asp.name,
-                f"{asp.angle:.0f}°",
-                fmt_orb(asp.orb),
-            )
+            row: list[str] = [asp.body_a]
+            if show_signs:
+                row.append(asp.sign_a)
+            row.append(asp.symbol)
+            row.append(asp.body_b)
+            if show_signs:
+                row.append(asp.sign_b)
+            row.extend([asp.name, f"{asp.angle:.0f}°", fmt_orb(asp.orb)])
+            table.add_row(*row)
         console.print()
         console.print(_panel(f"{prefix}{kind} Aspects", table))
 
@@ -630,7 +636,7 @@ class ChartOutput(OutputModel):
         tallies = (
             TallyOutput.build(chart, mode, show_full=show_full) if details else None
         )
-        aspect_list = compute_aspects(chart, details) if aspects else None
+        aspect_list = compute_aspects(chart, details, mode) if aspects else None
 
         return cls(
             chart=ChartHeader(
@@ -889,7 +895,7 @@ class TransitsOutput(OutputModel):
             )
 
         aspect_list = (
-            compute_inter_aspects(chart_natal, chart_transit, details)
+            compute_inter_aspects(chart_natal, chart_transit, details, mode)
             if aspects
             else None
         )
@@ -1048,7 +1054,7 @@ class CompareOutput(OutputModel):
         )
 
         aspect_list = (
-            compute_inter_aspects(chart_a, chart_b, details) if aspects else None
+            compute_inter_aspects(chart_a, chart_b, details, mode) if aspects else None
         )
 
         return cls(
