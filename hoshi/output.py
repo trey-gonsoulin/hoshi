@@ -353,40 +353,102 @@ def _render_by_house(
         console.print(_panel(title, content))
 
 
-def _render_aspects(console: Console, aspects: list[Aspect], prefix: str = "") -> None:
+def _aspect_table(
+    aspects: list[Aspect],
+    *,
+    show_signs: bool = False,
+    show_kind: bool = False,
+) -> Table:
+    table = _new_table()
+    table.add_column("Body A", style="bold")
+    if show_signs:
+        table.add_column("Sign")
+    table.add_column("", justify="center")
+    table.add_column("Body B", style="bold")
+    if show_signs:
+        table.add_column("Sign")
+    table.add_column("Aspect")
+    if show_kind:
+        table.add_column("Kind")
+    table.add_column("Angle", justify="right")
+    table.add_column("Orb", justify="right")
+    for asp in aspects:
+        row: list[str] = [asp.body_a]
+        if show_signs:
+            row.append(asp.sign_a)
+        row.append(asp.symbol)
+        row.append(asp.body_b)
+        if show_signs:
+            row.append(asp.sign_b)
+        row.append(asp.name)
+        if show_kind:
+            row.append(asp.kind)
+        row.extend([f"{asp.angle:.0f}°", fmt_orb(asp.orb)])
+        table.add_row(*row)
+    return table
+
+
+def _render_aspects(
+    console: Console,
+    aspects: list[Aspect],
+    prefix: str = "",
+    *,
+    group_by: str = "category",
+    body_houses: dict[str, int] | None = None,
+    mode: str = "realsky",
+) -> None:
     if not aspects:
         return
     show_signs = any(asp.sign_a or asp.sign_b for asp in aspects)
-    by_kind: dict[str, list[Aspect]] = {}
-    for asp in aspects:
-        by_kind.setdefault(asp.kind, []).append(asp)
-    for kind in KIND_ORDER:
-        group = by_kind.get(kind)
-        if not group:
-            continue
-        table = _new_table()
-        table.add_column("Body A", style="bold")
-        if show_signs:
-            table.add_column("Sign")
-        table.add_column("", justify="center")
-        table.add_column("Body B", style="bold")
-        if show_signs:
-            table.add_column("Sign")
-        table.add_column("Aspect")
-        table.add_column("Angle", justify="right")
-        table.add_column("Orb", justify="right")
-        for asp in group:
-            row: list[str] = [asp.body_a]
-            if show_signs:
-                row.append(asp.sign_a)
-            row.append(asp.symbol)
-            row.append(asp.body_b)
-            if show_signs:
-                row.append(asp.sign_b)
-            row.extend([asp.name, f"{asp.angle:.0f}°", fmt_orb(asp.orb)])
-            table.add_row(*row)
-        console.print()
-        console.print(_panel(f"{prefix}{kind} Aspects", table))
+
+    if group_by == "planet":
+        seen: dict[str, list[Aspect]] = {}
+        for asp in aspects:
+            seen.setdefault(asp.body_a, []).append(asp)
+            seen.setdefault(asp.body_b, []).append(asp)
+        for body, group in seen.items():
+            table = _aspect_table(group, show_signs=show_signs, show_kind=True)
+            console.print()
+            console.print(_panel(f"{prefix}{body}", table))
+    elif group_by == "sign":
+        order = _sign_order(mode)
+        rank = {name: i for i, name in enumerate(order)}
+        by_sign: dict[str, list[Aspect]] = {}
+        for asp in aspects:
+            if asp.sign_a:
+                by_sign.setdefault(asp.sign_a, []).append(asp)
+            if asp.sign_b and asp.sign_b != asp.sign_a:
+                by_sign.setdefault(asp.sign_b, []).append(asp)
+        for sign in sorted(by_sign, key=lambda s: rank.get(s, 99)):
+            table = _aspect_table(by_sign[sign], show_signs=show_signs, show_kind=True)
+            console.print()
+            console.print(_panel(f"{prefix}{sign}", table))
+    elif group_by == "house" and body_houses:
+        by_house: dict[int, list[Aspect]] = {}
+        for asp in aspects:
+            h_a = body_houses.get(asp.body_a)
+            h_b = body_houses.get(asp.body_b)
+            if h_a is not None:
+                by_house.setdefault(h_a, []).append(asp)
+            if h_b is not None and h_b != h_a:
+                by_house.setdefault(h_b, []).append(asp)
+        for house in sorted(by_house):
+            table = _aspect_table(
+                by_house[house], show_signs=show_signs, show_kind=True
+            )
+            console.print()
+            console.print(_panel(f"{prefix}House {house}", table))
+    else:
+        by_kind: dict[str, list[Aspect]] = {}
+        for asp in aspects:
+            by_kind.setdefault(asp.kind, []).append(asp)
+        for kind in KIND_ORDER:
+            group = by_kind.get(kind)
+            if not group:
+                continue
+            table = _aspect_table(group, show_signs=show_signs)
+            console.print()
+            console.print(_panel(f"{prefix}{kind} Aspects", table))
 
 
 # ---------------------------------------------------------------------------
@@ -729,7 +791,14 @@ class ChartOutput(OutputModel):
                 )
 
         if self.aspects is not None:
-            _render_aspects(console, self.aspects)
+            body_houses = {b.name: b.house for b in self.bodies if b.house is not None}
+            _render_aspects(
+                console,
+                self.aspects,
+                group_by=self.group_by,
+                body_houses=body_houses,
+                mode=self.chart.mode,
+            )
         if self.show_cusp_table and self.cusp_entries:
             self._render_cusps(console)
 
@@ -844,6 +913,7 @@ class TransitsOutput(OutputModel):
     # Rendering-only
     show_houses: bool = Field(default=True, exclude=True)
     details: bool = Field(default=False, exclude=True)
+    group_by: str = Field(default="category", exclude=True)
 
     @classmethod
     def build(
@@ -856,6 +926,7 @@ class TransitsOutput(OutputModel):
         details: bool = False,
         aspects: bool = False,
         natal: bool = False,
+        group_by: str = "category",
     ) -> TransitsOutput:
         natal_time_known = ci.time_known
         natal_loc_known = ci.location_known
@@ -914,6 +985,7 @@ class TransitsOutput(OutputModel):
             aspects=aspect_list,
             show_houses=natal_loc_known,
             details=details,
+            group_by=group_by,
         )
 
     def render(self, console: Console) -> None:
@@ -966,7 +1038,17 @@ class TransitsOutput(OutputModel):
 
         if self.aspects is not None:
             prefix = f"{self.header.name.title()} → Transit: "
-            _render_aspects(console, self.aspects, prefix)
+            body_houses = {
+                b.name: b.house for b in self.transit_bodies if b.house is not None
+            }
+            _render_aspects(
+                console,
+                self.aspects,
+                prefix,
+                group_by=self.group_by,
+                body_houses=body_houses,
+                mode=self.header.mode,
+            )
 
     def _render_side_by_side(self, console: Console) -> None:
         title = "Natal vs Transits" + (
@@ -1014,6 +1096,9 @@ class CompareOutput(OutputModel):
     bodies_b: list[BodyEntry] = []
     aspects: list[Aspect] | None = None
 
+    # Rendering-only
+    group_by: str = Field(default="category", exclude=True)
+
     @classmethod
     def build(
         cls,
@@ -1025,6 +1110,7 @@ class CompareOutput(OutputModel):
         *,
         details: bool = False,
         aspects: bool = False,
+        group_by: str = "category",
     ) -> CompareOutput:
         show_full_a = ci_a.time_known and ci_a.location_known
         show_full_b = ci_b.time_known and ci_b.location_known
@@ -1069,6 +1155,7 @@ class CompareOutput(OutputModel):
             bodies_a=bodies_a,
             bodies_b=bodies_b,
             aspects=aspect_list,
+            group_by=group_by,
         )
 
     def render(self, console: Console) -> None:
@@ -1083,7 +1170,13 @@ class CompareOutput(OutputModel):
         self._render_placements(console)
         if self.aspects is not None:
             prefix = f"{h.name_a.title()} → {h.name_b.title()}: "
-            _render_aspects(console, self.aspects, prefix)
+            _render_aspects(
+                console,
+                self.aspects,
+                prefix,
+                group_by=self.group_by,
+                mode=h.mode,
+            )
 
     def _render_placements(self, console: Console) -> None:
         index_a = {b.name: b for b in self.bodies_a}
