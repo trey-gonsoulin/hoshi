@@ -9,6 +9,7 @@ from __future__ import annotations
 import csv
 import io
 from abc import abstractmethod
+from datetime import datetime
 
 import yaml
 from pydantic import BaseModel, Field
@@ -18,8 +19,46 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from hoshi.aspects import Aspect, KIND_ORDER, fmt_orb
-from hoshi.zodiac import IAU, TROP_NAMES, format_deg
+from hoshi.aspects import (
+    Aspect,
+    KIND_ORDER,
+    compute_aspects,
+    compute_inter_aspects,
+    fmt_orb,
+)
+from hoshi.chart import (
+    PLACEHOLDER_LAT,
+    PLACEHOLDER_LON,
+    Chart,
+    HouseSystem,
+    uncertain_signs,
+)
+from hoshi.dignities import DIGNITY_SYMBOLS, dignity_for, element_modality_tally
+from hoshi.houses import house_13_arc, house_from_cusps
+from hoshi.store import ChartInput
+from hoshi.zodiac import IAU, TROP_NAMES, Placement, format_deg
+
+
+ANGLE_DISPLAY_NAMES: dict[str, str] = {
+    "asc": "Ascendant",
+    "mc": "Midheaven",
+    "ic": "Imum Coeli",
+    "dsc": "Descendant",
+    "vertex": "Vertex",
+    "antivertex": "Antivertex",
+}
+
+NODE_NAMES = {"N.Node", "S.Node"}
+
+
+class BodySelection(BaseModel, frozen=True):
+    """Which body groups to include when assembling display rows."""
+
+    details: bool = False
+    angles: bool = True
+    lots: bool = True
+    houses: bool = True
+    uncertain_pids: frozenset[str] = frozenset()
 
 
 # ---------------------------------------------------------------------------
@@ -59,6 +98,133 @@ def _rx_str(rx: bool) -> str:
 
 def _sign_order(mode: str) -> list[str]:
     return [s.name for s in IAU] if mode == "realsky" else TROP_NAMES
+
+
+def _build_bodies(
+    chart: Chart, mode: str, sel: BodySelection = BodySelection()
+) -> list[BodyEntry]:
+    def house_of(h: int | None) -> int | None:
+        return h if sel.houses else None
+
+    bodies: list[BodyEntry] = []
+    for p in chart.planets:
+        pl = p.placed.placement(mode)
+        dig = dignity_for(p.pid.capitalize(), pl.name)
+        bodies.append(
+            BodyEntry(
+                kind="Planet",
+                name=p.pid.capitalize(),
+                sign=pl.name,
+                degree=round(pl.deg, 4),
+                lon=round(p.placed.lon, 4),
+                house=house_of(p.house),
+                rx=p.pos.retrograde,
+                approximate=p.pid in sel.uncertain_pids,
+                dignity=DIGNITY_SYMBOLS.get(dig, "") if dig else "",
+            )
+        )
+    if sel.angles:
+        angles = (
+            chart.angles
+            if sel.details
+            else [a for a in chart.angles if a.name == "asc"]
+        )
+        for a in angles:
+            pl = a.placed.placement(mode)
+            bodies.append(
+                BodyEntry(
+                    kind="Angle",
+                    name=ANGLE_DISPLAY_NAMES[a.name],
+                    sign=pl.name,
+                    degree=round(pl.deg, 4),
+                    lon=round(a.placed.lon, 4),
+                    house=house_of(a.house),
+                )
+            )
+    if sel.details:
+        for pt in chart.points:
+            pl = pt.placed.placement(mode)
+            kind = "Node" if pt.name in NODE_NAMES else "Point"
+            bodies.append(
+                BodyEntry(
+                    kind=kind,
+                    name=pt.name,
+                    sign=pl.name,
+                    degree=round(pl.deg, 4),
+                    lon=round(pt.placed.lon, 4),
+                    house=house_of(pt.house),
+                )
+            )
+        if sel.lots:
+            for pt in chart.lots:
+                pl = pt.placed.placement(mode)
+                bodies.append(
+                    BodyEntry(
+                        kind="Lot",
+                        name=pt.name,
+                        sign=pl.name,
+                        degree=round(pl.deg, 4),
+                        lon=round(pt.placed.lon, 4),
+                        house=house_of(pt.house),
+                    )
+                )
+    return bodies
+
+
+def _build_cusp_entries(chart: Chart, mode: str) -> list[CuspEntry]:
+    entries: list[CuspEntry] = []
+    for i, c in enumerate(chart.cusps, start=1):
+        p = Placement.for_mode(c, mode, ayanamsa=chart.ayanamsa)
+        entries.append(CuspEntry(house=i, sign=p.name, degree=p.deg, lon=c))
+    return entries
+
+
+def _build_transit_bodies(
+    transit: Chart,
+    natal: Chart,
+    mode: str,
+    details: bool,
+    *,
+    natal_loc_known: bool = True,
+) -> list[BodyEntry]:
+    natal_asc = next(a.placed.lon for a in natal.angles if a.name == "asc")
+
+    def natal_house(lon: float) -> int | None:
+        if not natal_loc_known:
+            return None
+        if natal.house_system == "arc13":
+            return house_13_arc(lon, natal_asc)
+        return house_from_cusps(lon, natal.cusps)
+
+    bodies: list[BodyEntry] = []
+    for p in transit.planets:
+        pl = p.placed.placement(mode)
+        bodies.append(
+            BodyEntry(
+                kind="Planet",
+                name=p.pid.capitalize(),
+                sign=pl.name,
+                degree=round(pl.deg, 4),
+                lon=round(p.placed.lon, 4),
+                house=natal_house(p.placed.lon),
+                rx=p.pos.retrograde,
+            )
+        )
+    if details:
+        for pt in transit.points:
+            pl = pt.placed.placement(mode)
+            kind = "Node" if pt.name in NODE_NAMES else "Point"
+            bodies.append(
+                BodyEntry(
+                    kind=kind,
+                    name=pt.name,
+                    sign=pl.name,
+                    degree=round(pl.deg, 4),
+                    lon=round(pt.placed.lon, 4),
+                    house=natal_house(pt.placed.lon),
+                )
+            )
+    return bodies
 
 
 def _body_table(
@@ -323,6 +489,28 @@ class TallyOutput(OutputModel):
     elements: dict[str, TallyRow]
     modalities: dict[str, TallyRow]
 
+    @classmethod
+    def build(cls, chart: Chart, mode: str, *, show_full: bool = True) -> TallyOutput:
+        tally = element_modality_tally(
+            chart, mode, include_angles=show_full, include_lots=show_full
+        )
+        return cls(
+            elements={
+                k: TallyRow(
+                    primary=tally["primary"]["elements"].get(k, 0),
+                    total=tally["total"]["elements"].get(k, 0),
+                )
+                for k in ["Fire", "Earth", "Air", "Water"]
+            },
+            modalities={
+                k: TallyRow(
+                    primary=tally["primary"]["modalities"].get(k, 0),
+                    total=tally["total"]["modalities"].get(k, 0),
+                )
+                for k in ["Cardinal", "Fixed", "Mutable"]
+            },
+        )
+
     def render(self, console: Console) -> None:
         table = _new_table()
         table.add_column("Element", style="bold")
@@ -382,6 +570,90 @@ class ChartOutput(OutputModel):
     asc_lon: float = Field(default=0.0, exclude=True)
     details: bool = Field(default=False, exclude=True)
     ayanamsa: float = Field(default=0.0, exclude=True)
+
+    @classmethod
+    def build(
+        cls,
+        ci: ChartInput,
+        chart: Chart,
+        mode: str,
+        *,
+        details: bool = False,
+        aspects: bool = False,
+        group_by: str = "category",
+        show_cusps: bool = False,
+    ) -> ChartOutput:
+        time_known = ci.time_known
+        loc_known = ci.location_known
+        show_full = time_known and loc_known
+        uncertain = uncertain_signs(ci, mode) if not time_known else frozenset()
+
+        when_str = (
+            ci.to_datetime().strftime("%Y-%m-%d")
+            if not time_known
+            else ci.to_datetime().isoformat()
+        )
+
+        warnings: list[str] = []
+        if not time_known:
+            if uncertain:
+                names = ", ".join(p.capitalize() for p in uncertain)
+                warnings.append(
+                    f"⚠ Birth time unknown — {names} may be in a different sign (highlighted)"
+                )
+            else:
+                warnings.append(
+                    "⚠ Birth time unknown — all signs stable on this date, degrees approximate"
+                )
+        if not loc_known:
+            warnings.append("⚠ Birth location unknown — angles and houses omitted")
+
+        effective_group_by = group_by
+        if group_by == "house" and not show_full:
+            warnings.append(
+                "⚠ Cannot group by house without known birth time and location; using category grouping."
+            )
+            effective_group_by = "category"
+
+        bodies = _build_bodies(
+            chart,
+            mode,
+            BodySelection(
+                details=details,
+                angles=show_full,
+                lots=show_full,
+                houses=show_full,
+                uncertain_pids=uncertain,
+            ),
+        )
+        cusp_entries = _build_cusp_entries(chart, mode) if show_full else []
+        tallies = (
+            TallyOutput.build(chart, mode, show_full=show_full) if details else None
+        )
+        aspect_list = compute_aspects(chart, details) if aspects else None
+
+        return cls(
+            chart=ChartHeader(
+                name=ci.name,
+                when=when_str,
+                lat=ci.lat,
+                lon=ci.lon,
+                mode=mode,
+                house_system=chart.house_system if show_full else None,
+            ),
+            warnings=warnings,
+            bodies=bodies,
+            cusps=[round(c, 4) for c in chart.cusps] if show_full else [],
+            tallies=tallies,
+            aspects=aspect_list,
+            group_by=effective_group_by,
+            show_cusp_table=show_cusps and show_full,
+            show_houses=show_full,
+            cusp_entries=cusp_entries,
+            asc_lon=next((a.placed.lon for a in chart.angles if a.name == "asc"), 0.0),
+            details=details,
+            ayanamsa=chart.ayanamsa,
+        )
 
     def render(self, console: Console) -> None:
         h = self.chart
@@ -480,6 +752,24 @@ class ChartListEntry(BaseModel, frozen=True):
 class ChartListOutput(OutputModel):
     charts: list[ChartListEntry] = []
 
+    @classmethod
+    def build(cls) -> ChartListOutput:
+        from hoshi import store
+
+        return cls(
+            charts=[
+                ChartListEntry(
+                    name=ci.name,
+                    date=ci.date,
+                    time=ci.time,
+                    tz=ci.tz,
+                    lat=ci.lat,
+                    lon=ci.lon,
+                )
+                for ci in store.list_all()
+            ]
+        )
+
     def render(self, console: Console) -> None:
         if not self.charts:
             console.print(
@@ -509,6 +799,13 @@ class ChartListOutput(OutputModel):
 class CuspsOutput(OutputModel):
     house_system: str = ""
     cusps: list[CuspEntry] = []
+
+    @classmethod
+    def build(cls, chart: Chart, mode: str) -> CuspsOutput:
+        return cls(
+            house_system=chart.house_system,
+            cusps=_build_cusp_entries(chart, mode),
+        )
 
     def render(self, console: Console) -> None:
         title = f"{self.house_system.capitalize()} cusps"
@@ -541,6 +838,77 @@ class TransitsOutput(OutputModel):
     # Rendering-only
     show_houses: bool = Field(default=True, exclude=True)
     details: bool = Field(default=False, exclude=True)
+
+    @classmethod
+    def build(
+        cls,
+        ci: ChartInput,
+        chart_natal: Chart,
+        transit_dt: datetime,
+        mode: str,
+        *,
+        details: bool = False,
+        aspects: bool = False,
+        natal: bool = False,
+    ) -> TransitsOutput:
+        natal_time_known = ci.time_known
+        natal_loc_known = ci.location_known
+
+        chart_transit = Chart.positions_only(transit_dt)
+
+        warnings: list[str] = []
+        if not natal_time_known:
+            warnings.append("⚠ Natal time unknown — natal planet degrees approximate")
+        if not natal_loc_known:
+            warnings.append(
+                "⚠ Natal location unknown — natal house placement of transits omitted"
+            )
+
+        transit_bodies = _build_transit_bodies(
+            chart_transit,
+            chart_natal,
+            mode,
+            details,
+            natal_loc_known=natal_loc_known,
+        )
+        natal_bodies = None
+        if natal:
+            natal_uncertain = (
+                uncertain_signs(ci, mode) if not natal_time_known else frozenset()
+            )
+            natal_bodies = _build_bodies(
+                chart_natal,
+                mode,
+                BodySelection(
+                    details=details,
+                    angles=False,
+                    lots=False,
+                    houses=False,
+                    uncertain_pids=natal_uncertain,
+                ),
+            )
+
+        aspect_list = (
+            compute_inter_aspects(chart_natal, chart_transit, details)
+            if aspects
+            else None
+        )
+
+        return cls(
+            header=TransitHeader(
+                name=ci.name,
+                natal_date=ci.date,
+                transit_when=transit_dt.strftime("%Y-%m-%d %H:%M %Z").strip(),
+                mode=mode,
+                house_system=chart_natal.house_system if natal_loc_known else None,
+            ),
+            warnings=warnings,
+            transit_bodies=transit_bodies,
+            natal_bodies=natal_bodies,
+            aspects=aspect_list,
+            show_houses=natal_loc_known,
+            details=details,
+        )
 
     def render(self, console: Console) -> None:
         h = self.header
@@ -640,6 +1008,63 @@ class CompareOutput(OutputModel):
     bodies_b: list[BodyEntry] = []
     aspects: list[Aspect] | None = None
 
+    @classmethod
+    def build(
+        cls,
+        ci_a: ChartInput,
+        ci_b: ChartInput,
+        chart_a: Chart,
+        chart_b: Chart,
+        mode: str,
+        *,
+        details: bool = False,
+        aspects: bool = False,
+    ) -> CompareOutput:
+        show_full_a = ci_a.time_known and ci_a.location_known
+        show_full_b = ci_b.time_known and ci_b.location_known
+
+        warnings: list[str] = []
+        for ci in (ci_a, ci_b):
+            if not ci.time_known:
+                warnings.append(
+                    f"⚠ {ci.name.title()} birth time unknown — planet positions approximate"
+                )
+            if not ci.location_known:
+                warnings.append(f"⚠ {ci.name.title()} birth location unknown")
+
+        bodies_a = _build_bodies(
+            chart_a,
+            mode,
+            BodySelection(
+                details=details, angles=show_full_a, lots=show_full_a, houses=False
+            ),
+        )
+        bodies_b = _build_bodies(
+            chart_b,
+            mode,
+            BodySelection(
+                details=details, angles=show_full_b, lots=show_full_b, houses=False
+            ),
+        )
+
+        aspect_list = (
+            compute_inter_aspects(chart_a, chart_b, details) if aspects else None
+        )
+
+        return cls(
+            header=CompareHeader(
+                name_a=ci_a.name,
+                name_b=ci_b.name,
+                date_a=ci_a.date,
+                date_b=ci_b.date,
+                mode=mode,
+            ),
+            warnings=warnings,
+            bodies_a=bodies_a,
+            bodies_b=bodies_b,
+            aspects=aspect_list,
+        )
+
     def render(self, console: Console) -> None:
         h = self.header
         console.print(
@@ -692,6 +1117,46 @@ class HouseComparisonOutput(OutputModel):
     bodies: list[BodyEntry] = []
     systems: list[str] = []
     house_columns: dict[str, list[int | None]] = {}
+
+    @classmethod
+    def build(
+        cls, ci: ChartInput, mode: str, *, details: bool
+    ) -> HouseComparisonOutput:
+        when = ci.to_datetime()
+        lat = ci.lat if ci.lat is not None else PLACEHOLDER_LAT
+        lon = ci.lon if ci.lon is not None else PLACEHOLDER_LON
+        charts = {
+            sys: Chart.build(when, lat, lon, house_system=sys) for sys in HouseSystem
+        }
+        base = charts[HouseSystem.porphyry]
+        bodies = _build_bodies(base, mode, BodySelection(details=details))
+
+        systems = [str(s) for s in HouseSystem]
+        house_columns: dict[str, list[int | None]] = {}
+        for sys in HouseSystem:
+            c = charts[sys]
+            houses: list[int | None] = [p.house for p in c.planets]
+            angle_list = (
+                c.angles if details else [a for a in c.angles if a.name == "asc"]
+            )
+            houses.extend(a.house for a in angle_list)
+            if details:
+                houses.extend(pt.house for pt in c.points)
+                houses.extend(pt.house for pt in c.lots)
+            house_columns[str(sys)] = houses
+
+        return cls(
+            header=ChartHeader(
+                name=ci.name,
+                when=when.isoformat(),
+                lat=ci.lat,
+                lon=ci.lon,
+                mode=mode,
+            ),
+            bodies=bodies,
+            systems=systems,
+            house_columns=house_columns,
+        )
 
     def render(self, console: Console) -> None:
         h = self.header
@@ -749,6 +1214,25 @@ class InfoListOutput(OutputModel):
     items: list[InfoItem] = []
     extra_columns: list[str] = Field(default_factory=list, exclude=True)
 
+    @classmethod
+    def build(
+        cls, title: str, items: list, *, extra_cols: list[str] | None = None
+    ) -> InfoListOutput:
+        return cls(
+            title=title,
+            items=[
+                InfoItem(
+                    name=item.name,
+                    keywords=item.keywords,
+                    element=getattr(item, "element", None),
+                    modality=getattr(item, "modality", None),
+                    ruler=getattr(item, "ruler", None),
+                )
+                for item in items
+            ],
+            extra_columns=extra_cols or [],
+        )
+
     def render(self, console: Console) -> None:
         table = _new_table()
         table.add_column("Name", style="bold")
@@ -773,6 +1257,17 @@ class InfoDetailOutput(OutputModel):
     element: str | None = None
     modality: str | None = None
     ruler: str | None = None
+
+    @classmethod
+    def build(cls, item) -> InfoDetailOutput:
+        return cls(
+            name=item.name,
+            keywords=item.keywords,
+            meaning=item.meaning,
+            element=getattr(item, "element", None),
+            modality=getattr(item, "modality", None),
+            ruler=getattr(item, "ruler", None),
+        )
 
     def render(self, console: Console) -> None:
         console.print(f"[bold cyan]{self.name}[/bold cyan]")

@@ -14,6 +14,18 @@ functions from here rather than the internal submodules, e.g.::
 """
 
 from hoshi.adb import ADBError, ADBResult, adb_to_chart_input
+from hoshi.output import (
+    BodySelection,
+    ChartListOutput,
+    ChartOutput,
+    CompareOutput,
+    CuspsOutput,
+    HouseComparisonOutput,
+    InfoDetailOutput,
+    InfoListOutput,
+    TransitsOutput,
+)
+from hoshi.utils import fuzzy_match
 from hoshi.aspects import (
     ASPECT_DEFS,
     Aspect,
@@ -102,4 +114,16 @@ __all__ = [
     "ADBError",
     "ADBResult",
     "adb_to_chart_input",
+    # Output models
+    "BodySelection",
+    "ChartOutput",
+    "ChartListOutput",
+    "CuspsOutput",
+    "TransitsOutput",
+    "CompareOutput",
+    "HouseComparisonOutput",
+    "InfoDetailOutput",
+    "InfoListOutput",
+    # Utilities
+    "fuzzy_match",
 ]
