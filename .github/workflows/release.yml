@@ -26,7 +26,47 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      - name: Semantic Release
+      - name: Release hoshi
+        id: release-hoshi
         uses: python-semantic-release/python-semantic-release@v10
         with:
+          directory: .
           github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release hoshi-api
+        id: release-hoshi-api
+        uses: python-semantic-release/python-semantic-release@v10
+        with:
+          directory: packages/hoshi-api
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release hoshi-ui
+        id: release-hoshi-ui
+        uses: python-semantic-release/python-semantic-release@v10
+        with:
+          directory: packages/hoshi-ui
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish hoshi to GitHub Release
+        uses: python-semantic-release/publish-action@v10
+        if: steps.release-hoshi.outputs.released == 'true'
+        with:
+          directory: .
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ steps.release-hoshi.outputs.tag }}
+
+      - name: Publish hoshi-api to GitHub Release
+        uses: python-semantic-release/publish-action@v10
+        if: steps.release-hoshi-api.outputs.released == 'true'
+        with:
+          directory: packages/hoshi-api
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ steps.release-hoshi-api.outputs.tag }}
+
+      - name: Publish hoshi-ui to GitHub Release
+        uses: python-semantic-release/publish-action@v10
+        if: steps.release-hoshi-ui.outputs.released == 'true'
+        with:
+          directory: packages/hoshi-ui
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ steps.release-hoshi-ui.outputs.tag }}
