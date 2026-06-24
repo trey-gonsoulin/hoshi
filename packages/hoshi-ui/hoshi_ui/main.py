@@ -22,6 +22,10 @@ class HoshiApp(App):
         color: $accent;
     }
 
+    #chart-select {
+        margin: 1 2;
+    }
+
     #loading {
         height: 1fr;
     }
