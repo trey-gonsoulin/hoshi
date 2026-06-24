@@ -30,3 +30,21 @@ packages = ["hoshi_ui"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.semantic_release]
+commit_parser = "conventional-monorepo"
+version_toml = ["pyproject.toml:project.version"]
+branch = "main"
+commit_message = "chore(release): hoshi-ui@{version}"
+tag_format = "hoshi-ui-v{version}"
+
+[tool.semantic_release.commit_parser_options]
+path_filters = ["."]
+scope_prefix = "hoshi-ui-"
+
+[tool.semantic_release.changelog.default_templates]
+changelog_file = "CHANGELOG.md"
+
+[tool.semantic_release.remote]
+type = "github"
+token = { env = "GH_TOKEN" }

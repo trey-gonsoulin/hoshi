@@ -60,9 +60,15 @@ dev = [
 ]
 
 [tool.semantic_release]
+commit_parser = "conventional-monorepo"
 version_toml = ["pyproject.toml:project.version"]
 branch = "main"
-commit_message = "chore(release): v{version}"
+commit_message = "chore(release): hoshi@{version}"
+tag_format = "hoshi-v{version}"
+
+[tool.semantic_release.commit_parser_options]
+path_filters = ["hoshi/", "tests/", "pyproject.toml"]
+scope_prefix = "hoshi-"
 
 [tool.semantic_release.changelog.default_templates]
 changelog_file = "CHANGELOG.md"
