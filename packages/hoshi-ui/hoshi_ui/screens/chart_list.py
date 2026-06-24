@@ -3,7 +3,7 @@ from __future__ import annotations
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.screen import Screen
-from textual.widgets import DataTable, Footer, Header, Static
+from textual.widgets import Footer, Header, Select, Static
 
 from hoshi import store
 
@@ -22,46 +22,41 @@ class ChartListScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Header()
         yield Static("", id="compare-hint")
-        yield DataTable(id="chart-table", cursor_type="row")
+        yield Select[str]([], prompt="Select a chart", id="chart-select")
         yield Footer()
 
     def on_mount(self) -> None:
         self._load_charts()
 
     def _load_charts(self) -> None:
-        table = self.query_one("#chart-table", DataTable)
-        table.clear(columns=True)
-        table.add_columns("Name", "Date", "Time", "Timezone", "Lat", "Lon")
         charts = store.list_all()
-        for ci in charts:
-            table.add_row(
-                ci.name.title(),
-                ci.date,
-                ci.time or "—",
-                ci.tz if ci.time is not None else "—",
-                f"{ci.lat:.4f}" if ci.lat is not None else "—",
-                f"{ci.lon:.4f}" if ci.lon is not None else "—",
-                key=ci.name,
-            )
+        select = self.query_one("#chart-select", Select)
         hint = self.query_one("#compare-hint", Static)
         if not charts:
+            select.set_options([])
             hint.update("No saved charts. Use `hoshi chart add` to create one.")
         else:
+            options = [(self._chart_label(ci), ci.name) for ci in charts]
+            select.set_options(options)
             hint.update("")
 
-    def _selected_name(self) -> str | None:
-        table = self.query_one("#chart-table", DataTable)
-        if table.cursor_row is None or table.row_count == 0:
-            return None
-        return str(table.coordinate_to_cell_key((table.cursor_row, 0)).row_key.value)
+    @staticmethod
+    def _chart_label(ci: store.ChartInput) -> str:
+        parts = [ci.name.title(), ci.date]
+        if ci.time:
+            parts.append(ci.time)
+        return "  —  ".join(parts)
 
-    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
-        name = str(event.row_key.value)
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if event.value is Select.NULL:
+            return
+        name = str(event.value)
         if self._comparing:
             if not self._compare_a:
                 self._compare_a = name
                 hint = self.query_one("#compare-hint", Static)
                 hint.update(f"Compare: [{self._compare_a.title()}] → select chart B...")
+                self.query_one("#chart-select", Select).value = Select.NULL
             else:
                 from hoshi_ui.screens.compare import CompareScreen
 
@@ -71,11 +66,13 @@ class ChartListScreen(Screen):
             from hoshi_ui.screens.chart_detail import ChartDetailScreen
 
             self.app.push_screen(ChartDetailScreen(name))
+            self.query_one("#chart-select", Select).value = Select.NULL
 
     def action_transits(self) -> None:
-        name = self._selected_name()
-        if name is None:
+        select = self.query_one("#chart-select", Select)
+        if select.value is Select.NULL:
             return
+        name = str(select.value)
         from hoshi_ui.screens.transits import TransitsScreen
 
         self.app.push_screen(TransitsScreen(name))
@@ -97,6 +94,7 @@ class ChartListScreen(Screen):
         self._compare_a = ""
         hint = self.query_one("#compare-hint", Static)
         hint.update("")
+        self.query_one("#chart-select", Select).value = Select.NULL
 
     def action_refresh(self) -> None:
         self._load_charts()

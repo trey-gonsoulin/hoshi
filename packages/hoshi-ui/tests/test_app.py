@@ -16,11 +16,12 @@ async def test_app_launches(mock_store):
 async def test_chart_list_shows_charts(mock_store):
     app = HoshiApp()
     async with app.run_test():
-        from textual.widgets import DataTable
+        from textual.widgets import Select
 
         screen = app.screen
-        table = screen.query_one("#chart-table", DataTable)
-        assert table.row_count == 2
+        select = screen.query_one("#chart-select", Select)
+        non_blank = [v for _, v in select._options if v is not Select.NULL]
+        assert len(non_blank) == 2
 
 
 @pytest.mark.asyncio
