@@ -1,0 +1,56 @@
+from __future__ import annotations
+
+import pytest
+
+from hoshi_ui.main import HoshiApp
+
+
+@pytest.mark.asyncio
+async def test_app_launches(mock_store):
+    app = HoshiApp()
+    async with app.run_test():
+        assert app.title == "hoshi"
+
+
+@pytest.mark.asyncio
+async def test_chart_list_shows_charts(mock_store):
+    app = HoshiApp()
+    async with app.run_test():
+        from textual.widgets import DataTable
+
+        screen = app.screen
+        table = screen.query_one("#chart-table", DataTable)
+        assert table.row_count == 2
+
+
+@pytest.mark.asyncio
+async def test_mode_cycling(mock_store):
+    app = HoshiApp()
+    async with app.run_test() as pilot:
+        assert app.zodiac_mode == "realsky"
+        await pilot.press("m")
+        assert app.zodiac_mode == "tropical"
+        await pilot.press("m")
+        assert app.zodiac_mode == "vedic"
+        await pilot.press("m")
+        assert app.zodiac_mode == "realsky"
+
+
+@pytest.mark.asyncio
+async def test_toggle_details(mock_store):
+    app = HoshiApp()
+    async with app.run_test() as pilot:
+        assert app.details is False
+        await pilot.press("d")
+        assert app.details is True
+        await pilot.press("d")
+        assert app.details is False
+
+
+@pytest.mark.asyncio
+async def test_toggle_aspects(mock_store):
+    app = HoshiApp()
+    async with app.run_test() as pilot:
+        assert app.aspects is False
+        await pilot.press("a")
+        assert app.aspects is True
