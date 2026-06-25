@@ -56,6 +56,7 @@ class CompareScreen(Screen):
     def _display_output(self, output: CompareOutput) -> None:
         self.query_one("#loading").display = False
         self.query_one("#compare-content").display = True
+        self.query_one("#placement-table", DataTable).focus()
 
         h = output.header
         header_text = (

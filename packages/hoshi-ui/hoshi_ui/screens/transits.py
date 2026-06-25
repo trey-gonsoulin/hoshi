@@ -57,6 +57,7 @@ class TransitsScreen(Screen):
     def _display_output(self, output: TransitsOutput) -> None:
         self.query_one("#loading").display = False
         self.query_one("#transit-content").display = True
+        self.query_one("#transit-body-table", DataTable).focus()
 
         h = output.header
         header_text = (
