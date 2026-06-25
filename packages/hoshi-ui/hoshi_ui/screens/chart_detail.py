@@ -62,6 +62,7 @@ class ChartDetailScreen(Screen):
     def _display_output(self, output: ChartOutput) -> None:
         self.query_one("#loading").display = False
         self.query_one("#chart-content").display = True
+        self.query_one("#body-table", DataTable).focus()
 
         h = output.chart
         header_parts = [f"[bold]{h.name.title()}[/bold]  {h.when}"]
