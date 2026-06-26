@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from textual.widgets import ListItem, Static
+
 from hoshi import SIGN_ATTRS, SIGN_GLYPHS, format_deg
+from hoshi.info import ANGLES, PLANETS, POINTS
 from hoshi.output import BodyEntry, TallyOutput
 
 ELEMENT_COLORS: dict[str, str] = {
@@ -84,6 +87,81 @@ def render_bodies(
             lines.append(_body_line(b, show_house=show_house))
 
     return "\n".join(lines)
+
+
+def _body_tooltip(b: BodyEntry) -> str:
+    """Return a short keyword tooltip string for a body."""
+    info = None
+    if b.kind == "Planet":
+        info = PLANETS.get(b.name)
+    elif b.kind == "Angle":
+        for entry in ANGLES.values():
+            if entry.name == b.name or b.name.lower() in [
+                a.lower() for a in entry.aliases
+            ]:
+                info = entry
+                break
+    elif b.kind in ("Node", "Point", "Lot"):
+        for entry in POINTS.values():
+            if entry.name == b.name or b.name.lower() in [
+                a.lower() for a in entry.aliases
+            ]:
+                info = entry
+                break
+    if info:
+        return "  ·  ".join(info.keywords)
+    return ""
+
+
+def build_list_items(
+    bodies: list[BodyEntry],
+    *,
+    show_house: bool = True,
+    group_by: str = "category",
+) -> list[ListItem]:
+    """Return ListItems for body rows with keyword tooltips."""
+    items: list[ListItem] = []
+
+    def _item(b: BodyEntry) -> ListItem:
+        label = _body_line(b, show_house=show_house)
+        item = ListItem(Static(label))
+        tooltip = _body_tooltip(b)
+        if tooltip:
+            item.tooltip = tooltip
+        # Store lookup key for InfoModal
+        item.data = {"name": b.name, "kind": b.kind}  # type: ignore[attr-defined]
+        return item
+
+    if group_by == "sign":
+        seen: list[str] = []
+        grouped: dict[str, list[BodyEntry]] = {}
+        for b in bodies:
+            grouped.setdefault(b.sign, []).append(b)
+            if b.sign not in seen:
+                seen.append(b.sign)
+        for sign in seen:
+            items.append(ListItem(Static(f"[bold dim]── {sign} ──[/bold dim]")))
+            for b in grouped[sign]:
+                items.append(_item(b))
+
+    elif group_by == "house":
+        seen_h: list[int | None] = []
+        grouped_h: dict[int | None, list[BodyEntry]] = {}
+        for b in bodies:
+            grouped_h.setdefault(b.house, []).append(b)
+            if b.house not in seen_h:
+                seen_h.append(b.house)
+        for house in seen_h:
+            label = f"House {house}" if house is not None else "No House"
+            items.append(ListItem(Static(f"[bold dim]── {label} ──[/bold dim]")))
+            for b in grouped_h[house]:
+                items.append(_item(b))
+
+    else:
+        for b in bodies:
+            items.append(_item(b))
+
+    return items
 
 
 def render_tally(tally: TallyOutput) -> str:

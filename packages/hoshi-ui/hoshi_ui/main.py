@@ -35,7 +35,19 @@ class HoshiApp(App):
         height: auto;
     }
 
-    VerticalScroll {
+    ListView {
+        height: auto;
+        background: transparent;
+        border: none;
+        padding: 0 1;
+    }
+
+    ListItem {
+        background: transparent;
+        padding: 0;
+    }
+
+    #chart-content, #transit-content, #compare-content {
         height: 1fr;
     }
 
@@ -49,6 +61,7 @@ class HoshiApp(App):
         Binding("m", "cycle_mode", "Mode"),
         Binding("g", "cycle_group_by", "Group by"),
         Binding("h", "cycle_house_system", "Houses"),
+        Binding("i", "info_lookup", "Info"),
     ]
 
     zodiac_mode = reactive("realsky")
@@ -70,6 +83,11 @@ class HoshiApp(App):
     def action_cycle_house_system(self) -> None:
         idx = (HOUSE_SYSTEMS.index(self.house_system) + 1) % len(HOUSE_SYSTEMS)
         self.house_system = HOUSE_SYSTEMS[idx]
+
+    def action_info_lookup(self) -> None:
+        from hoshi_ui.screens.info_picker import InfoPickerModal
+
+        self.push_screen(InfoPickerModal())
 
 
 def cli() -> None:
