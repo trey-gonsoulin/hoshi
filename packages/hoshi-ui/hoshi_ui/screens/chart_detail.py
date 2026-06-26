@@ -33,7 +33,7 @@ class ChartDetailScreen(Screen):
 
     def on_mount(self) -> None:
         self.query_one("#chart-content").display = False
-        for attr in ("zodiac_mode", "details", "aspects", "group_by"):
+        for attr in ("zodiac_mode", "details", "aspects", "group_by", "house_system"):
             self.watch(self.app, attr, self._on_option_changed, init=False)
         self._compute_chart()
 

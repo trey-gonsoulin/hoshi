@@ -33,6 +33,13 @@ class CompareScreen(Screen):
 
     def on_mount(self) -> None:
         self.query_one("#compare-content").display = False
+        for attr in ("zodiac_mode", "details", "aspects", "group_by", "house_system"):
+            self.watch(self.app, attr, self._recompute, init=False)
+        self._compute_compare()
+
+    def _recompute(self) -> None:
+        self.query_one("#loading").display = True
+        self.query_one("#compare-content").display = False
         self._compute_compare()
 
     @work(thread=True)

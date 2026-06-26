@@ -9,6 +9,7 @@ from hoshi_ui.screens.chart_list import ChartListScreen
 
 MODES = ["realsky", "tropical", "vedic"]
 GROUP_BY_OPTIONS = ["category", "sign", "house", "planet"]
+HOUSE_SYSTEMS = ["porphyry", "placidus", "equal", "arc13"]
 
 
 class HoshiApp(App):
@@ -45,6 +46,7 @@ class HoshiApp(App):
         Binding("d", "toggle_details", "Details"),
         Binding("a", "toggle_aspects", "Aspects"),
         Binding("g", "cycle_group_by", "Group by"),
+        Binding("h", "cycle_house_system", "Houses"),
     ]
 
     zodiac_mode = reactive("realsky")
@@ -70,6 +72,10 @@ class HoshiApp(App):
     def action_cycle_group_by(self) -> None:
         idx = (GROUP_BY_OPTIONS.index(self.group_by) + 1) % len(GROUP_BY_OPTIONS)
         self.group_by = GROUP_BY_OPTIONS[idx]
+
+    def action_cycle_house_system(self) -> None:
+        idx = (HOUSE_SYSTEMS.index(self.house_system) + 1) % len(HOUSE_SYSTEMS)
+        self.house_system = HOUSE_SYSTEMS[idx]
 
 
 def cli() -> None:
