@@ -4,7 +4,14 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import VerticalScroll
 from textual.screen import Screen
-from textual.widgets import DataTable, Footer, Header, LoadingIndicator, Static
+from textual.widgets import (
+    Collapsible,
+    DataTable,
+    Footer,
+    Header,
+    LoadingIndicator,
+    Static,
+)
 from textual import work
 
 from hoshi import Chart, ChartOutput, store
@@ -17,6 +24,7 @@ class ChartDetailScreen(Screen):
         Binding("escape", "app.pop_screen", "Back"),
         Binding("t", "transits", "Transits"),
         Binding("c", "compare", "Compare"),
+        Binding("a", "toggle_aspects", "Aspects"),
     ]
 
     def __init__(self, chart_name: str) -> None:
@@ -28,13 +36,17 @@ class ChartDetailScreen(Screen):
         yield Static("", id="chart-header")
         yield LoadingIndicator(id="loading")
         with VerticalScroll(id="chart-content"):
-            yield DataTable(id="body-table", cursor_type="row")
-            yield DataTable(id="aspect-table", cursor_type="row")
+            with Collapsible(
+                title="Placements", collapsed=False, id="placements-panel"
+            ):
+                yield DataTable(id="body-table", cursor_type="row")
+            with Collapsible(title="Aspects", collapsed=True, id="aspects-panel"):
+                yield DataTable(id="aspect-table", cursor_type="row")
         yield Footer()
 
     def on_mount(self) -> None:
         self.query_one("#chart-content").display = False
-        for attr in ("zodiac_mode", "details", "aspects", "group_by", "house_system"):
+        for attr in ("zodiac_mode", "details", "group_by", "house_system"):
             self.watch(self.app, attr, self._on_option_changed, init=False)
         self._compute_chart()
 
@@ -55,7 +67,7 @@ class ChartDetailScreen(Screen):
             chart,
             self.app.zodiac_mode,
             details=self.app.details,
-            aspects=self.app.aspects,
+            aspects=True,
             group_by=self.app.group_by,
         )
         self.app.call_from_thread(self._display_output, output)
@@ -88,6 +100,7 @@ class ChartDetailScreen(Screen):
             group_by=output.group_by,
         )
 
+        aspects_panel = self.query_one("#aspects-panel", Collapsible)
         aspect_table = self.query_one("#aspect-table", DataTable)
         if output.aspects:
             show_signs = any(a.sign_a or a.sign_b for a in output.aspects)
@@ -97,10 +110,16 @@ class ChartDetailScreen(Screen):
                 show_signs=show_signs,
                 group_by=output.group_by,
             )
-            aspect_table.display = True
+            aspects_panel.display = True
         else:
             aspect_table.clear(columns=True)
-            aspect_table.display = False
+            aspects_panel.display = False
+
+    def action_toggle_aspects(self) -> None:
+        panel = self.query_one("#aspects-panel", Collapsible)
+        panel.collapsed = not panel.collapsed
+        if not panel.collapsed:
+            self.query_one("#aspect-table", DataTable).focus()
 
     def action_transits(self) -> None:
         from hoshi_ui.screens.transits import TransitsScreen

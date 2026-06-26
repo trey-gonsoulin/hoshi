@@ -6,7 +6,14 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import VerticalScroll
 from textual.screen import Screen
-from textual.widgets import DataTable, Footer, Header, LoadingIndicator, Static
+from textual.widgets import (
+    Collapsible,
+    DataTable,
+    Footer,
+    Header,
+    LoadingIndicator,
+    Static,
+)
 from textual import work
 
 from hoshi import Chart, TransitsOutput, store
@@ -18,6 +25,7 @@ class TransitsScreen(Screen):
     BINDINGS = [
         Binding("escape", "app.pop_screen", "Back"),
         Binding("n", "refresh_now", "Now"),
+        Binding("a", "toggle_aspects", "Aspects"),
     ]
 
     def __init__(self, chart_name: str) -> None:
@@ -29,13 +37,19 @@ class TransitsScreen(Screen):
         yield Static("", id="transit-header")
         yield LoadingIndicator(id="loading")
         with VerticalScroll(id="transit-content"):
-            yield DataTable(id="transit-body-table", cursor_type="row")
-            yield DataTable(id="transit-aspect-table", cursor_type="row")
+            with Collapsible(
+                title="Transits", collapsed=False, id="transit-placements-panel"
+            ):
+                yield DataTable(id="transit-body-table", cursor_type="row")
+            with Collapsible(
+                title="Aspects", collapsed=True, id="transit-aspects-panel"
+            ):
+                yield DataTable(id="transit-aspect-table", cursor_type="row")
         yield Footer()
 
     def on_mount(self) -> None:
         self.query_one("#transit-content").display = False
-        for attr in ("zodiac_mode", "details", "aspects", "group_by", "house_system"):
+        for attr in ("zodiac_mode", "details", "group_by", "house_system"):
             self.watch(self.app, attr, self._recompute, init=False)
         self._compute_transits()
 
@@ -55,7 +69,7 @@ class TransitsScreen(Screen):
             transit_dt,
             self.app.zodiac_mode,
             details=self.app.details,
-            aspects=self.app.aspects,
+            aspects=True,
             natal=False,
             group_by=self.app.group_by,
         )
@@ -87,6 +101,7 @@ class TransitsScreen(Screen):
             group_by=output.group_by,
         )
 
+        aspects_panel = self.query_one("#transit-aspects-panel", Collapsible)
         aspect_table = self.query_one("#transit-aspect-table", DataTable)
         if output.aspects:
             show_signs = any(a.sign_a or a.sign_b for a in output.aspects)
@@ -96,10 +111,16 @@ class TransitsScreen(Screen):
                 show_signs=show_signs,
                 group_by=output.group_by,
             )
-            aspect_table.display = True
+            aspects_panel.display = True
         else:
             aspect_table.clear(columns=True)
-            aspect_table.display = False
+            aspects_panel.display = False
+
+    def action_toggle_aspects(self) -> None:
+        panel = self.query_one("#transit-aspects-panel", Collapsible)
+        panel.collapsed = not panel.collapsed
+        if not panel.collapsed:
+            self.query_one("#transit-aspect-table", DataTable).focus()
 
     def action_refresh_now(self) -> None:
         self.query_one("#loading").display = True
