@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from textual.containers import Horizontal
 from textual.widgets import ListItem, Static
 
 from hoshi import SIGN_ATTRS, SIGN_GLYPHS, format_deg
-from hoshi.info import ANGLES, PLANETS, POINTS
+from hoshi.dignities import DIGNITY_SYMBOLS
+from hoshi.info import ANGLES, HOUSES, PLANETS, POINTS, SIGNS
 from hoshi.output import BodyEntry, TallyOutput
 
 ELEMENT_COLORS: dict[str, str] = {
@@ -17,6 +19,84 @@ _NAME_WIDTH = 14
 _SIGN_WIDTH = 16
 _HOUSE_WIDTH = 3  # "H" + up to 2 digits
 _BAR_WIDTH = 12  # fixed dot-bar length
+
+# Column cell widths (terminal cells)
+_W_PLANET = _NAME_WIDTH + 2  # glyph(2) + name(14) = 16
+_W_SIGN = _SIGN_WIDTH + 2  # sep(2) + sign(16) = 18
+_W_DEGREE = 9  # sep(2) + degree max 7 chars ("359°53'")
+_W_HOUSE = _HOUSE_WIDTH + 2  # sep(2) + "H12"(3) = 5
+_W_RX = 4  # sep(2) + "℞"(1-2) = 4
+_W_DIGNITY = 4  # sep(2) + symbol(1-2) = 4
+
+_DIGNITY_TOOLTIPS: dict[str, str] = {
+    "domicile": "Domicile  ·  at home in this sign  ·  expresses strongly and naturally",
+    "exaltation": "Exaltation  ·  honored in this sign  ·  expresses with peak clarity",
+    "detriment": "Detriment  ·  in exile  ·  expression complicated, requires more effort",
+    "fall": "Fall  ·  uncomfortable in this sign  ·  weakest, most constrained expression",
+}
+
+_DIGNITY_SYMBOL_TO_NAME: dict[str, str] = {v: k for k, v in DIGNITY_SYMBOLS.items()}
+
+
+class BodyRow(Horizontal):
+    """Horizontal row of fixed-width column cells for one body entry."""
+
+    DEFAULT_CSS = """
+    BodyRow {
+        height: 1;
+        width: 1fr;
+    }
+    """
+
+
+def _cell(markup: str, width: int, tooltip: str = "") -> Static:
+    s = Static(markup)
+    s.styles.width = width
+    if tooltip:
+        s.tooltip = tooltip
+    return s
+
+
+def _body_cells(b: BodyEntry, *, show_house: bool = True) -> list[Static]:
+    """Build per-column Static cells for a body entry with column-aware tooltips."""
+    element, _ = SIGN_ATTRS.get(b.sign, ("", ""))
+    color = ELEMENT_COLORS.get(element, "default")
+    sign_glyph = SIGN_GLYPHS.get(b.sign, "")
+
+    # Only single-char symbols work as glyphs (multi-char entries like "Asc"/"MC"
+    # are not glyphs — render them as a blank slot so alignment is consistent).
+    glyph = b.symbol if (b.symbol and len(b.symbol) == 1) else ""
+    glyph_slot = f"{glyph} " if glyph else "  "
+
+    sign_display = f"{sign_glyph} {b.sign}"
+
+    planet_tip = _body_tooltip(b)
+    sign_info = SIGNS.get(b.sign)
+    sign_tip = ("  ·  ".join(sign_info.keywords)) if sign_info else ""
+
+    cells: list[Static] = [
+        _cell(f"{glyph_slot}{b.name:<{_NAME_WIDTH}}", _W_PLANET, planet_tip),
+        _cell(f"  [{color}]{sign_display:<{_SIGN_WIDTH}}[/{color}]", _W_SIGN, sign_tip),
+        _cell(f"  {format_deg(b.degree)}", _W_DEGREE),
+    ]
+
+    if show_house and b.house:
+        house_str = f"H{b.house}"
+        house_info = HOUSES.get(b.house)
+        house_tip = ("  ·  ".join(house_info.keywords)) if house_info else ""
+        cells.append(
+            _cell(f"  [dim]{house_str:<{_HOUSE_WIDTH}}[/dim]", _W_HOUSE, house_tip)
+        )
+
+    if b.rx:
+        cells.append(_cell("  [dim]℞[/dim]", _W_RX))
+
+    if b.dignity:
+        dig_name = _DIGNITY_SYMBOL_TO_NAME.get(b.dignity, "")
+        dig_tip = _DIGNITY_TOOLTIPS.get(dig_name, "")
+        cells.append(_cell(f"  [dim]{b.dignity}[/dim]", _W_DIGNITY, dig_tip))
+
+    return cells
 
 
 def _body_line(b: BodyEntry, *, show_house: bool = True) -> str:
@@ -119,16 +199,13 @@ def build_list_items(
     show_house: bool = True,
     group_by: str = "category",
 ) -> list[ListItem]:
-    """Return ListItems for body rows with keyword tooltips."""
+    """Return ListItems for body rows with column-aware hover tooltips."""
     items: list[ListItem] = []
 
     def _item(b: BodyEntry) -> ListItem:
-        label = _body_line(b, show_house=show_house)
-        item = ListItem(Static(label))
-        tooltip = _body_tooltip(b)
-        if tooltip:
-            item.tooltip = tooltip
-        # Store lookup key for InfoModal
+        cells = _body_cells(b, show_house=show_house)
+        item = ListItem(BodyRow(*cells))
+        # Store lookup key for InfoModal (click opens planet info)
         item.data = {"name": b.name, "kind": b.kind}  # type: ignore[attr-defined]
         return item
 
