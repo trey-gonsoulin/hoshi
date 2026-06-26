@@ -49,7 +49,7 @@ class TransitsScreen(Screen):
 
     def on_mount(self) -> None:
         self.query_one("#transit-content").display = False
-        for attr in ("zodiac_mode", "details", "group_by", "house_system"):
+        for attr in ("zodiac_mode", "group_by", "house_system"):
             self.watch(self.app, attr, self._recompute, init=False)
         self._compute_transits()
 
@@ -68,7 +68,7 @@ class TransitsScreen(Screen):
             chart_natal,
             transit_dt,
             self.app.zodiac_mode,
-            details=self.app.details,
+            details=True,
             aspects=True,
             natal=False,
             group_by=self.app.group_by,

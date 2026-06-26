@@ -47,13 +47,11 @@ class HoshiApp(App):
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("m", "cycle_mode", "Mode"),
-        Binding("d", "toggle_details", "Details"),
         Binding("g", "cycle_group_by", "Group by"),
         Binding("h", "cycle_house_system", "Houses"),
     ]
 
     zodiac_mode = reactive("realsky")
-    details = reactive(False)
     group_by = reactive("category")
     house_system = reactive("porphyry")
 
@@ -64,9 +62,6 @@ class HoshiApp(App):
         idx = (MODES.index(self.zodiac_mode) + 1) % len(MODES)
         self.zodiac_mode = MODES[idx]
         self.sub_title = f"mode: {self.zodiac_mode}"
-
-    def action_toggle_details(self) -> None:
-        self.details = not self.details
 
     def action_cycle_group_by(self) -> None:
         idx = (GROUP_BY_OPTIONS.index(self.group_by) + 1) % len(GROUP_BY_OPTIONS)

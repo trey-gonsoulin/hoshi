@@ -11,12 +11,15 @@ from textual.widgets import (
     Header,
     LoadingIndicator,
     Static,
+    TabbedContent,
+    TabPane,
 )
 from textual import work
 
 from hoshi import Chart, ChartOutput, store
 
-from hoshi_ui.widgets.body_table import populate_aspect_table, populate_body_table
+from hoshi_ui.widgets.body_display import render_bodies, render_tally
+from hoshi_ui.widgets.body_table import populate_aspect_table
 
 
 class ChartDetailScreen(Screen):
@@ -27,6 +30,20 @@ class ChartDetailScreen(Screen):
         Binding("a", "toggle_aspects", "Aspects"),
     ]
 
+    DEFAULT_CSS = """
+    ChartDetailScreen #planets-display {
+        height: auto;
+        padding: 1 2;
+    }
+    ChartDetailScreen TabbedContent {
+        height: auto;
+    }
+    ChartDetailScreen TabPane {
+        height: auto;
+        padding: 1 2;
+    }
+    """
+
     def __init__(self, chart_name: str) -> None:
         super().__init__()
         self.chart_name = chart_name
@@ -36,17 +53,23 @@ class ChartDetailScreen(Screen):
         yield Static("", id="chart-header")
         yield LoadingIndicator(id="loading")
         with VerticalScroll(id="chart-content"):
-            with Collapsible(
-                title="Placements", collapsed=False, id="placements-panel"
-            ):
-                yield DataTable(id="body-table", cursor_type="row")
+            yield Static("", id="planets-display")
+            with TabbedContent(id="extras-tabs"):
+                with TabPane("Angles", id="tab-angles"):
+                    yield Static("", id="angles-display")
+                with TabPane("Points", id="tab-points"):
+                    yield Static("", id="points-display")
+                with TabPane("Lots", id="tab-lots"):
+                    yield Static("", id="lots-display")
+                with TabPane("Tally", id="tab-tally"):
+                    yield Static("", id="tally-display")
             with Collapsible(title="Aspects", collapsed=True, id="aspects-panel"):
                 yield DataTable(id="aspect-table", cursor_type="row")
         yield Footer()
 
     def on_mount(self) -> None:
         self.query_one("#chart-content").display = False
-        for attr in ("zodiac_mode", "details", "group_by", "house_system"):
+        for attr in ("zodiac_mode", "group_by", "house_system"):
             self.watch(self.app, attr, self._on_option_changed, init=False)
         self._compute_chart()
 
@@ -66,7 +89,7 @@ class ChartDetailScreen(Screen):
             ci,
             chart,
             self.app.zodiac_mode,
-            details=self.app.details,
+            details=True,
             aspects=True,
             group_by=self.app.group_by,
         )
@@ -75,7 +98,7 @@ class ChartDetailScreen(Screen):
     def _display_output(self, output: ChartOutput) -> None:
         self.query_one("#loading").display = False
         self.query_one("#chart-content").display = True
-        self.query_one("#body-table", DataTable).focus()
+        self.query_one("#planets-display", Static).focus()
 
         h = output.chart
         header_parts = [f"[bold]{h.name.title()}[/bold]  {h.when}"]
@@ -85,22 +108,38 @@ class ChartDetailScreen(Screen):
         if h.house_system:
             header_parts.append(f"houses: {h.house_system}")
         header_text = "  ".join(header_parts)
-        warnings = "\n".join(output.warnings)
-        if warnings:
-            header_text += f"\n{warnings}"
+        for w in output.warnings:
+            header_text += f"\n{w}"
         self.query_one("#chart-header", Static).update(header_text)
 
-        body_table = self.query_one("#body-table", DataTable)
-        show_houses = output.show_houses
-        populate_body_table(
-            body_table,
-            output.bodies,
-            show_houses=show_houses,
-            show_dignity=True,
-            group_by=output.group_by,
+        by_kind: dict[str, list] = {}
+        for b in output.bodies:
+            by_kind.setdefault(b.kind, []).append(b)
+
+        planets = by_kind.get("Planet", [])
+        angles = by_kind.get("Angle", [])
+        points = by_kind.get("Node", []) + by_kind.get("Point", [])
+        lots = by_kind.get("Lot", [])
+
+        show_house = output.show_houses
+        group_by = output.group_by
+
+        self.query_one("#planets-display", Static).update(
+            render_bodies(planets, show_house=show_house, group_by=group_by)
+        )
+        self.query_one("#angles-display", Static).update(
+            render_bodies(angles, show_house=show_house, group_by=group_by)
+        )
+        self.query_one("#points-display", Static).update(
+            render_bodies(points, show_house=show_house, group_by=group_by)
+        )
+        self.query_one("#lots-display", Static).update(
+            render_bodies(lots, show_house=show_house, group_by=group_by)
+        )
+        self.query_one("#tally-display", Static).update(
+            render_tally(output.tallies) if output.tallies else "[dim]—[/dim]"
         )
 
-        aspects_panel = self.query_one("#aspects-panel", Collapsible)
         aspect_table = self.query_one("#aspect-table", DataTable)
         if output.aspects:
             show_signs = any(a.sign_a or a.sign_b for a in output.aspects)
@@ -108,12 +147,8 @@ class ChartDetailScreen(Screen):
                 aspect_table,
                 output.aspects,
                 show_signs=show_signs,
-                group_by=output.group_by,
+                group_by=group_by,
             )
-            aspects_panel.display = True
-        else:
-            aspect_table.clear(columns=True)
-            aspects_panel.display = False
 
     def action_toggle_aspects(self) -> None:
         panel = self.query_one("#aspects-panel", Collapsible)
