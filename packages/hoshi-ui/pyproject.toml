@@ -1,6 +1,6 @@
 [project]
 name = "hoshi-ui"
-version = "1.0.0"
+version = "1.1.0"
 description = "Textual TUI for hoshi astrological charting."
 requires-python = ">=3.11"
 dependencies = [
