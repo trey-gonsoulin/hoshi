@@ -11,6 +11,8 @@ from textual.widgets import (
     DataTable,
     Footer,
     Header,
+    ListItem,
+    ListView,
     LoadingIndicator,
     Static,
 )
@@ -18,7 +20,8 @@ from textual import work
 
 from hoshi import Chart, TransitsOutput, store
 
-from hoshi_ui.widgets.body_table import populate_aspect_table, populate_body_table
+from hoshi_ui.widgets.body_display import build_list_items
+from hoshi_ui.widgets.body_table import populate_aspect_table
 
 
 class TransitsScreen(Screen):
@@ -37,10 +40,7 @@ class TransitsScreen(Screen):
         yield Static("", id="transit-header")
         yield LoadingIndicator(id="loading")
         with VerticalScroll(id="transit-content"):
-            with Collapsible(
-                title="Transits", collapsed=False, id="transit-placements-panel"
-            ):
-                yield DataTable(id="transit-body-table", cursor_type="row")
+            yield ListView(id="transit-bodies-list")
             with Collapsible(
                 title="Aspects", collapsed=True, id="transit-aspects-panel"
             ):
@@ -76,10 +76,6 @@ class TransitsScreen(Screen):
         self.app.call_from_thread(self._display_output, output)
 
     def _display_output(self, output: TransitsOutput) -> None:
-        self.query_one("#loading").display = False
-        self.query_one("#transit-content").display = True
-        self.query_one("#transit-body-table", DataTable).focus()
-
         h = output.header
         header_text = (
             f"[bold]Transits:[/bold] {h.name.title()}  "
@@ -88,20 +84,20 @@ class TransitsScreen(Screen):
         )
         if h.house_system:
             header_text += f"  houses: {h.house_system}"
-        warnings = "\n".join(output.warnings)
-        if warnings:
-            header_text += f"\n{warnings}"
+        for w in output.warnings:
+            header_text += f"\n{w}"
         self.query_one("#transit-header", Static).update(header_text)
 
-        body_table = self.query_one("#transit-body-table", DataTable)
-        populate_body_table(
-            body_table,
-            output.transit_bodies,
-            show_houses=output.show_houses,
-            group_by=output.group_by,
+        bodies_lv = self.query_one("#transit-bodies-list", ListView)
+        bodies_lv.clear()
+        bodies_lv.extend(
+            build_list_items(
+                output.transit_bodies,
+                show_house=output.show_houses,
+                group_by=output.group_by,
+            )
         )
 
-        aspects_panel = self.query_one("#transit-aspects-panel", Collapsible)
         aspect_table = self.query_one("#transit-aspect-table", DataTable)
         if output.aspects:
             show_signs = any(a.sign_a or a.sign_b for a in output.aspects)
@@ -111,10 +107,18 @@ class TransitsScreen(Screen):
                 show_signs=show_signs,
                 group_by=output.group_by,
             )
-            aspects_panel.display = True
-        else:
-            aspect_table.clear(columns=True)
-            aspects_panel.display = False
+
+        self.query_one("#loading").display = False
+        self.query_one("#transit-content").display = True
+        bodies_lv.focus()
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        item: ListItem = event.item
+        data = getattr(item, "data", None)
+        if data:
+            from hoshi_ui.screens.info_modal import InfoModal
+
+            self.app.push_screen(InfoModal(data["name"], data["kind"]))
 
     def action_toggle_aspects(self) -> None:
         panel = self.query_one("#transit-aspects-panel", Collapsible)

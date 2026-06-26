@@ -9,6 +9,8 @@ from textual.widgets import (
     DataTable,
     Footer,
     Header,
+    ListItem,
+    ListView,
     LoadingIndicator,
     Static,
 )
@@ -16,7 +18,8 @@ from textual import work
 
 from hoshi import Chart, CompareOutput, store
 
-from hoshi_ui.widgets.body_table import populate_aspect_table, populate_body_table
+from hoshi_ui.widgets.body_display import build_list_items
+from hoshi_ui.widgets.body_table import populate_aspect_table
 
 
 class CompareScreen(Screen):
@@ -55,10 +58,10 @@ class CompareScreen(Screen):
             with Horizontal(id="panels"):
                 with Vertical(id="panel-a"):
                     yield Static("", classes="panel-label", id="label-a")
-                    yield DataTable(id="table-a", cursor_type="row")
+                    yield ListView(id="list-a")
                 with Vertical(id="panel-b"):
                     yield Static("", classes="panel-label", id="label-b")
-                    yield DataTable(id="table-b", cursor_type="row")
+                    yield ListView(id="list-b")
             with Collapsible(
                 title="Aspects", collapsed=True, id="compare-aspects-panel"
             ):
@@ -95,18 +98,13 @@ class CompareScreen(Screen):
         self.app.call_from_thread(self._display_output, output)
 
     def _display_output(self, output: CompareOutput) -> None:
-        self.query_one("#loading").display = False
-        self.query_one("#compare-content").display = True
-        self.query_one("#table-a", DataTable).focus()
-
         h = output.header
         header_text = (
             f"[bold]Synastry:[/bold] {h.name_a.title()} ({h.date_a})  ×  "
             f"{h.name_b.title()} ({h.date_b})  mode: {h.mode}"
         )
-        warnings = "\n".join(output.warnings)
-        if warnings:
-            header_text += f"\n{warnings}"
+        for w in output.warnings:
+            header_text += f"\n{w}"
         self.query_one("#compare-header", Static).update(header_text)
 
         self.query_one("#label-a", Static).update(h.name_a.title())
@@ -114,20 +112,22 @@ class CompareScreen(Screen):
 
         show_houses_a = any(b.house is not None for b in output.bodies_a)
         show_houses_b = any(b.house is not None for b in output.bodies_b)
+        group_by = output.group_by
 
-        populate_body_table(
-            self.query_one("#table-a", DataTable),
-            output.bodies_a,
-            show_houses=show_houses_a,
-            show_dignity=True,
-            group_by=output.group_by,
+        lv_a = self.query_one("#list-a", ListView)
+        lv_a.clear()
+        lv_a.extend(
+            build_list_items(
+                output.bodies_a, show_house=show_houses_a, group_by=group_by
+            )
         )
-        populate_body_table(
-            self.query_one("#table-b", DataTable),
-            output.bodies_b,
-            show_houses=show_houses_b,
-            show_dignity=True,
-            group_by=output.group_by,
+
+        lv_b = self.query_one("#list-b", ListView)
+        lv_b.clear()
+        lv_b.extend(
+            build_list_items(
+                output.bodies_b, show_house=show_houses_b, group_by=group_by
+            )
         )
 
         aspect_table = self.query_one("#compare-aspect-table", DataTable)
@@ -137,8 +137,20 @@ class CompareScreen(Screen):
                 aspect_table,
                 output.aspects,
                 show_signs=show_signs,
-                group_by=output.group_by,
+                group_by=group_by,
             )
+
+        self.query_one("#loading").display = False
+        self.query_one("#compare-content").display = True
+        lv_a.focus()
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        item: ListItem = event.item
+        data = getattr(item, "data", None)
+        if data:
+            from hoshi_ui.screens.info_modal import InfoModal
+
+            self.app.push_screen(InfoModal(data["name"], data["kind"]))
 
     def action_toggle_aspects(self) -> None:
         panel = self.query_one("#compare-aspects-panel", Collapsible)
