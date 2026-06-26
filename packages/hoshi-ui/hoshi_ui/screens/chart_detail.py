@@ -84,12 +84,18 @@ class ChartDetailScreen(Screen):
             output.bodies,
             show_houses=show_houses,
             show_dignity=True,
+            group_by=output.group_by,
         )
 
         aspect_table = self.query_one("#aspect-table", DataTable)
         if output.aspects:
             show_signs = any(a.sign_a or a.sign_b for a in output.aspects)
-            populate_aspect_table(aspect_table, output.aspects, show_signs=show_signs)
+            populate_aspect_table(
+                aspect_table,
+                output.aspects,
+                show_signs=show_signs,
+                group_by=output.group_by,
+            )
             aspect_table.display = True
         else:
             aspect_table.clear(columns=True)
