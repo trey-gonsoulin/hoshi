@@ -57,7 +57,9 @@ from hoshi.points import HERMETIC_LOT_NAMES, LunarElements, hermetic_lots
 from hoshi.store import ChartInput
 from hoshi.zodiac import (
     IAU,
+    PLANET_GLYPHS,
     SIGN_ATTRS,
+    SIGN_GLYPHS,
     TROP_SIGNS,
     IAUSign,
     Placement,
@@ -88,6 +90,8 @@ __all__ = [
     "TROP_SIGNS",
     "SignInfo",
     "SIGN_ATTRS",
+    "SIGN_GLYPHS",
+    "PLANET_GLYPHS",
     "format_deg",
     # Ephemeris
     "positions",
