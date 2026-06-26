@@ -87,6 +87,43 @@ SIGN_ATTRS: dict[str, tuple[str, str]] = {
 }
 SIGN_ATTRS["Ophiuchus"] = ("Water", "Fixed")
 
+SIGN_GLYPHS: dict[str, str] = {
+    "Aries": "♈",
+    "Taurus": "♉",
+    "Gemini": "♊",
+    "Cancer": "♋",
+    "Leo": "♌",
+    "Virgo": "♍",
+    "Libra": "♎",
+    "Scorpio": "♏",
+    "Ophiuchus": "⛎",
+    "Sagittarius": "♐",
+    "Capricorn": "♑",
+    "Aquarius": "♒",
+    "Pisces": "♓",
+}
+
+PLANET_GLYPHS: dict[str, str] = {
+    "sun": "☉",
+    "moon": "☽",
+    "mercury": "☿",
+    "venus": "♀",
+    "mars": "♂",
+    "jupiter": "♃",
+    "saturn": "♄",
+    "uranus": "⛢",
+    "neptune": "♆",
+    "pluto": "♇",
+    "chiron": "⚷",
+    "true node": "☊",
+    "south node": "☋",
+    "lilith": "⚸",
+    "asc": "Asc",
+    "mc": "MC",
+    "dsc": "Dsc",
+    "ic": "IC",
+}
+
 
 def n360(v: float) -> float:
     return v % 360.0

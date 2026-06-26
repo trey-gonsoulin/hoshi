@@ -36,7 +36,7 @@ from hoshi.chart import (
 from hoshi.dignities import DIGNITY_SYMBOLS, dignity_for, element_modality_tally
 from hoshi.houses import house_13_arc, house_from_cusps
 from hoshi.store import ChartInput
-from hoshi.zodiac import IAU, TROP_NAMES, Placement, format_deg
+from hoshi.zodiac import IAU, PLANET_GLYPHS, TROP_NAMES, Placement, format_deg
 
 
 ANGLE_DISPLAY_NAMES: dict[str, str] = {
@@ -121,6 +121,7 @@ def _build_bodies(
                 rx=p.pos.retrograde,
                 approximate=p.pid in sel.uncertain_pids,
                 dignity=DIGNITY_SYMBOLS.get(dig, "") if dig else "",
+                symbol=PLANET_GLYPHS.get(p.pid, ""),
             )
         )
     if sel.angles:
@@ -139,6 +140,7 @@ def _build_bodies(
                     degree=round(pl.deg, 4),
                     lon=round(a.placed.lon, 4),
                     house=house_of(a.house),
+                    symbol=PLANET_GLYPHS.get(a.name, ""),
                 )
             )
     if sel.details:
@@ -153,6 +155,7 @@ def _build_bodies(
                     degree=round(pl.deg, 4),
                     lon=round(pt.placed.lon, 4),
                     house=house_of(pt.house),
+                    symbol=PLANET_GLYPHS.get(pt.name.lower(), ""),
                 )
             )
         if sel.lots:
@@ -166,6 +169,7 @@ def _build_bodies(
                         degree=round(pl.deg, 4),
                         lon=round(pt.placed.lon, 4),
                         house=house_of(pt.house),
+                        symbol=PLANET_GLYPHS.get(pt.name.lower(), ""),
                     )
                 )
     return bodies
@@ -539,6 +543,7 @@ class BodyEntry(BaseModel, frozen=True):
     rx: bool = False
     approximate: bool = False
     dignity: str = ""
+    symbol: str = ""
 
 
 class CuspEntry(BaseModel, frozen=True):
