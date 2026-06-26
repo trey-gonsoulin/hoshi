@@ -5,7 +5,7 @@ from textual.widgets import ListItem, Static
 
 from hoshi import SIGN_ATTRS, SIGN_GLYPHS, format_deg
 from hoshi.dignities import DIGNITY_SYMBOLS
-from hoshi.info import ANGLES, HOUSES, PLANETS, POINTS, SIGNS
+from hoshi.info import ANGLES, HOUSES, PLANETS, POINTS, RETROGRADE, SIGNS
 from hoshi.output import BodyEntry, TallyOutput
 
 ELEMENT_COLORS: dict[str, str] = {
@@ -88,8 +88,9 @@ def _body_cells(b: BodyEntry, *, show_house: bool = True) -> list[Static]:
             _cell(f"  [dim]{house_str:<{_HOUSE_WIDTH}}[/dim]", _W_HOUSE, house_tip)
         )
 
-    if b.rx:
-        cells.append(_cell("  [dim]℞[/dim]", _W_RX))
+    # Rx cell always reserved so dignity stays in a consistent column
+    rx_tip = "  ·  ".join(RETROGRADE.keywords) if b.rx else ""
+    cells.append(_cell("  [dim]℞[/dim]" if b.rx else "", _W_RX, rx_tip))
 
     if b.dignity:
         dig_name = _DIGNITY_SYMBOL_TO_NAME.get(b.dignity, "")

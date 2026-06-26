@@ -16,6 +16,19 @@ class SignInfo(Info, frozen=True):
     ruler: str
 
 
+RETROGRADE: Info = Info(
+    name="Retrograde",
+    keywords=["internalized", "review", "introspection", "delay", "revisiting"],
+    meaning=(
+        "A planet in retrograde appears to move backward through the sky from Earth's "
+        "perspective. Astrologically, its themes turn inward — the planet's energies are "
+        "more reflective, internalized, or subject to review and revision. Retrograde "
+        "planets often indicate areas of life that develop through unconventional or "
+        "indirect paths, requiring deeper introspection before expression."
+    ),
+)
+
+
 PLANETS: dict[str, Info] = {
     "Sun": Info(
         name="Sun",

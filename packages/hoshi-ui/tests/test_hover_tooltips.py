@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from hoshi.dignities import DIGNITY_SYMBOLS
-from hoshi.info import HOUSES, SIGNS
+from hoshi.info import HOUSES, RETROGRADE, SIGNS
 from hoshi.output import BodyEntry, ChartHeader, ChartOutput
 from hoshi_ui.main import HoshiApp
 from hoshi_ui.screens.chart_detail import ChartDetailScreen
@@ -73,16 +73,34 @@ def test_degree_cell_has_no_tooltip():
 def test_no_house_omits_house_cell():
     b = _sun_entry(house=None)
     cells = _body_cells(b, show_house=False)
-    # Should be: planet, sign, degree, (no house), (no rx), dignity
-    assert len(cells) == 4  # planet, sign, degree, dignity
+    # planet, sign, degree, rx (always reserved), dignity
+    assert len(cells) == 5
 
 
-def test_rx_cell_has_no_tooltip():
+def test_rx_cell_tooltip():
     b = _sun_entry(rx=True)
     cells = _body_cells(b, show_house=False)
     # planet, sign, degree, rx, dignity
     rx_cell = cells[3]
+    assert rx_cell.tooltip == "  ·  ".join(RETROGRADE.keywords)
+
+
+def test_non_rx_cell_has_no_tooltip():
+    b = _sun_entry(rx=False)
+    cells = _body_cells(b, show_house=False)
+    rx_cell = cells[3]
     assert not rx_cell.tooltip
+
+
+def test_dignity_column_consistent_with_and_without_rx():
+    b_rx = _sun_entry(rx=True)
+    b_no_rx = _sun_entry(rx=False)
+    cells_rx = _body_cells(b_rx, show_house=False)
+    cells_no_rx = _body_cells(b_no_rx, show_house=False)
+    # Dignity is always the last cell at index 4 regardless of rx
+    assert len(cells_rx) == len(cells_no_rx)
+    assert "Domicile" in cells_rx[-1].tooltip
+    assert "Domicile" in cells_no_rx[-1].tooltip
 
 
 # ---------------------------------------------------------------------------
