@@ -10,14 +10,8 @@ from hoshi import store
 
 class ChartListScreen(Screen):
     BINDINGS = [
-        Binding("t", "transits", "Transits"),
-        Binding("c", "compare", "Compare"),
         Binding("r", "refresh", "Refresh"),
-        Binding("escape", "cancel_compare", "Cancel", show=False),
     ]
-
-    _comparing: bool = False
-    _compare_a: str = ""
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -51,49 +45,9 @@ class ChartListScreen(Screen):
         if event.value is Select.NULL:
             return
         name = str(event.value)
-        if self._comparing:
-            if not self._compare_a:
-                self._compare_a = name
-                hint = self.query_one("#compare-hint", Static)
-                hint.update(f"Compare: [{self._compare_a.title()}] → select chart B...")
-                self.query_one("#chart-select", Select).value = Select.NULL
-            else:
-                from hoshi_ui.screens.compare import CompareScreen
+        from hoshi_ui.screens.chart_detail import ChartDetailScreen
 
-                self.app.push_screen(CompareScreen(self._compare_a, name))
-                self._cancel_compare()
-        else:
-            from hoshi_ui.screens.chart_detail import ChartDetailScreen
-
-            self.app.push_screen(ChartDetailScreen(name))
-            self.query_one("#chart-select", Select).value = Select.NULL
-
-    def action_transits(self) -> None:
-        select = self.query_one("#chart-select", Select)
-        if select.value is Select.NULL:
-            return
-        name = str(select.value)
-        from hoshi_ui.screens.transits import TransitsScreen
-
-        self.app.push_screen(TransitsScreen(name))
-
-    def action_compare(self) -> None:
-        if self._comparing:
-            return
-        self._comparing = True
-        self._compare_a = ""
-        hint = self.query_one("#compare-hint", Static)
-        hint.update("Compare: select chart A...")
-
-    def action_cancel_compare(self) -> None:
-        if self._comparing:
-            self._cancel_compare()
-
-    def _cancel_compare(self) -> None:
-        self._comparing = False
-        self._compare_a = ""
-        hint = self.query_one("#compare-hint", Static)
-        hint.update("")
+        self.app.push_screen(ChartDetailScreen(name))
         self.query_one("#chart-select", Select).value = Select.NULL
 
     def action_refresh(self) -> None:
