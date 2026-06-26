@@ -4,7 +4,14 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
-from textual.widgets import DataTable, Footer, Header, LoadingIndicator, Static
+from textual.widgets import (
+    Collapsible,
+    DataTable,
+    Footer,
+    Header,
+    LoadingIndicator,
+    Static,
+)
 from textual import work
 
 from hoshi import Chart, CompareOutput, store
@@ -15,6 +22,7 @@ from hoshi_ui.widgets.body_table import populate_aspect_table, populate_body_tab
 class CompareScreen(Screen):
     BINDINGS = [
         Binding("escape", "app.pop_screen", "Back"),
+        Binding("a", "toggle_aspects", "Aspects"),
     ]
 
     DEFAULT_CSS = """
@@ -51,12 +59,15 @@ class CompareScreen(Screen):
                 with Vertical(id="panel-b"):
                     yield Static("", classes="panel-label", id="label-b")
                     yield DataTable(id="table-b", cursor_type="row")
-            yield DataTable(id="compare-aspect-table", cursor_type="row")
+            with Collapsible(
+                title="Aspects", collapsed=True, id="compare-aspects-panel"
+            ):
+                yield DataTable(id="compare-aspect-table", cursor_type="row")
         yield Footer()
 
     def on_mount(self) -> None:
         self.query_one("#compare-content").display = False
-        for attr in ("zodiac_mode", "details", "aspects", "group_by", "house_system"):
+        for attr in ("zodiac_mode", "details", "group_by", "house_system"):
             self.watch(self.app, attr, self._recompute, init=False)
         self._compute_compare()
 
@@ -78,7 +89,7 @@ class CompareScreen(Screen):
             chart_b,
             self.app.zodiac_mode,
             details=self.app.details,
-            aspects=self.app.aspects,
+            aspects=True,
             group_by=self.app.group_by,
         )
         self.app.call_from_thread(self._display_output, output)
@@ -128,7 +139,9 @@ class CompareScreen(Screen):
                 show_signs=show_signs,
                 group_by=output.group_by,
             )
-            aspect_table.display = True
-        else:
-            aspect_table.clear(columns=True)
-            aspect_table.display = False
+
+    def action_toggle_aspects(self) -> None:
+        panel = self.query_one("#compare-aspects-panel", Collapsible)
+        panel.collapsed = not panel.collapsed
+        if not panel.collapsed:
+            self.query_one("#compare-aspect-table", DataTable).focus()
