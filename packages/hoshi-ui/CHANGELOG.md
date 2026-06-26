@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v1.2.0 (2026-06-26)
+
+### Features
+
+- **ui**: Keyboard navigation between planet list, extras tabs, and tab lists
+  ([`a915e0b`](https://github.com/trey-gonsoulin/hoshi/commit/a915e0b883bcb5bbed7505c1b884bf3e028998c2))
+
+### Testing
+
+- **ui**: Remove stale toggle_details and toggle_aspects tests
+  ([`e250c0f`](https://github.com/trey-gonsoulin/hoshi/commit/e250c0f0f716e83a680e1a3e2d4b0cd07210df08))
+
+
 ## v1.1.0 (2026-06-26)
 
 ### Bug Fixes
