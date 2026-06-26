@@ -38,6 +38,10 @@ class HoshiApp(App):
     VerticalScroll {
         height: 1fr;
     }
+
+    #panels {
+        height: auto;
+    }
     """
 
     BINDINGS = [

@@ -16,6 +16,7 @@ class ChartDetailScreen(Screen):
     BINDINGS = [
         Binding("escape", "app.pop_screen", "Back"),
         Binding("t", "transits", "Transits"),
+        Binding("c", "compare", "Compare"),
     ]
 
     def __init__(self, chart_name: str) -> None:
@@ -105,3 +106,16 @@ class ChartDetailScreen(Screen):
         from hoshi_ui.screens.transits import TransitsScreen
 
         self.app.push_screen(TransitsScreen(self.chart_name))
+
+    def action_compare(self) -> None:
+        from hoshi_ui.screens.chart_picker import ChartPickerModal
+        from hoshi_ui.screens.compare import CompareScreen
+
+        def _on_picked(name: str | None) -> None:
+            if name is not None:
+                self.app.push_screen(CompareScreen(self.chart_name, name))
+
+        self.app.push_screen(
+            ChartPickerModal(prompt="Compare with:", exclude=self.chart_name),
+            _on_picked,
+        )

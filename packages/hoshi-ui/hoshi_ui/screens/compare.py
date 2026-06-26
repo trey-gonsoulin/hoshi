@@ -2,20 +2,37 @@ from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import VerticalScroll
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import DataTable, Footer, Header, LoadingIndicator, Static
 from textual import work
 
-from hoshi import Chart, CompareOutput, format_deg, store
+from hoshi import Chart, CompareOutput, store
 
-from hoshi_ui.widgets.body_table import populate_aspect_table
+from hoshi_ui.widgets.body_table import populate_aspect_table, populate_body_table
 
 
 class CompareScreen(Screen):
     BINDINGS = [
         Binding("escape", "app.pop_screen", "Back"),
     ]
+
+    DEFAULT_CSS = """
+    CompareScreen #panels {
+        height: auto;
+    }
+    CompareScreen #panel-a, CompareScreen #panel-b {
+        width: 1fr;
+        height: auto;
+        padding: 0 1;
+    }
+    CompareScreen .panel-label {
+        height: auto;
+        padding: 0 1;
+        color: $accent;
+        text-style: bold;
+    }
+    """
 
     def __init__(self, name_a: str, name_b: str) -> None:
         super().__init__()
@@ -27,7 +44,13 @@ class CompareScreen(Screen):
         yield Static("", id="compare-header")
         yield LoadingIndicator(id="loading")
         with VerticalScroll(id="compare-content"):
-            yield DataTable(id="placement-table", cursor_type="row")
+            with Horizontal(id="panels"):
+                with Vertical(id="panel-a"):
+                    yield Static("", classes="panel-label", id="label-a")
+                    yield DataTable(id="table-a", cursor_type="row")
+                with Vertical(id="panel-b"):
+                    yield Static("", classes="panel-label", id="label-b")
+                    yield DataTable(id="table-b", cursor_type="row")
             yield DataTable(id="compare-aspect-table", cursor_type="row")
         yield Footer()
 
@@ -63,7 +86,7 @@ class CompareScreen(Screen):
     def _display_output(self, output: CompareOutput) -> None:
         self.query_one("#loading").display = False
         self.query_one("#compare-content").display = True
-        self.query_one("#placement-table", DataTable).focus()
+        self.query_one("#table-a", DataTable).focus()
 
         h = output.header
         header_text = (
@@ -75,7 +98,26 @@ class CompareScreen(Screen):
             header_text += f"\n{warnings}"
         self.query_one("#compare-header", Static).update(header_text)
 
-        self._populate_placements(output)
+        self.query_one("#label-a", Static).update(h.name_a.title())
+        self.query_one("#label-b", Static).update(h.name_b.title())
+
+        show_houses_a = any(b.house is not None for b in output.bodies_a)
+        show_houses_b = any(b.house is not None for b in output.bodies_b)
+
+        populate_body_table(
+            self.query_one("#table-a", DataTable),
+            output.bodies_a,
+            show_houses=show_houses_a,
+            show_dignity=True,
+            group_by=output.group_by,
+        )
+        populate_body_table(
+            self.query_one("#table-b", DataTable),
+            output.bodies_b,
+            show_houses=show_houses_b,
+            show_dignity=True,
+            group_by=output.group_by,
+        )
 
         aspect_table = self.query_one("#compare-aspect-table", DataTable)
         if output.aspects:
@@ -90,40 +132,3 @@ class CompareScreen(Screen):
         else:
             aspect_table.clear(columns=True)
             aspect_table.display = False
-
-    def _populate_placements(self, output: CompareOutput) -> None:
-        table = self.query_one("#placement-table", DataTable)
-        table.clear(columns=True)
-
-        h = output.header
-        table.add_columns(
-            "Body",
-            f"{h.name_a.title()} Sign",
-            "Deg",
-            "Rx",
-            "│",
-            f"{h.name_b.title()} Sign",
-            "Deg",
-            "Rx",
-        )
-
-        index_a = {b.name: b for b in output.bodies_a}
-        index_b = {b.name: b for b in output.bodies_b}
-        all_names = list(
-            dict.fromkeys(b.name for b in output.bodies_a + output.bodies_b)
-        )
-
-        for name in all_names:
-            ba = index_a.get(name)
-            bb = index_b.get(name)
-            row: list[str] = [name]
-            if ba:
-                row.extend([ba.sign, format_deg(ba.degree), "℞" if ba.rx else ""])
-            else:
-                row.extend(["—", "—", ""])
-            row.append("│")
-            if bb:
-                row.extend([bb.sign, format_deg(bb.degree), "℞" if bb.rx else ""])
-            else:
-                row.extend(["—", "—", ""])
-            table.add_row(*row)
