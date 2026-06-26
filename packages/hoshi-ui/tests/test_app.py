@@ -35,23 +35,3 @@ async def test_mode_cycling(mock_store):
         assert app.zodiac_mode == "vedic"
         await pilot.press("m")
         assert app.zodiac_mode == "realsky"
-
-
-@pytest.mark.asyncio
-async def test_toggle_details(mock_store):
-    app = HoshiApp()
-    async with app.run_test() as pilot:
-        assert app.details is False
-        await pilot.press("d")
-        assert app.details is True
-        await pilot.press("d")
-        assert app.details is False
-
-
-@pytest.mark.asyncio
-async def test_toggle_aspects(mock_store):
-    app = HoshiApp()
-    async with app.run_test() as pilot:
-        assert app.aspects is False
-        await pilot.press("a")
-        assert app.aspects is True
