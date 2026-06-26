@@ -9,6 +9,8 @@ from textual.widgets import (
     DataTable,
     Footer,
     Header,
+    ListItem,
+    ListView,
     LoadingIndicator,
     Static,
     TabbedContent,
@@ -18,7 +20,7 @@ from textual import work
 
 from hoshi import Chart, ChartOutput, store
 
-from hoshi_ui.widgets.body_display import render_bodies, render_tally
+from hoshi_ui.widgets.body_display import build_list_items, render_tally
 from hoshi_ui.widgets.body_table import populate_aspect_table
 
 
@@ -30,20 +32,6 @@ class ChartDetailScreen(Screen):
         Binding("a", "toggle_aspects", "Aspects"),
     ]
 
-    DEFAULT_CSS = """
-    ChartDetailScreen #planets-display {
-        height: auto;
-        padding: 1 2;
-    }
-    ChartDetailScreen TabbedContent {
-        height: auto;
-    }
-    ChartDetailScreen TabPane {
-        height: auto;
-        padding: 1 2;
-    }
-    """
-
     def __init__(self, chart_name: str) -> None:
         super().__init__()
         self.chart_name = chart_name
@@ -53,14 +41,14 @@ class ChartDetailScreen(Screen):
         yield Static("", id="chart-header")
         yield LoadingIndicator(id="loading")
         with VerticalScroll(id="chart-content"):
-            yield Static("", id="planets-display")
+            yield ListView(id="planets-list")
             with TabbedContent(id="extras-tabs"):
                 with TabPane("Angles", id="tab-angles"):
-                    yield Static("", id="angles-display")
+                    yield ListView(id="angles-list")
                 with TabPane("Points", id="tab-points"):
-                    yield Static("", id="points-display")
+                    yield ListView(id="points-list")
                 with TabPane("Lots", id="tab-lots"):
-                    yield Static("", id="lots-display")
+                    yield ListView(id="lots-list")
                 with TabPane("Tally", id="tab-tally"):
                     yield Static("", id="tally-display")
             with Collapsible(title="Aspects", collapsed=True, id="aspects-panel"):
@@ -95,11 +83,12 @@ class ChartDetailScreen(Screen):
         )
         self.app.call_from_thread(self._display_output, output)
 
-    def _display_output(self, output: ChartOutput) -> None:
-        self.query_one("#loading").display = False
-        self.query_one("#chart-content").display = True
-        self.query_one("#planets-display", Static).focus()
+    def _refresh_list(self, list_id: str, items: list) -> None:
+        lv = self.query_one(f"#{list_id}", ListView)
+        lv.clear()
+        lv.extend(items)
 
+    def _display_output(self, output: ChartOutput) -> None:
         h = output.chart
         header_parts = [f"[bold]{h.name.title()}[/bold]  {h.when}"]
         if h.lat is not None:
@@ -120,22 +109,26 @@ class ChartDetailScreen(Screen):
         angles = by_kind.get("Angle", [])
         points = by_kind.get("Node", []) + by_kind.get("Point", [])
         lots = by_kind.get("Lot", [])
-
         show_house = output.show_houses
         group_by = output.group_by
 
-        self.query_one("#planets-display", Static).update(
-            render_bodies(planets, show_house=show_house, group_by=group_by)
+        self._refresh_list(
+            "planets-list",
+            build_list_items(planets, show_house=show_house, group_by=group_by),
         )
-        self.query_one("#angles-display", Static).update(
-            render_bodies(angles, show_house=show_house, group_by=group_by)
+        self._refresh_list(
+            "angles-list",
+            build_list_items(angles, show_house=show_house, group_by=group_by),
         )
-        self.query_one("#points-display", Static).update(
-            render_bodies(points, show_house=show_house, group_by=group_by)
+        self._refresh_list(
+            "points-list",
+            build_list_items(points, show_house=show_house, group_by=group_by),
         )
-        self.query_one("#lots-display", Static).update(
-            render_bodies(lots, show_house=show_house, group_by=group_by)
+        self._refresh_list(
+            "lots-list",
+            build_list_items(lots, show_house=show_house, group_by=group_by),
         )
+
         self.query_one("#tally-display", Static).update(
             render_tally(output.tallies) if output.tallies else "[dim]—[/dim]"
         )
@@ -149,6 +142,18 @@ class ChartDetailScreen(Screen):
                 show_signs=show_signs,
                 group_by=group_by,
             )
+
+        self.query_one("#loading").display = False
+        self.query_one("#chart-content").display = True
+        self.query_one("#planets-list", ListView).focus()
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        item: ListItem = event.item
+        data = getattr(item, "data", None)
+        if data:
+            from hoshi_ui.screens.info_modal import InfoModal
+
+            self.app.push_screen(InfoModal(data["name"], data["kind"]))
 
     def action_toggle_aspects(self) -> None:
         panel = self.query_one("#aspects-panel", Collapsible)
