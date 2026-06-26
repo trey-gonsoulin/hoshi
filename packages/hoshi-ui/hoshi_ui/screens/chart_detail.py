@@ -15,8 +15,9 @@ from textual.widgets import (
     Static,
     TabbedContent,
     TabPane,
+    Tabs,
 )
-from textual import work
+from textual import events, work
 
 from hoshi import Chart, ChartOutput, store
 
@@ -154,6 +155,56 @@ class ChartDetailScreen(Screen):
             from hoshi_ui.screens.info_modal import InfoModal
 
             self.app.push_screen(InfoModal(data["name"], data["kind"]))
+
+    def on_key(self, event: events.Key) -> None:
+        if event.key not in ("left", "right", "up", "down"):
+            return
+        focused = self.focused
+        if focused is None:
+            return
+
+        tabs_widget = self.query_one("#extras-tabs", TabbedContent)
+        planet_list = self.query_one("#planets-list", ListView)
+        tabs_bar = tabs_widget.query_one(Tabs)
+        extras_list_ids = {"angles-list", "points-list", "lots-list"}
+        focused_id = getattr(focused, "id", None)
+
+        if focused is planet_list and event.key in ("right", "left"):
+            if event.key == "right":
+                tabs_bar.action_next_tab()
+            else:
+                tabs_bar.action_previous_tab()
+            tabs_bar.focus()
+            event.stop()
+
+        elif focused is tabs_bar:
+            tab_to_list = {
+                "tab-angles": "angles-list",
+                "tab-points": "points-list",
+                "tab-lots": "lots-list",
+            }
+            if event.key == "down":
+                list_id = tab_to_list.get(tabs_widget.active)
+                if list_id:
+                    list_widget = self.query_one(f"#{list_id}", ListView)
+                    if len(list_widget) > 0:
+                        list_widget.index = 0
+                    list_widget.focus()
+                    event.stop()
+            elif event.key == "up":
+                count = len(planet_list)
+                if count > 0:
+                    planet_list.index = count - 1
+                planet_list.focus()
+                event.stop()
+
+        elif focused_id in extras_list_ids and event.key in ("right", "left"):
+            if event.key == "right":
+                tabs_bar.action_next_tab()
+            else:
+                tabs_bar.action_previous_tab()
+            tabs_bar.focus()
+            event.stop()
 
     def action_toggle_aspects(self) -> None:
         panel = self.query_one("#aspects-panel", Collapsible)
