@@ -67,7 +67,7 @@ class CompareScreen(Screen):
 
     def on_mount(self) -> None:
         self.query_one("#compare-content").display = False
-        for attr in ("zodiac_mode", "details", "group_by", "house_system"):
+        for attr in ("zodiac_mode", "group_by", "house_system"):
             self.watch(self.app, attr, self._recompute, init=False)
         self._compute_compare()
 
@@ -88,7 +88,7 @@ class CompareScreen(Screen):
             chart_a,
             chart_b,
             self.app.zodiac_mode,
-            details=self.app.details,
+            details=True,
             aspects=True,
             group_by=self.app.group_by,
         )
