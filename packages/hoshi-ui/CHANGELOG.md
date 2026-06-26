@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v1.3.0 (2026-06-26)
+
+### Bug Fixes
+
+- **ui**: Fix rx/dignity column alignment and add retrograde tooltip
+  ([`813afa1`](https://github.com/trey-gonsoulin/hoshi/commit/813afa1d52ed872e78974cce4fe818f94b2ac06e))
+
+### Features
+
+- **ui**: Column-aware hover tooltips for sign, house, and dignity
+  ([`1a95fed`](https://github.com/trey-gonsoulin/hoshi/commit/1a95fedb7302c3f8edcacd7e77d2a78e7962a511))
+
+
 ## v1.2.0 (2026-06-26)
 
 ### Features
