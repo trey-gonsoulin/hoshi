@@ -7,6 +7,7 @@ to match the IAU constellation boundaries.
 """
 
 import json
+import os
 import ssl
 import urllib.error
 import urllib.parse
@@ -41,12 +42,10 @@ CHIRON_HORIZONS_ID = "2060;"  # trailing ';' = small-body designation
 
 
 def cache_dir() -> Path:
-    p = Path.home() / ".cache" / "hoshi"
+    env = os.environ.get("HOSHI_CACHE_DIR")
+    p = Path(env) if env else Path.home() / ".cache" / "hoshi"
     p.mkdir(parents=True, exist_ok=True)
     return p
-
-
-CHIRON_CACHE_PATH = cache_dir() / "chiron.json"
 
 
 class HorizonsError(RuntimeError):
@@ -188,7 +187,8 @@ def _chiron_position(when_utc: datetime) -> PlanetPosition:
     jd_next = jd + 1.0 / 1440.0  # +1 minute
 
     cache_key = when_utc.replace(second=0, microsecond=0).isoformat()
-    cached = json_cache_get(CHIRON_CACHE_PATH, cache_key)
+    chiron_cache_path = cache_dir() / "chiron.json"
+    cached = json_cache_get(chiron_cache_path, cache_key)
     if cached is not None:
         return PlanetPosition.model_validate(cached)
 
@@ -211,7 +211,7 @@ def _chiron_position(when_utc: datetime) -> PlanetPosition:
     lon, lat, lon_next = _parse_horizons_ecliptic(body)
     delta = ((lon_next - lon + 540.0) % 360.0) - 180.0
     pos = PlanetPosition(lon=lon % 360.0, lat=lat, retrograde=delta < 0)
-    json_cache_put(CHIRON_CACHE_PATH, cache_key, pos.model_dump())
+    json_cache_put(chiron_cache_path, cache_key, pos.model_dump())
     return pos
 
 

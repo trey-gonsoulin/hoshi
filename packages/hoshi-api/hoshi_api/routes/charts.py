@@ -6,18 +6,14 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from hoshi import store
+from hoshi import ChartInput
 from hoshi.chart import Chart, HouseSystem
 from hoshi.output import (
-    ChartListOutput,
     ChartOutput,
     CompareOutput,
     CuspsOutput,
-    DeleteOutput,
-    HouseComparisonOutput,
     TransitsOutput,
 )
-from hoshi.store import ChartInput
 from hoshi.zodiac import ZodiacMode
 
 router = APIRouter(prefix="/charts", tags=["charts"])
@@ -28,20 +24,16 @@ router = APIRouter(prefix="/charts", tags=["charts"])
 # ---------------------------------------------------------------------------
 
 
-class ChartCreate(BaseModel):
-    name: str
+class ChartData(BaseModel):
+    """Positional data for a single chart — used when embedding charts in
+    multi-chart requests (transits, compare)."""
+
     date: str
     time: str | None = None
     lat: float | None = None
     lon: float | None = None
     location: str | None = None
     tz: str = "UTC"
-    force: bool = False
-    mode: ZodiacMode = ZodiacMode.realsky
-    houses: HouseSystem = HouseSystem.porphyry
-    details: bool = False
-    aspects: bool = False
-    cusps: bool = False
 
 
 class ChartCompute(BaseModel):
@@ -60,13 +52,42 @@ class ChartCompute(BaseModel):
 
 class ChartImportRequest(BaseModel):
     source: str
-    name: str | None = None
-    force: bool = False
     mode: ZodiacMode = ZodiacMode.realsky
     houses: HouseSystem = HouseSystem.porphyry
     details: bool = False
     aspects: bool = False
     cusps: bool = False
+
+
+class CuspsRequest(BaseModel):
+    date: str
+    time: str
+    lat: float
+    lon: float
+    tz: str = "UTC"
+    mode: ZodiacMode = ZodiacMode.realsky
+    houses: HouseSystem = HouseSystem.porphyry
+
+
+class TransitsRequest(BaseModel):
+    natal: ChartData
+    date: str | None = None
+    time: str | None = None
+    tz: str = "UTC"
+    mode: ZodiacMode = ZodiacMode.realsky
+    houses: HouseSystem = HouseSystem.porphyry
+    details: bool = False
+    aspects: bool = False
+    show_natal: bool = False
+
+
+class CompareRequest(BaseModel):
+    chart_a: ChartData
+    chart_b: ChartData
+    mode: ZodiacMode = ZodiacMode.realsky
+    houses: HouseSystem = HouseSystem.porphyry
+    details: bool = False
+    aspects: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -98,6 +119,13 @@ def _resolve_coords(
     return lat, lon
 
 
+def _chart_input_from(data: ChartData, name: str = "") -> ChartInput:
+    lat, lon = _resolve_coords(data.lat, data.lon, data.location)
+    return ChartInput(
+        name=name, date=data.date, time=data.time, tz=data.tz, lat=lat, lon=lon
+    )
+
+
 def _build_chart_response(
     ci: ChartInput,
     mode: ZodiacMode,
@@ -119,47 +147,15 @@ def _build_chart_response(
 
 
 # ---------------------------------------------------------------------------
-# Routes — static paths first, then parameterized
+# Routes
 # ---------------------------------------------------------------------------
-
-
-@router.get("", response_model=ChartListOutput)
-def list_charts() -> ChartListOutput:
-    return ChartListOutput.build()
-
-
-@router.post("", response_model=ChartOutput, status_code=201)
-def create_chart(body: ChartCreate) -> ChartOutput:
-    lat, lon = _resolve_coords(body.lat, body.lon, body.location)
-    ci = ChartInput(
-        name=body.name,
-        date=body.date,
-        time=body.time,
-        tz=body.tz,
-        lat=lat,
-        lon=lon,
-    )
-    store.save(ci, overwrite=body.force)
-    return _build_chart_response(
-        ci,
-        body.mode,
-        body.houses,
-        details=body.details,
-        aspects=body.aspects,
-        cusps=body.cusps,
-    )
 
 
 @router.post("/compute", response_model=ChartOutput)
 def compute_chart(body: ChartCompute) -> ChartOutput:
     lat, lon = _resolve_coords(body.lat, body.lon, body.location)
     ci = ChartInput(
-        name="",
-        date=body.date,
-        time=body.time,
-        tz=body.tz,
-        lat=lat,
-        lon=lon,
+        name="", date=body.date, time=body.time, tz=body.tz, lat=lat, lon=lon
     )
     return _build_chart_response(
         ci,
@@ -171,13 +167,12 @@ def compute_chart(body: ChartCompute) -> ChartOutput:
     )
 
 
-@router.post("/import", response_model=ChartOutput, status_code=201)
+@router.post("/import", response_model=ChartOutput)
 def import_chart(body: ChartImportRequest) -> ChartOutput:
     from hoshi.adb import adb_to_chart_input
 
-    result = adb_to_chart_input(body.source, body.name)
+    result = adb_to_chart_input(body.source, None)
     ci = result.chart_input
-    store.save(ci, overwrite=body.force)
     return _build_chart_response(
         ci,
         body.mode,
@@ -188,105 +183,50 @@ def import_chart(body: ChartImportRequest) -> ChartOutput:
     )
 
 
-@router.get("/{name}", response_model=ChartOutput)
-def show_chart(
-    name: str,
-    mode: ZodiacMode = ZodiacMode.realsky,
-    houses: HouseSystem = HouseSystem.porphyry,
-    details: bool = False,
-    aspects: bool = False,
-    cusps: bool = False,
-    compare_houses: bool = False,
-) -> ChartOutput | HouseComparisonOutput:
-    ci = store.load(name)
-    if compare_houses:
-        if not ci.time_known or not ci.location_known:
-            raise ValueError(
-                "compare_houses requires a chart with known birth time and location."
-            )
-        return HouseComparisonOutput.build(ci, mode, details=details)
-    return _build_chart_response(
-        ci, mode, houses, details=details, aspects=aspects, cusps=cusps
+@router.post("/cusps", response_model=CuspsOutput)
+def chart_cusps(body: CuspsRequest) -> CuspsOutput:
+    ci = ChartInput(
+        name="", date=body.date, time=body.time, tz=body.tz, lat=body.lat, lon=body.lon
     )
+    chart = Chart.from_input(ci, house_system=body.houses)
+    return CuspsOutput.build(chart, body.mode)
 
 
-@router.delete("/{name}", response_model=DeleteOutput)
-def delete_chart(name: str) -> DeleteOutput:
-    path = store.delete(name)
-    return DeleteOutput(path=str(path))
-
-
-@router.get("/{name}/cusps", response_model=CuspsOutput)
-def chart_cusps(
-    name: str,
-    mode: ZodiacMode = ZodiacMode.realsky,
-    houses: HouseSystem = HouseSystem.porphyry,
-) -> CuspsOutput:
-    ci = store.load(name)
-    if not ci.time_known:
-        raise ValueError(
-            f"Chart {ci.name!r} has no birth time — house cusps cannot be computed."
-        )
-    if not ci.location_known:
-        raise ValueError(
-            f"Chart {ci.name!r} has no birth location — house cusps cannot be computed."
-        )
-    chart = Chart.from_input(ci, house_system=houses)
-    return CuspsOutput.build(chart, mode)
-
-
-@router.get("/{name}/transits", response_model=TransitsOutput)
-def chart_transits(
-    name: str,
-    date: str | None = None,
-    time: str | None = None,
-    tz: str = "UTC",
-    mode: ZodiacMode = ZodiacMode.realsky,
-    houses: HouseSystem = HouseSystem.porphyry,
-    details: bool = False,
-    aspects: bool = False,
-    natal: bool = False,
-) -> TransitsOutput:
-    ci = store.load(name)
+@router.post("/transits", response_model=TransitsOutput)
+def chart_transits(body: TransitsRequest) -> TransitsOutput:
+    ci = _chart_input_from(body.natal)
     now = datetime.now().astimezone()
-    if date is None:
+    if body.date is None:
         transit_dt = now
     else:
-        t = time if time is not None else now.strftime("%H:%M")
-        local = datetime.fromisoformat(f"{date}T{t}")
-        transit_dt = local.replace(tzinfo=ZoneInfo(tz))
+        t = body.time if body.time is not None else now.strftime("%H:%M")
+        local = datetime.fromisoformat(f"{body.date}T{t}")
+        transit_dt = local.replace(tzinfo=ZoneInfo(body.tz))
 
-    chart_natal = Chart.from_input(ci, house_system=houses)
+    chart_natal = Chart.from_input(ci, house_system=body.houses)
     return TransitsOutput.build(
         ci,
         chart_natal,
         transit_dt,
-        mode,
-        details=details,
-        aspects=aspects,
-        natal=natal,
+        body.mode,
+        details=body.details,
+        aspects=body.aspects,
+        natal=body.show_natal,
     )
 
 
-@router.get("/{name}/compare/{other}", response_model=CompareOutput)
-def chart_compare(
-    name: str,
-    other: str,
-    mode: ZodiacMode = ZodiacMode.realsky,
-    houses: HouseSystem = HouseSystem.porphyry,
-    details: bool = False,
-    aspects: bool = False,
-) -> CompareOutput:
-    ci_a = store.load(name)
-    ci_b = store.load(other)
-    chart_a = Chart.from_input(ci_a, house_system=houses)
-    chart_b = Chart.from_input(ci_b, house_system=houses)
+@router.post("/compare", response_model=CompareOutput)
+def chart_compare(body: CompareRequest) -> CompareOutput:
+    ci_a = _chart_input_from(body.chart_a)
+    ci_b = _chart_input_from(body.chart_b)
+    chart_a = Chart.from_input(ci_a, house_system=body.houses)
+    chart_b = Chart.from_input(ci_b, house_system=body.houses)
     return CompareOutput.build(
         ci_a,
         ci_b,
         chart_a,
         chart_b,
-        mode,
-        details=details,
-        aspects=aspects,
+        body.mode,
+        details=body.details,
+        aspects=body.aspects,
     )

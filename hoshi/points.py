@@ -22,9 +22,6 @@ from hoshi.ephemeris import (
 )
 
 
-LUNAR_CACHE_PATH = cache_dir() / "lunar.json"
-
-
 class LunarElements(BaseModel, frozen=True):
     """Subset of Moon osculating elements we use, in ecliptic J2000.
 
@@ -63,7 +60,8 @@ class LunarElements(BaseModel, frozen=True):
         when_utc = when.astimezone(timezone.utc)
 
         cache_key = when_utc.replace(second=0, microsecond=0).isoformat()
-        cached = json_cache_get(LUNAR_CACHE_PATH, cache_key)
+        lunar_cache_path = cache_dir() / "lunar.json"
+        cached = json_cache_get(lunar_cache_path, cache_key)
         if cached is not None:
             return cls.model_validate(cached)
 
@@ -85,7 +83,7 @@ class LunarElements(BaseModel, frozen=True):
         )
         om, w = _parse_horizons_elements(body)
         el = cls(om=om, w=w)
-        json_cache_put(LUNAR_CACHE_PATH, cache_key, el.model_dump())
+        json_cache_put(lunar_cache_path, cache_key, el.model_dump())
         return el
 
 
