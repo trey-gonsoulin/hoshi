@@ -1,0 +1,41 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: Hoshi API — real-sky astrological charting
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 512
+    Environment:
+      Variables:
+        # Writable cache for Chiron/lunar Horizons responses.
+        # /tmp is the only writable directory in Lambda.
+        HOSHI_CACHE_DIR: /tmp/.cache/hoshi
+
+Resources:
+  HoshiApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      Events:
+        Root:
+          Type: HttpApi
+          Properties:
+            Path: /
+            Method: ANY
+        Proxy:
+          Type: HttpApi
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+    Metadata:
+      DockerTag: latest
+      # Build context is the repo root so the Dockerfile can COPY workspace files
+      DockerContext: .
+      Dockerfile: packages/hoshi-api/Dockerfile
+
+Outputs:
+  ApiUrl:
+    Description: HTTP API endpoint URL
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com"

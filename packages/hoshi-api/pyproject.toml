@@ -7,6 +7,7 @@ dependencies = [
     "hoshi",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
+    "mangum>=0.21.0",
 ]
 
 [project.scripts]
@@ -14,10 +15,6 @@ hoshi-api = "hoshi_api.main:cli"
 
 [tool.uv.sources]
 hoshi = { workspace = true }
-
-[[tool.uv.index]]
-url = "https://artifacts.apple.com/api/pypi/pypi-private/simple"
-default = true
 
 [build-system]
 requires = ["hatchling"]
