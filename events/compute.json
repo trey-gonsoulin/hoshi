@@ -1,0 +1,21 @@
+{
+  "version": "2.0",
+  "routeKey": "POST /charts/compute",
+  "rawPath": "/charts/compute",
+  "rawQueryString": "",
+  "headers": {
+    "content-type": "application/json"
+  },
+  "requestContext": {
+    "http": {
+      "method": "POST",
+      "path": "/charts/compute",
+      "protocol": "HTTP/1.1",
+      "sourceIp": "127.0.0.1"
+    },
+    "routeKey": "POST /charts/compute",
+    "stage": "$default"
+  },
+  "body": "{\"date\":\"2000-01-01\",\"time\":\"12:00\",\"lat\":30.0,\"lon\":-90.0}",
+  "isBase64Encoded": false
+}

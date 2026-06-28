@@ -17,7 +17,7 @@ from functools import cache
 from pathlib import Path
 
 from pydantic import BaseModel
-from skyfield.api import load
+from skyfield.api import Loader, load
 
 
 # Skyfield target names from DE421/DE440. Outer-planet IDs are barycenters,
@@ -102,7 +102,8 @@ class PlanetPosition(BaseModel, frozen=True):
 @cache
 def _load_ephemeris():
     """Load DE421 (covers 1900–2050 — fine for birth charts)."""
-    return load("de421.bsp")
+    data_dir = os.environ.get("LAMBDA_TASK_ROOT", ".")
+    return Loader(data_dir)("de421.bsp")
 
 
 @cache

@@ -5,7 +5,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 WORKDIR /build
 
 # Copy the full workspace so uv can resolve workspace dependencies
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock README.md ./
 COPY hoshi/ ./hoshi/
 COPY packages/hoshi-api/ ./packages/hoshi-api/
 
