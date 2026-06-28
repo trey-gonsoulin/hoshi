@@ -1311,6 +1311,8 @@ class InfoItem(BaseModel, frozen=True):
     element: str | None = None
     modality: str | None = None
     ruler: str | None = None
+    cusp: float | None = None  # J2000 ecliptic longitude of sign entry (degrees)
+    size: float | None = None  # span of the sign (degrees)
 
 
 class InfoListOutput(OutputModel):
@@ -1331,6 +1333,8 @@ class InfoListOutput(OutputModel):
                     element=getattr(item, "element", None),
                     modality=getattr(item, "modality", None),
                     ruler=getattr(item, "ruler", None),
+                    cusp=getattr(item, "lo", None),
+                    size=getattr(item, "size", None),
                 )
                 for item in items
             ],
@@ -1346,8 +1350,12 @@ class InfoListOutput(OutputModel):
         for item in self.items:
             row: list[str] = [item.name]
             for col in self.extra_columns:
-                val = getattr(item, col.lower(), None)
-                row.append(val or "")
+                attr = col.lower().replace(" ", "_")
+                val = getattr(item, attr, None)
+                if isinstance(val, float):
+                    row.append(f"{val:.2f}°")
+                else:
+                    row.append(val or "")
             row.append(", ".join(item.keywords))
             table.add_row(*row)
         console.print()
@@ -1361,6 +1369,8 @@ class InfoDetailOutput(OutputModel):
     element: str | None = None
     modality: str | None = None
     ruler: str | None = None
+    cusp: float | None = None
+    size: float | None = None
 
     @classmethod
     def build(cls, item) -> InfoDetailOutput:
@@ -1371,6 +1381,8 @@ class InfoDetailOutput(OutputModel):
             element=getattr(item, "element", None),
             modality=getattr(item, "modality", None),
             ruler=getattr(item, "ruler", None),
+            cusp=getattr(item, "lo", None),
+            size=getattr(item, "size", None),
         )
 
     def render(self, console: Console) -> None:
@@ -1380,6 +1392,11 @@ class InfoDetailOutput(OutputModel):
                 f"  Element: [magenta]{self.element}[/magenta]  "
                 f"Modality: [magenta]{self.modality}[/magenta]  "
                 f"Ruler: [magenta]{self.ruler}[/magenta]"
+            )
+        if self.cusp is not None:
+            console.print(
+                f"  Cusp: [cyan]{self.cusp:.2f}°[/cyan]  "
+                f"Size: [cyan]{self.size:.2f}°[/cyan]"
             )
         console.print(f"  Keywords: {', '.join(self.keywords)}")
         console.print()

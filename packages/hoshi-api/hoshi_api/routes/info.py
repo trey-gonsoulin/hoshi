@@ -20,7 +20,7 @@ class InfoCategory(StrEnum):
 
 
 _EXTRA_COLS: dict[str, list[str]] = {
-    "signs": ["Element", "Modality", "Ruler"],
+    "signs": ["Element", "Modality", "Ruler", "Cusp", "Size"],
 }
 
 

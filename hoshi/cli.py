@@ -584,7 +584,7 @@ def info_signs(
         SIGNS,
         title="Signs",
         noun="sign",
-        extra_cols=["Element", "Modality", "Ruler"],
+        extra_cols=["Element", "Modality", "Ruler", "Cusp", "Size"],
     )
 
 

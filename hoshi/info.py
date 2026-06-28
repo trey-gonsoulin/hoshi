@@ -2,6 +2,10 @@
 
 from pydantic import BaseModel
 
+from hoshi.zodiac import IAU as _IAU
+
+_IAU_MAP: dict[str, tuple[float, float]] = {s.name: (s.lo, s.hi - s.lo) for s in _IAU}
+
 
 class Info(BaseModel, frozen=True):
     name: str
@@ -14,6 +18,8 @@ class SignInfo(Info, frozen=True):
     element: str
     modality: str
     ruler: str
+    lo: float  # J2000 ecliptic longitude of sign entry (degrees)
+    size: float  # span of the sign (degrees)
 
 
 RETROGRADE: Info = Info(
@@ -155,6 +161,8 @@ SIGNS: dict[str, SignInfo] = {
         element="Fire",
         modality="Cardinal",
         ruler="Mars",
+        lo=_IAU_MAP["Aries"][0],
+        size=_IAU_MAP["Aries"][1],
         keywords=[
             "initiative",
             "courage",
@@ -174,6 +182,8 @@ SIGNS: dict[str, SignInfo] = {
         element="Earth",
         modality="Fixed",
         ruler="Venus",
+        lo=_IAU_MAP["Taurus"][0],
+        size=_IAU_MAP["Taurus"][1],
         keywords=[
             "stability",
             "sensuality",
@@ -193,6 +203,8 @@ SIGNS: dict[str, SignInfo] = {
         element="Air",
         modality="Mutable",
         ruler="Mercury",
+        lo=_IAU_MAP["Gemini"][0],
+        size=_IAU_MAP["Gemini"][1],
         keywords=["curiosity", "adaptability", "communication", "duality", "wit"],
         meaning=(
             "Gemini is the sign of the inquiring mind — versatile, sociable, and endlessly "
@@ -206,6 +218,8 @@ SIGNS: dict[str, SignInfo] = {
         element="Water",
         modality="Cardinal",
         ruler="Moon",
+        lo=_IAU_MAP["Cancer"][0],
+        size=_IAU_MAP["Cancer"][1],
         keywords=["nurturing", "sensitivity", "protection", "home", "emotional depth"],
         meaning=(
             "Cancer initiates through feeling — creating safety, tending bonds, and honoring "
@@ -219,6 +233,8 @@ SIGNS: dict[str, SignInfo] = {
         element="Fire",
         modality="Fixed",
         ruler="Sun",
+        lo=_IAU_MAP["Leo"][0],
+        size=_IAU_MAP["Leo"][1],
         keywords=["creativity", "confidence", "generosity", "drama", "self-expression"],
         meaning=(
             "Leo radiates warmth, pride, and a need to be seen. It is the sign of creative "
@@ -232,6 +248,8 @@ SIGNS: dict[str, SignInfo] = {
         element="Earth",
         modality="Mutable",
         ruler="Mercury",
+        lo=_IAU_MAP["Virgo"][0],
+        size=_IAU_MAP["Virgo"][1],
         keywords=["analysis", "service", "precision", "humility", "craftsmanship"],
         meaning=(
             "Virgo refines and improves — applying careful analysis, practical skill, and a deep "
@@ -245,6 +263,8 @@ SIGNS: dict[str, SignInfo] = {
         element="Air",
         modality="Cardinal",
         ruler="Venus",
+        lo=_IAU_MAP["Libra"][0],
+        size=_IAU_MAP["Libra"][1],
         keywords=["balance", "partnership", "diplomacy", "aesthetics", "justice"],
         meaning=(
             "Libra initiates through relationship — seeking harmony, fairness, and the beauty "
@@ -258,6 +278,8 @@ SIGNS: dict[str, SignInfo] = {
         element="Water",
         modality="Fixed",
         ruler="Pluto",
+        lo=_IAU_MAP["Scorpio"][0],
+        size=_IAU_MAP["Scorpio"][1],
         keywords=["intensity", "depth", "secrecy", "transformation", "resilience"],
         meaning=(
             "Scorpio probes beneath the surface — seeking truth, power, and emotional honesty "
@@ -271,6 +293,8 @@ SIGNS: dict[str, SignInfo] = {
         element="Water",
         modality="Fixed",
         ruler="Chiron",
+        lo=_IAU_MAP["Ophiuchus"][0],
+        size=_IAU_MAP["Ophiuchus"][1],
         keywords=["healing", "wisdom", "integration", "serpent-bearer", "liminality"],
         meaning=(
             "Ophiuchus, the serpent-bearer, is the thirteenth constellation along the ecliptic "
@@ -286,6 +310,8 @@ SIGNS: dict[str, SignInfo] = {
         element="Fire",
         modality="Mutable",
         ruler="Jupiter",
+        lo=_IAU_MAP["Sagittarius"][0],
+        size=_IAU_MAP["Sagittarius"][1],
         keywords=["exploration", "philosophy", "optimism", "freedom", "truth-seeking"],
         meaning=(
             "Sagittarius aims at the far horizon — pursuing meaning, adventure, and the big "
@@ -299,6 +325,8 @@ SIGNS: dict[str, SignInfo] = {
         element="Earth",
         modality="Cardinal",
         ruler="Saturn",
+        lo=_IAU_MAP["Capricorn"][0],
+        size=_IAU_MAP["Capricorn"][1],
         keywords=["ambition", "responsibility", "strategy", "endurance", "authority"],
         meaning=(
             "Capricorn builds toward lasting achievement — patient, strategic, and willing to "
@@ -312,6 +340,8 @@ SIGNS: dict[str, SignInfo] = {
         element="Air",
         modality="Fixed",
         ruler="Uranus",
+        lo=_IAU_MAP["Aquarius"][0],
+        size=_IAU_MAP["Aquarius"][1],
         keywords=[
             "individuality",
             "humanitarianism",
@@ -331,6 +361,8 @@ SIGNS: dict[str, SignInfo] = {
         element="Water",
         modality="Mutable",
         ruler="Neptune",
+        lo=_IAU_MAP["Pisces"][0],
+        size=_IAU_MAP["Pisces"][1],
         keywords=[
             "intuition",
             "compassion",
