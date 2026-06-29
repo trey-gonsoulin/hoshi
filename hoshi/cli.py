@@ -32,7 +32,6 @@ console = Console()
 
 
 app = typer.Typer(
-    add_completion=False,
     help="Real-sky astrology CLI — Python port of Nuastro.",
 )
 chart_app = typer.Typer(help="Create, view, list, and delete birth charts.")
