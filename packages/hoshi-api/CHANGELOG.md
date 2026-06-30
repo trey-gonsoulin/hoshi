@@ -2,6 +2,17 @@
 
 <!-- version list -->
 
+## v1.4.0 (2026-06-30)
+
+### Features
+
+- **api**: Add MCP Streamable HTTP transport at /mcp
+  ([`bbfd72c`](https://github.com/trey-gonsoulin/hoshi/commit/bbfd72c666eb03dea2683614f410132be03ba5ec))
+
+- **ephemeris**: Bundle daily Chiron seed cache in Lambda image
+  ([`432ba35`](https://github.com/trey-gonsoulin/hoshi/commit/432ba35b9b9fd9c5aab03addea5a65c943a21764))
+
+
 ## v1.3.0 (2026-06-30)
 
 ### Features
