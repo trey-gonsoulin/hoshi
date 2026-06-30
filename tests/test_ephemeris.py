@@ -4,12 +4,15 @@ import pytest
 
 from hoshi.ephemeris import (
     PLANET_ORDER,
+    PlanetPosition,
     _parse_horizons_ecliptic,
+    _parse_horizons_range,
     ecliptic_precession,
     json_cache_get,
     json_cache_put,
     lahiri_ayanamsa,
     positions,
+    prefetch_chiron_range,
 )
 
 
@@ -259,6 +262,189 @@ class TestPositions:
     def test_naive_raises(self):
         with pytest.raises(ValueError, match="timezone-aware"):
             positions(datetime(2000, 1, 1))
+
+
+class TestParseHorizonsRange:
+    VALID_RESPONSE = """\
+some header
+$$SOE
+ 2000-Jan-01 00:00,  ,  ,  25.100,  1.200,
+ 2000-Jan-02 00:00,  ,  ,  25.120,  1.201,
+ 2000-Jan-03 00:00,  ,  ,  25.140,  1.202,
+$$EOE
+some footer"""
+
+    RETROGRADE_RESPONSE = """\
+$$SOE
+ 2000-Jan-01 00:00,  ,  ,  25.100,  1.200,
+ 2000-Jan-02 00:00,  ,  ,  25.080,  1.199,
+$$EOE"""
+
+    def test_date_keys(self):
+        rows = _parse_horizons_range(self.VALID_RESPONSE)
+        assert [r[0] for r in rows] == ["2000-01-01", "2000-01-02", "2000-01-03"]
+
+    def test_lon_lat(self):
+        rows = _parse_horizons_range(self.VALID_RESPONSE)
+        assert rows[0][1] == pytest.approx(25.100)
+        assert rows[0][2] == pytest.approx(1.200)
+
+    def test_prograde(self):
+        rows = _parse_horizons_range(self.VALID_RESPONSE)
+        assert rows[0][3] is False
+        assert rows[1][3] is False
+
+    def test_retrograde(self):
+        rows = _parse_horizons_range(self.RETROGRADE_RESPONSE)
+        assert rows[0][3] is True
+
+    def test_last_row_inherits_direction(self):
+        rows = _parse_horizons_range(self.VALID_RESPONSE)
+        # Last row has no successor, so delta=0 → prograde
+        assert rows[-1][3] is False
+
+    def test_missing_markers(self):
+        with pytest.raises(RuntimeError, match="missing"):
+            _parse_horizons_range("no markers here")
+
+    def test_no_data_rows(self):
+        with pytest.raises(RuntimeError, match="no data rows"):
+            _parse_horizons_range("$$SOE\n$$EOE")
+
+
+class TestPrefetchChironRange:
+    MOCK_RESPONSE = """\
+$$SOE
+ 2000-Jan-01 00:00,  ,  ,  17.500,  0.500,
+ 2000-Jan-02 00:00,  ,  ,  17.520,  0.501,
+$$EOE"""
+
+    def test_writes_seed_file(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "hoshi.ephemeris.horizons_fetch", lambda _: self.MOCK_RESPONSE
+        )
+        out = prefetch_chiron_range("2000-01-01", "2000-01-02", tmp_path / "seed.json")
+        assert out.exists()
+        data = json_cache_get(out, "2000-01-01")
+        assert data is not None
+        pos = PlanetPosition.model_validate(data)
+        assert pos.lon == pytest.approx(17.500)
+        assert pos.lat == pytest.approx(0.500)
+        assert pos.retrograde is False
+
+    def test_default_path_uses_cache_dir(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "hoshi.ephemeris.horizons_fetch", lambda _: self.MOCK_RESPONSE
+        )
+        monkeypatch.setattr("hoshi.ephemeris.cache_dir", lambda: tmp_path)
+        out = prefetch_chiron_range("2000-01-01", "2000-01-02")
+        assert out == tmp_path / "chiron_seed.json"
+        assert out.exists()
+
+    def test_compact_json(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "hoshi.ephemeris.horizons_fetch", lambda _: self.MOCK_RESPONSE
+        )
+        out = prefetch_chiron_range("2000-01-01", "2000-01-02", tmp_path / "seed.json")
+        raw = out.read_text()
+        # Compact JSON: no whitespace after separators
+        assert "  " not in raw
+
+
+class TestChironSeedFallback:
+    """_chiron_position() uses the seed cache before hitting Horizons."""
+
+    SEED_DATA = {"2000-01-01": {"lon": 17.5, "lat": 0.5, "retrograde": False}}
+
+    def test_seed_hit_skips_horizons(self, tmp_path, monkeypatch):
+        seed = tmp_path / "chiron_seed.json"
+        seed.write_text(__import__("json").dumps(self.SEED_DATA))
+
+        monkeypatch.setattr("hoshi.ephemeris._chiron_seed_path", lambda: seed)
+        monkeypatch.setattr("hoshi.ephemeris.cache_dir", lambda: tmp_path)
+
+        def _boom(_):
+            raise AssertionError("Horizons should not be called when seed hits")
+
+        monkeypatch.setattr("hoshi.ephemeris.horizons_fetch", _boom)
+
+        from hoshi.ephemeris import _chiron_position
+
+        when = datetime(2000, 1, 1, 15, 30, tzinfo=timezone.utc)
+        pos = _chiron_position(when)
+        assert pos.lon == pytest.approx(17.5)
+        assert pos.retrograde is False
+
+    def test_minute_cache_takes_priority(self, tmp_path, monkeypatch):
+        seed = tmp_path / "chiron_seed.json"
+        seed.write_text(__import__("json").dumps(self.SEED_DATA))
+
+        minute_cache = tmp_path / "chiron.json"
+        minute_data = {
+            "2000-01-01T15:30:00+00:00": {
+                "lon": 99.9,
+                "lat": 0.1,
+                "retrograde": True,
+            }
+        }
+        minute_cache.write_text(__import__("json").dumps(minute_data))
+
+        monkeypatch.setattr("hoshi.ephemeris._chiron_seed_path", lambda: seed)
+        monkeypatch.setattr("hoshi.ephemeris.cache_dir", lambda: tmp_path)
+        monkeypatch.setattr(
+            "hoshi.ephemeris.horizons_fetch",
+            lambda _: (_ for _ in ()).throw(AssertionError("should not call")),
+        )
+
+        from hoshi.ephemeris import _chiron_position
+
+        when = datetime(2000, 1, 1, 15, 30, tzinfo=timezone.utc)
+        pos = _chiron_position(when)
+        assert pos.lon == pytest.approx(99.9)
+
+    def test_no_seed_falls_through_to_horizons(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("hoshi.ephemeris._chiron_seed_path", lambda: None)
+        monkeypatch.setattr("hoshi.ephemeris.cache_dir", lambda: tmp_path)
+
+        horizons_calls = []
+
+        def _fake_horizons(params):
+            horizons_calls.append(params)
+            return """\
+$$SOE
+ 2451545.500000, , ,  17.000,  0.300,
+ 2451545.500694, , ,  17.001,  0.300,
+$$EOE"""
+
+        monkeypatch.setattr("hoshi.ephemeris.horizons_fetch", _fake_horizons)
+
+        from hoshi.ephemeris import _chiron_position
+
+        when = datetime(2000, 1, 1, 12, 0, tzinfo=timezone.utc)
+        _chiron_position(when)
+        assert len(horizons_calls) == 1
+
+
+class TestChironSeedPath:
+    def test_returns_none_without_lambda_env(self, monkeypatch):
+        monkeypatch.delenv("LAMBDA_TASK_ROOT", raising=False)
+        from hoshi.ephemeris import _chiron_seed_path
+
+        assert _chiron_seed_path() is None
+
+    def test_returns_none_when_file_missing(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("LAMBDA_TASK_ROOT", str(tmp_path))
+        from hoshi.ephemeris import _chiron_seed_path
+
+        assert _chiron_seed_path() is None
+
+    def test_returns_path_when_file_exists(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("LAMBDA_TASK_ROOT", str(tmp_path))
+        seed = tmp_path / "chiron_seed.json"
+        seed.write_text("{}")
+        from hoshi.ephemeris import _chiron_seed_path
+
+        assert _chiron_seed_path() == seed
 
 
 class TestHorizonsFetch:

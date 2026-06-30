@@ -193,6 +193,15 @@ def _chiron_position(when_utc: datetime) -> PlanetPosition:
     if cached is not None:
         return PlanetPosition.model_validate(cached)
 
+    # Seed cache: date-keyed daily positions bundled at image build time.
+    # Accepts <0.02° error (Chiron's daily motion); avoids a Horizons round-trip
+    # for dates within the pre-fetched range.
+    seed_path = _chiron_seed_path()
+    if seed_path is not None:
+        seeded = json_cache_get(seed_path, when_utc.date().isoformat())
+        if seeded is not None:
+            return PlanetPosition.model_validate(seeded)
+
     body = horizons_fetch(
         {
             "format": "text",
@@ -214,6 +223,103 @@ def _chiron_position(when_utc: datetime) -> PlanetPosition:
     pos = PlanetPosition(lon=lon % 360.0, lat=lat, retrograde=delta < 0)
     json_cache_put(chiron_cache_path, cache_key, pos.model_dump())
     return pos
+
+
+def _chiron_seed_path() -> Path | None:
+    """Path to the bundled daily Chiron seed cache, or None when not present.
+
+    In Lambda, LAMBDA_TASK_ROOT is set to /var/task (read-only). The seed file
+    is copied there at image build time by the chiron-cache Dockerfile stage.
+    Date-keyed ("YYYY-MM-DD"); _chiron_position() falls back to it before
+    hitting Horizons, accepting <0.02° error (Chiron's daily motion ≈ 0.02°).
+    """
+    task_root = os.environ.get("LAMBDA_TASK_ROOT")
+    if not task_root:
+        return None
+    p = Path(task_root) / "chiron_seed.json"
+    return p if p.exists() else None
+
+
+def _parse_horizons_range(body: str) -> list[tuple[str, float, float, bool]]:
+    """Parse a Horizons OBSERVER range response (START_TIME/STOP_TIME/STEP_SIZE).
+
+    Returns a list of (date_key, lon, lat, retrograde) tuples where date_key is
+    "YYYY-MM-DD". Retrograde is derived from consecutive rows; the last row
+    inherits the second-to-last row's direction (stations don't coincide with
+    day boundaries in practice).
+    """
+    lines = body.splitlines()
+    try:
+        start = lines.index("$$SOE")
+        end = lines.index("$$EOE")
+    except ValueError as exc:
+        raise HorizonsError(
+            f"Horizons response missing $$SOE/$$EOE:\n{body[:500]}"
+        ) from exc
+    rows = [ln for ln in lines[start + 1 : end] if ln.strip()]
+    if not rows:
+        raise HorizonsError("Horizons range response has no data rows")
+
+    parsed: list[tuple[str, float, float]] = []
+    for row in rows:
+        cols = [c.strip() for c in row.split(",")]
+        # Range responses: cols[0] is a calendar date like "2000-Jan-01 00:00"
+        date_key = datetime.strptime(cols[0].strip()[:11], "%Y-%b-%d").strftime(
+            "%Y-%m-%d"
+        )
+        parsed.append((date_key, float(cols[3]), float(cols[4])))
+
+    results: list[tuple[str, float, float, bool]] = []
+    for i, (date_key, lon, lat) in enumerate(parsed):
+        lon_next = parsed[i + 1][1] if i + 1 < len(parsed) else lon
+        delta = ((lon_next - lon + 540.0) % 360.0) - 180.0
+        results.append((date_key, lon % 360.0, lat, delta < 0))
+    return results
+
+
+def prefetch_chiron_range(
+    start: str, end: str, output_path: Path | None = None
+) -> Path:
+    """Fetch daily Chiron positions for a date range and write a seed cache.
+
+    Intended for use at image build time (see the chiron-cache Dockerfile stage).
+    start/end are ISO date strings ("YYYY-MM-DD"); align with de421 coverage
+    (1900-01-01 through 2050-12-31).
+
+    The resulting JSON uses date keys ("YYYY-MM-DD") so _chiron_position() can
+    look up any time within a covered day without a network call.
+    output_path defaults to cache_dir() / "chiron_seed.json".
+    """
+    start_horizons = datetime.fromisoformat(start).date().strftime("%Y-%b-%d")
+    end_horizons = datetime.fromisoformat(end).date().strftime("%Y-%b-%d")
+
+    body = horizons_fetch(
+        {
+            "format": "text",
+            "COMMAND": CHIRON_HORIZONS_ID,
+            "OBJ_DATA": "NO",
+            "MAKE_EPHEM": "YES",
+            "EPHEM_TYPE": "OBSERVER",
+            "CENTER": "500@399",
+            "START_TIME": start_horizons,
+            "STOP_TIME": end_horizons,
+            "STEP_SIZE": "1d",
+            "QUANTITIES": "31",
+            "ANG_FORMAT": "DEG",
+            "CSV_FORMAT": "YES",
+        }
+    )
+
+    rows = _parse_horizons_range(body)
+    data = {
+        date_key: PlanetPosition(lon=lon, lat=lat, retrograde=retrograde).model_dump()
+        for date_key, lon, lat, retrograde in rows
+    }
+
+    out = output_path or (cache_dir() / "chiron_seed.json")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(data, sort_keys=True, separators=(",", ":")))
+    return out
 
 
 def _parse_horizons_ecliptic(body: str) -> tuple[float, float, float]:
