@@ -10,8 +10,8 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "hoshi",
     "hoshi-api",
+    "hoshi-astro",
     "hoshi-ui",
 ]
 constraints = [
@@ -667,8 +667,41 @@ wheels = [
 ]
 
 [[package]]
-name = "hoshi"
-version = "1.6.0"
+name = "hoshi-api"
+version = "1.4.0"
+source = { editable = "packages/hoshi-api" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "hoshi-astro" },
+    { name = "mangum" },
+    { name = "mcp" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "httpx" },
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "hoshi-astro", editable = "." },
+    { name = "mangum", specifier = ">=0.21.0" },
+    { name = "mcp", specifier = ">=1.0" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "pytest", specifier = ">=9.1.1" },
+]
+
+[[package]]
+name = "hoshi-astro"
+version = "1.6.1"
 source = { editable = "." }
 dependencies = [
     { name = "certifi" },
@@ -708,44 +741,11 @@ dev = [
 ]
 
 [[package]]
-name = "hoshi-api"
-version = "1.4.0"
-source = { editable = "packages/hoshi-api" }
-dependencies = [
-    { name = "fastapi" },
-    { name = "hoshi" },
-    { name = "mangum" },
-    { name = "mcp" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "httpx" },
-    { name = "pytest" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fastapi", specifier = ">=0.115" },
-    { name = "hoshi", editable = "." },
-    { name = "mangum", specifier = ">=0.21.0" },
-    { name = "mcp", specifier = ">=1.0" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "pytest", specifier = ">=9.1.1" },
-]
-
-[[package]]
 name = "hoshi-ui"
 version = "1.4.0"
 source = { editable = "packages/hoshi-ui" }
 dependencies = [
-    { name = "hoshi" },
+    { name = "hoshi-astro" },
     { name = "textual" },
 ]
 
@@ -758,7 +758,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "hoshi", editable = "." },
+    { name = "hoshi-astro", editable = "." },
     { name = "textual", specifier = ">=1.0" },
 ]
 
