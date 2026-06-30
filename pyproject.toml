@@ -1,5 +1,5 @@
 [project]
-name = "hoshi"
+name = "hoshi-astro"
 version = "1.6.1"
 description = "Real-sky astrology birth chart CLI."
 readme = "README.md"

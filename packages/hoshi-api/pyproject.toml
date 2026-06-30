@@ -5,7 +5,7 @@ description = "REST API for hoshi astrological charting."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "hoshi",
+    "hoshi-astro",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     "mangum>=0.21.0",
@@ -16,7 +16,7 @@ dependencies = [
 hoshi-api = "hoshi_api.main:cli"
 
 [tool.uv.sources]
-hoshi = { workspace = true }
+hoshi-astro = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
