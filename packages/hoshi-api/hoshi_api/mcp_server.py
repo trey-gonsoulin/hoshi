@@ -21,6 +21,10 @@ mcp = FastMCP(
     stateless_http=True,
     json_response=True,
     streamable_http_path="/",
+    # host is unused when mounted into FastAPI, but the default "127.0.0.1"
+    # triggers DNS-rebinding protection that rejects non-localhost Host headers.
+    # "0.0.0.0" signals a public deployment, leaving transport_security=None.
+    host="0.0.0.0",
 )
 
 

@@ -7,9 +7,7 @@ from starlette.testclient import TestClient
 
 from hoshi_api.app import app
 
-# Starlette redirects bare /mcp → /mcp/ for mounted sub-apps; use the
-# canonical trailing-slash form so tests don't chase a 307 on POST.
-MCP_URL = "/mcp/"
+MCP_URL = "/mcp"
 
 # Minimal MCP JSON-RPC helpers
 
@@ -40,17 +38,11 @@ def _initialize(client: TestClient) -> dict:
     return resp.json()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def client():
     # Must use TestClient as a context manager so the FastAPI lifespan runs,
-    # which calls mcp.session_manager.run() and initialises the task group.
-    # scope="module" ensures run() is called exactly once — the session
-    # manager raises if called a second time on the same instance.
-    # MCP's transport-security allows "localhost:*" and "127.0.0.1:*" patterns —
-    # the default "testserver" and bare "localhost" are both rejected with 421.
-    # Using a non-standard port causes httpx to include it in the Host header
-    # ("localhost:8080"), which matches the localhost:* allowlist.
-    with TestClient(app, base_url="http://localhost:8080") as c:
+    # which initialises the MCP session manager task group.
+    with TestClient(app) as c:
         yield c
 
 
@@ -99,6 +91,16 @@ class TestMCPTransport:
         # MCP text content block contains the serialized chart dict
         payload = json.loads(content[0]["text"])
         assert "bodies" in payload
+
+    def test_lifespan_survives_warm_start(self, mock_chart):
+        """Second lifespan entry must not raise — simulates Lambda warm start."""
+        with TestClient(app) as c:
+            resp = c.post("/mcp/", headers=_HEADERS, json=_rpc("tools/list"))
+            assert resp.status_code == 200
+        # Same module-level app singleton — re-enters the lifespan on warm start
+        with TestClient(app) as c:
+            resp = c.post("/mcp/", headers=_HEADERS, json=_rpc("tools/list"))
+            assert resp.status_code == 200
 
     def test_tools_call_bad_mode_returns_tool_error(self, client, mock_chart):
         # A bad enum value should surface as a tool error (isError=True),
