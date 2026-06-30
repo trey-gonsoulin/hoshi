@@ -1,6 +1,6 @@
 [project]
 name = "hoshi-astro"
-version = "1.6.1"
+version = "1.7.0"
 description = "Real-sky astrology birth chart CLI."
 readme = "README.md"
 license = {file = "LICENSE"}
