@@ -55,6 +55,10 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ steps.release-hoshi.outputs.tag }}
 
+      - name: Publish hoshi to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        if: steps.release-hoshi.outputs.released == 'true'
+
       - name: Publish hoshi-api to GitHub Release
         uses: python-semantic-release/publish-action@v10
         if: steps.release-hoshi-api.outputs.released == 'true'
