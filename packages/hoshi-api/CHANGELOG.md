@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.5.0 (2026-06-30)
+
+### Features
+
+- Publish package to PyPI as hoshi-astro
+  ([`f1b11be`](https://github.com/trey-gonsoulin/hoshi/commit/f1b11be1b6b61b19df98a65b02b702fd2deaec97))
+
+
 ## v1.4.0 (2026-06-30)
 
 ### Features
