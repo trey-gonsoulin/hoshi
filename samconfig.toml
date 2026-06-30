@@ -6,7 +6,6 @@ version = 0.1
 
 [default.global.parameters]
 stack_name = "hoshi-api"
-profile = "personal"
 region = "us-east-1"
 
 [default.build.parameters]
@@ -15,7 +14,7 @@ parallel = true
 
 [default.deploy.parameters]
 capabilities = "CAPABILITY_IAM"
-confirm_changeset = true
+confirm_changeset = false
 resolve_s3 = true
 # Set by `sam deploy --guided` after ECR repo is created:
 # image_repositories = ["HoshiApiFunction=<account-id>.dkr.ecr.<region>.amazonaws.com/hoshi-api"]

@@ -81,3 +81,26 @@ jobs:
           directory: packages/hoshi-ui
           github_token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ steps.release-hoshi-ui.outputs.tag }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        if: steps.release-hoshi-api.outputs.released == 'true'
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Log in to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+        if: steps.release-hoshi-api.outputs.released == 'true'
+
+      - name: Set up SAM
+        uses: aws-actions/setup-sam@v2
+        if: steps.release-hoshi-api.outputs.released == 'true'
+
+      - name: SAM build
+        run: sam build
+        if: steps.release-hoshi-api.outputs.released == 'true'
+
+      - name: SAM deploy
+        run: sam deploy --no-confirm-changeset --no-fail-on-empty-changeset
+        if: steps.release-hoshi-api.outputs.released == 'true'
