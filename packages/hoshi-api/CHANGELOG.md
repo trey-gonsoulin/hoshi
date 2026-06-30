@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.3.0 (2026-06-30)
+
+### Features
+
+- **api**: Add FastMCP integration at /mcp/ for LLM integration
+  ([`d16207f`](https://github.com/trey-gonsoulin/hoshi/commit/d16207fdafaa0dfa5c77f46758862854f8f3a4a5))
+
+
 ## v1.2.0 (2026-06-28)
 
 ### Features
