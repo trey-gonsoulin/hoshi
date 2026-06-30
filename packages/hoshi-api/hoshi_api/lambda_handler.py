@@ -4,4 +4,4 @@ from mangum import Mangum
 
 from hoshi_api.app import app
 
-handler = Mangum(app, lifespan="off")
+handler = Mangum(app, lifespan="auto")
