@@ -1,6 +1,7 @@
 """FastAPI application factory."""
 
 from contextlib import asynccontextmanager
+from importlib.metadata import version
 from typing import AsyncGenerator
 
 from fastapi import FastAPI, Request
@@ -41,7 +42,7 @@ def create_app() -> FastAPI:
     application = FastAPI(
         title="Hoshi API",
         description="REST API for real-sky astrological charting.",
-        version="0.1.0",
+        version=version("hoshi-api"),
         lifespan=_lifespan,
     )
 
