@@ -668,7 +668,7 @@ wheels = [
 
 [[package]]
 name = "hoshi-api"
-version = "1.4.0"
+version = "1.5.0"
 source = { editable = "packages/hoshi-api" }
 dependencies = [
     { name = "fastapi" },
@@ -701,7 +701,7 @@ dev = [
 
 [[package]]
 name = "hoshi-astro"
-version = "1.6.1"
+version = "1.7.0"
 source = { editable = "." }
 dependencies = [
     { name = "certifi" },
@@ -742,7 +742,7 @@ dev = [
 
 [[package]]
 name = "hoshi-ui"
-version = "1.4.0"
+version = "1.5.0"
 source = { editable = "packages/hoshi-ui" }
 dependencies = [
     { name = "hoshi-astro" },
