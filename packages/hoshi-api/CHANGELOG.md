@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.5.2 (2026-07-01)
+
+### Bug Fixes
+
+- **api**: Copy LICENSE into Docker build context
+  ([`f94d9c2`](https://github.com/trey-gonsoulin/hoshi/commit/f94d9c22b2e93a34052779c3d91b2c99bf3d1f26))
+
+
 ## v1.5.1 (2026-07-01)
 
 ### Bug Fixes
