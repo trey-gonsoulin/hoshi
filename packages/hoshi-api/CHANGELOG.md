@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.5.1 (2026-07-01)
+
+### Bug Fixes
+
+- **api**: Read version from package metadata instead of hardcoded string
+  ([`b2c5dc6`](https://github.com/trey-gonsoulin/hoshi/commit/b2c5dc6341ca863f9a968e333656e2f7dbd2860f))
+
+
 ## v1.5.0 (2026-06-30)
 
 ### Features
