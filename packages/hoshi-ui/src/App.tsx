@@ -4,6 +4,9 @@ import { ChartsPage } from '@/pages/ChartsPage'
 import { ChartDetailPage } from '@/pages/ChartDetailPage'
 import { TransitsPage } from '@/pages/TransitsPage'
 import { ComparePage } from '@/pages/ComparePage'
+import { InfoPage } from '@/pages/InfoPage'
+import { InfoCategoryPage } from '@/pages/InfoCategoryPage'
+import { InfoDetailPage } from '@/pages/InfoDetailPage'
 
 function navClass({ isActive }: { isActive: boolean }) {
   return isActive
@@ -29,7 +32,9 @@ export default function App() {
           <Route path="/charts/:id" element={<ChartDetailPage />} />
           <Route path="/charts/:id/transits" element={<TransitsPage />} />
           <Route path="/charts/:id/compare" element={<ComparePage />} />
-          <Route path="/info" element={<div className="max-w-2xl mx-auto px-6 py-10 text-muted-foreground text-sm">Info browser — coming in Phase 6.</div>} />
+          <Route path="/info" element={<InfoPage />} />
+          <Route path="/info/:category" element={<InfoCategoryPage />} />
+          <Route path="/info/:category/:name" element={<InfoDetailPage />} />
         </Routes>
       </main>
     </div>
