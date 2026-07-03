@@ -36,6 +36,7 @@ build-backend = "hatchling.build"
 
 [tool.uv.workspace]
 members = ["packages/*"]
+exclude = ["packages/hoshi-ui"]
 
 [tool.uv]
 constraint-dependencies = [

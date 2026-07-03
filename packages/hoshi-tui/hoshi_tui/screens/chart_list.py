@@ -45,7 +45,7 @@ class ChartListScreen(Screen):
         if event.value is Select.NULL:
             return
         name = str(event.value)
-        from hoshi_ui.screens.chart_detail import ChartDetailScreen
+        from hoshi_tui.screens.chart_detail import ChartDetailScreen
 
         self.app.push_screen(ChartDetailScreen(name))
         self.query_one("#chart-select", Select).value = Select.NULL

@@ -5,8 +5,8 @@ from unittest.mock import patch
 import pytest
 
 from hoshi.output import BodyEntry, ChartHeader, ChartOutput
-from hoshi_ui.main import HoshiApp
-from hoshi_ui.screens.chart_detail import ChartDetailScreen
+from hoshi_tui.main import HoshiApp
+from hoshi_tui.screens.chart_detail import ChartDetailScreen
 
 
 def _minimal_output() -> ChartOutput:
