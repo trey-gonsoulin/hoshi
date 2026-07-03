@@ -4,9 +4,13 @@ import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { WarningBanner } from '@/components/WarningBanner'
 import { BodyTable } from '@/components/BodyTable'
+import { AspectTable } from '@/components/AspectTable'
+import { TallyDisplay } from '@/components/TallyDisplay'
 import { ChartMeta } from '@/components/ChartMeta'
+import { formatLon } from '@/lib/format'
 import { api, type ChartOutput, type ZodiacMode, type HouseSystem } from '@/api/client'
 
 interface FormState {
@@ -247,9 +251,61 @@ export function ComputePage() {
 
           <ChartMeta header={result.chart} />
 
-          <BodyTable bodies={result.bodies} showHouses={showHouses} />
+          <Tabs defaultValue="bodies">
+            <TabsList>
+              <TabsTrigger value="bodies">Bodies</TabsTrigger>
+              {result.aspects?.length ? (
+                <TabsTrigger value="aspects">Aspects</TabsTrigger>
+              ) : null}
+              {result.tallies ? (
+                <TabsTrigger value="tallies">Tallies</TabsTrigger>
+              ) : null}
+              {result.cusps.length ? (
+                <TabsTrigger value="cusps">Cusps</TabsTrigger>
+              ) : null}
+            </TabsList>
+
+            <TabsContent value="bodies" className="mt-6">
+              <BodyTable bodies={result.bodies} showHouses={showHouses} />
+            </TabsContent>
+
+            {result.aspects?.length ? (
+              <TabsContent value="aspects" className="mt-6">
+                <AspectTable aspects={result.aspects} />
+              </TabsContent>
+            ) : null}
+
+            {result.tallies ? (
+              <TabsContent value="tallies" className="mt-6">
+                <TallyDisplay tallies={result.tallies} />
+              </TabsContent>
+            ) : null}
+
+            {result.cusps.length ? (
+              <TabsContent value="cusps" className="mt-6">
+                <CuspsTab cusps={result.cusps} />
+              </TabsContent>
+            ) : null}
+          </Tabs>
         </div>
       )}
     </div>
+  )
+}
+
+function CuspsTab({ cusps }: { cusps: number[] }) {
+  return (
+    <table className="text-sm border-collapse">
+      <tbody>
+        {cusps.map((lon, i) => (
+          <tr key={i} className="border-b border-border/40 last:border-0">
+            <td className="py-1.5 pr-6 text-muted-foreground text-xs w-16">
+              House {i + 1}
+            </td>
+            <td className="py-1.5 tabular-nums">{formatLon(lon)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   )
 }
