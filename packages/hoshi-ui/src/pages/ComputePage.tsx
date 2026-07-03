@@ -1,17 +1,13 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router'
 import { useMutation } from '@tanstack/react-query'
-import { Loader2 } from 'lucide-react'
+import { Loader2, BookmarkPlus, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { WarningBanner } from '@/components/WarningBanner'
-import { BodyTable } from '@/components/BodyTable'
-import { AspectTable } from '@/components/AspectTable'
-import { TallyDisplay } from '@/components/TallyDisplay'
-import { ChartMeta } from '@/components/ChartMeta'
-import { formatLon } from '@/lib/format'
-import { api, type ChartOutput, type ZodiacMode, type HouseSystem } from '@/api/client'
+import { ChartResult } from '@/components/ChartResult'
+import { useChartStore } from '@/hooks/useChartStore'
+import { api, type ChartOutput, type ZodiacMode, type HouseSystem, type ChartCompute } from '@/api/client'
 
 interface FormState {
   date: string
@@ -43,7 +39,7 @@ const defaultForm: FormState = {
   aspects: false,
 }
 
-function buildRequest(f: FormState) {
+function buildRequest(f: FormState): ChartCompute {
   const base = {
     date: f.date,
     time: f.time || undefined,
@@ -67,17 +63,66 @@ function buildRequest(f: FormState) {
 export function ComputePage() {
   const [form, setForm] = useState<FormState>(defaultForm)
   const [result, setResult] = useState<ChartOutput | null>(null)
+  const [savedRequest, setSavedRequest] = useState<ChartCompute | null>(null)
+  const [saveState, setSaveState] = useState<'idle' | 'naming' | 'saved'>('idle')
+  const [saveName, setSaveName] = useState('')
+
+  const { save } = useChartStore()
+  const navigate = useNavigate()
 
   const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }))
 
   const mutation = useMutation({
     mutationFn: () => api.computeChart(buildRequest(form)),
-    onSuccess: (data) => setResult(data),
+    onSuccess: (data) => {
+      setResult(data)
+      setSavedRequest(buildRequest(form))
+      setSaveState('idle')
+      setSaveName('')
+    },
   })
 
-  const showHouses =
-    result != null &&
-    result.bodies.some((b) => b.house != null)
+  function handleSave() {
+    if (!savedRequest) return
+    if (saveState === 'idle') {
+      setSaveName(form.date)
+      setSaveState('naming')
+      return
+    }
+    if (saveState === 'naming' && saveName.trim()) {
+      const chart = save(saveName, savedRequest)
+      setSaveState('saved')
+      setTimeout(() => navigate(`/charts/${chart.id}`), 600)
+    }
+  }
+
+  const saveActions = result && savedRequest ? (
+    <div className="flex items-center gap-2">
+      {saveState === 'naming' && (
+        <Input
+          autoFocus
+          value={saveName}
+          onChange={(e) => setSaveName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setSaveState('idle') }}
+          placeholder="Chart name"
+          className="h-8 text-sm w-40"
+        />
+      )}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleSave}
+        disabled={saveState === 'naming' && !saveName.trim()}
+        className="gap-1.5"
+      >
+        {saveState === 'saved' ? (
+          <><Check size={13} /> Saved</>
+        ) : (
+          <><BookmarkPlus size={13} /> {saveState === 'naming' ? 'Confirm' : 'Save chart'}</>
+        )}
+      </Button>
+    </div>
+  ) : null
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-10 space-y-10">
@@ -243,69 +288,7 @@ export function ComputePage() {
       </div>
 
       {/* Results */}
-      {result && (
-        <div className="space-y-6">
-          <div className="h-px bg-border" />
-
-          <WarningBanner warnings={result.warnings} />
-
-          <ChartMeta header={result.chart} />
-
-          <Tabs defaultValue="bodies">
-            <TabsList>
-              <TabsTrigger value="bodies">Bodies</TabsTrigger>
-              {result.aspects?.length ? (
-                <TabsTrigger value="aspects">Aspects</TabsTrigger>
-              ) : null}
-              {result.tallies ? (
-                <TabsTrigger value="tallies">Tallies</TabsTrigger>
-              ) : null}
-              {result.cusps.length ? (
-                <TabsTrigger value="cusps">Cusps</TabsTrigger>
-              ) : null}
-            </TabsList>
-
-            <TabsContent value="bodies" className="mt-6">
-              <BodyTable bodies={result.bodies} showHouses={showHouses} />
-            </TabsContent>
-
-            {result.aspects?.length ? (
-              <TabsContent value="aspects" className="mt-6">
-                <AspectTable aspects={result.aspects} />
-              </TabsContent>
-            ) : null}
-
-            {result.tallies ? (
-              <TabsContent value="tallies" className="mt-6">
-                <TallyDisplay tallies={result.tallies} />
-              </TabsContent>
-            ) : null}
-
-            {result.cusps.length ? (
-              <TabsContent value="cusps" className="mt-6">
-                <CuspsTab cusps={result.cusps} />
-              </TabsContent>
-            ) : null}
-          </Tabs>
-        </div>
-      )}
+      {result && <ChartResult result={result} actions={saveActions} />}
     </div>
-  )
-}
-
-function CuspsTab({ cusps }: { cusps: number[] }) {
-  return (
-    <table className="text-sm border-collapse">
-      <tbody>
-        {cusps.map((lon, i) => (
-          <tr key={i} className="border-b border-border/40 last:border-0">
-            <td className="py-1.5 pr-6 text-muted-foreground text-xs w-16">
-              House {i + 1}
-            </td>
-            <td className="py-1.5 tabular-nums">{formatLon(lon)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
   )
 }
