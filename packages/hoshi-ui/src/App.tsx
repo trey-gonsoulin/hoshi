@@ -1,30 +1,28 @@
 import { Routes, Route, NavLink } from 'react-router'
+import { ComputePage } from '@/pages/ComputePage'
 
-function Home() {
-  return (
-    <div className="p-8">
-      <h1 className="text-2xl font-semibold mb-2">Hoshi</h1>
-      <p className="text-muted-foreground">Real-sky astrological charting</p>
-    </div>
-  )
+function navClass({ isActive }: { isActive: boolean }) {
+  return isActive
+    ? 'text-foreground font-medium'
+    : 'text-muted-foreground hover:text-foreground transition-colors'
 }
 
 export default function App() {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b px-6 py-3 flex items-center gap-6">
-        <span className="font-semibold tracking-tight">☽ Hoshi</span>
-        <nav className="flex gap-4 text-sm">
-          <NavLink to="/" end className={({ isActive }) => isActive ? 'text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}>Charts</NavLink>
-          <NavLink to="/compute" className={({ isActive }) => isActive ? 'text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}>Compute</NavLink>
-          <NavLink to="/info" className={({ isActive }) => isActive ? 'text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}>Info</NavLink>
+        <span className="font-semibold tracking-tight text-sm">☽ hoshi</span>
+        <nav className="flex gap-5 text-sm">
+          <NavLink to="/" end className={navClass}>Charts</NavLink>
+          <NavLink to="/compute" className={navClass}>Compute</NavLink>
+          <NavLink to="/info" className={navClass}>Info</NavLink>
         </nav>
       </header>
       <main className="flex-1">
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/compute" element={<div className="p-8 text-muted-foreground">Compute — coming soon</div>} />
-          <Route path="/info" element={<div className="p-8 text-muted-foreground">Info — coming soon</div>} />
+          <Route path="/" element={<div className="max-w-2xl mx-auto px-6 py-10 text-muted-foreground text-sm">Saved charts — coming in Phase 4.</div>} />
+          <Route path="/compute" element={<ComputePage />} />
+          <Route path="/info" element={<div className="max-w-2xl mx-auto px-6 py-10 text-muted-foreground text-sm">Info browser — coming in Phase 6.</div>} />
         </Routes>
       </main>
     </div>
