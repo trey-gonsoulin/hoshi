@@ -2,6 +2,8 @@ import { Routes, Route, NavLink } from 'react-router'
 import { ComputePage } from '@/pages/ComputePage'
 import { ChartsPage } from '@/pages/ChartsPage'
 import { ChartDetailPage } from '@/pages/ChartDetailPage'
+import { TransitsPage } from '@/pages/TransitsPage'
+import { ComparePage } from '@/pages/ComparePage'
 
 function navClass({ isActive }: { isActive: boolean }) {
   return isActive
@@ -25,6 +27,8 @@ export default function App() {
           <Route path="/" element={<ChartsPage />} />
           <Route path="/compute" element={<ComputePage />} />
           <Route path="/charts/:id" element={<ChartDetailPage />} />
+          <Route path="/charts/:id/transits" element={<TransitsPage />} />
+          <Route path="/charts/:id/compare" element={<ComparePage />} />
           <Route path="/info" element={<div className="max-w-2xl mx-auto px-6 py-10 text-muted-foreground text-sm">Info browser — coming in Phase 6.</div>} />
         </Routes>
       </main>

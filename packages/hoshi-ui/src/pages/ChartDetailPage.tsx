@@ -5,6 +5,7 @@ import { ChartResult } from '@/components/ChartResult'
 import { useChartStore } from '@/hooks/useChartStore'
 import { api, type ChartOutput } from '@/api/client'
 
+
 export function ChartDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { get } = useChartStore()
@@ -38,15 +39,31 @@ export function ChartDetailPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-10">
-      <div className="flex items-center gap-2 mb-8">
-        <Link
-          to="/"
-          className="text-muted-foreground hover:text-foreground transition-colors"
-          aria-label="Back to charts"
-        >
-          <ArrowLeft size={16} />
-        </Link>
-        <h1 className="text-lg font-semibold">{chart.name}</h1>
+      <div className="flex items-center justify-between gap-4 mb-8">
+        <div className="flex items-center gap-2">
+          <Link
+            to="/"
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Back to charts"
+          >
+            <ArrowLeft size={16} />
+          </Link>
+          <h1 className="text-lg font-semibold">{chart.name}</h1>
+        </div>
+        <div className="flex gap-3 text-sm">
+          <Link
+            to={`/charts/${chart.id}/transits`}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Transits
+          </Link>
+          <Link
+            to={`/charts/${chart.id}/compare`}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Compare
+          </Link>
+        </div>
       </div>
 
       {error && (
