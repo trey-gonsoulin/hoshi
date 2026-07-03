@@ -21,8 +21,8 @@ from textual import events, work
 
 from hoshi import Chart, ChartOutput, store
 
-from hoshi_ui.widgets.body_display import build_list_items, render_tally
-from hoshi_ui.widgets.body_table import populate_aspect_table
+from hoshi_tui.widgets.body_display import build_list_items, render_tally
+from hoshi_tui.widgets.body_table import populate_aspect_table
 
 
 class ChartDetailScreen(Screen):
@@ -152,7 +152,7 @@ class ChartDetailScreen(Screen):
         item: ListItem = event.item
         data = getattr(item, "data", None)
         if data:
-            from hoshi_ui.screens.info_modal import InfoModal
+            from hoshi_tui.screens.info_modal import InfoModal
 
             self.app.push_screen(InfoModal(data["name"], data["kind"]))
 
@@ -213,13 +213,13 @@ class ChartDetailScreen(Screen):
             self.query_one("#aspect-table", DataTable).focus()
 
     def action_transits(self) -> None:
-        from hoshi_ui.screens.transits import TransitsScreen
+        from hoshi_tui.screens.transits import TransitsScreen
 
         self.app.push_screen(TransitsScreen(self.chart_name))
 
     def action_compare(self) -> None:
-        from hoshi_ui.screens.chart_picker import ChartPickerModal
-        from hoshi_ui.screens.compare import CompareScreen
+        from hoshi_tui.screens.chart_picker import ChartPickerModal
+        from hoshi_tui.screens.compare import CompareScreen
 
         def _on_picked(name: str | None) -> None:
             if name is not None:

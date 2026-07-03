@@ -4,7 +4,7 @@ from textual.app import App
 from textual.binding import Binding
 from textual.reactive import reactive
 
-from hoshi_ui.screens.chart_list import ChartListScreen
+from hoshi_tui.screens.chart_list import ChartListScreen
 
 
 MODES = ["realsky", "tropical", "vedic"]
@@ -85,7 +85,7 @@ class HoshiApp(App):
         self.house_system = HOUSE_SYSTEMS[idx]
 
     def action_info_lookup(self) -> None:
-        from hoshi_ui.screens.info_picker import InfoPickerModal
+        from hoshi_tui.screens.info_picker import InfoPickerModal
 
         self.push_screen(InfoPickerModal())
 

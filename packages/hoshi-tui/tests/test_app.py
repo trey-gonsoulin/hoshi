@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from hoshi_ui.main import HoshiApp
+from hoshi_tui.main import HoshiApp
 
 
 @pytest.mark.asyncio
