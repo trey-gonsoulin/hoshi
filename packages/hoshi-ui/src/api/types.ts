@@ -162,6 +162,11 @@ export interface components {
             name: string;
             /** Sign */
             sign: string;
+            /**
+             * Sign Symbol
+             * @default
+             */
+            sign_symbol: string;
             /** Degree */
             degree: number;
             /** Lon */

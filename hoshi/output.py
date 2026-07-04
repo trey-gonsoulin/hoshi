@@ -36,7 +36,7 @@ from hoshi.chart import (
 from hoshi.dignities import DIGNITY_SYMBOLS, dignity_for, element_modality_tally
 from hoshi.houses import house_13_arc, house_from_cusps
 from hoshi.store import ChartInput
-from hoshi.zodiac import IAU, PLANET_GLYPHS, TROP_NAMES, Placement, format_deg
+from hoshi.zodiac import IAU, PLANET_GLYPHS, SIGN_GLYPHS, TROP_NAMES, Placement, format_deg
 
 
 ANGLE_DISPLAY_NAMES: dict[str, str] = {
@@ -115,6 +115,7 @@ def _build_bodies(
                 kind="Planet",
                 name=p.pid.capitalize(),
                 sign=pl.name,
+                sign_symbol=SIGN_GLYPHS.get(pl.name, ""),
                 degree=round(pl.deg, 4),
                 lon=round(p.placed.lon, 4),
                 house=house_of(p.house),
@@ -137,6 +138,7 @@ def _build_bodies(
                     kind="Angle",
                     name=ANGLE_DISPLAY_NAMES[a.name],
                     sign=pl.name,
+                    sign_symbol=SIGN_GLYPHS.get(pl.name, ""),
                     degree=round(pl.deg, 4),
                     lon=round(a.placed.lon, 4),
                     house=house_of(a.house),
@@ -152,6 +154,7 @@ def _build_bodies(
                     kind=kind,
                     name=pt.name,
                     sign=pl.name,
+                    sign_symbol=SIGN_GLYPHS.get(pl.name, ""),
                     degree=round(pl.deg, 4),
                     lon=round(pt.placed.lon, 4),
                     house=house_of(pt.house),
@@ -166,6 +169,7 @@ def _build_bodies(
                         kind="Lot",
                         name=pt.name,
                         sign=pl.name,
+                        sign_symbol=SIGN_GLYPHS.get(pl.name, ""),
                         degree=round(pl.deg, 4),
                         lon=round(pt.placed.lon, 4),
                         house=house_of(pt.house),
@@ -208,10 +212,12 @@ def _build_transit_bodies(
                 kind="Planet",
                 name=p.pid.capitalize(),
                 sign=pl.name,
+                sign_symbol=SIGN_GLYPHS.get(pl.name, ""),
                 degree=round(pl.deg, 4),
                 lon=round(p.placed.lon, 4),
                 house=natal_house(p.placed.lon),
                 rx=p.pos.retrograde,
+                symbol=PLANET_GLYPHS.get(p.pid, ""),
             )
         )
     if details:
@@ -223,9 +229,11 @@ def _build_transit_bodies(
                     kind=kind,
                     name=pt.name,
                     sign=pl.name,
+                    sign_symbol=SIGN_GLYPHS.get(pl.name, ""),
                     degree=round(pl.deg, 4),
                     lon=round(pt.placed.lon, 4),
                     house=natal_house(pt.placed.lon),
+                    symbol=PLANET_GLYPHS.get(pt.name.lower(), ""),
                 )
             )
     return bodies
@@ -537,6 +545,7 @@ class BodyEntry(BaseModel, frozen=True):
     kind: str
     name: str
     sign: str
+    sign_symbol: str = ""
     degree: float
     lon: float
     house: int | None = None
