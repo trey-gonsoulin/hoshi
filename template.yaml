@@ -14,6 +14,8 @@ Globals:
         HOSHI_CACHE_DIR: /tmp/.cache/hoshi
 
 Resources:
+  # ── Lambda / API ────────────────────────────────────────────────────────────
+
   HoshiApiFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -35,7 +37,121 @@ Resources:
       DockerContext: .
       Dockerfile: packages/hoshi-api/Dockerfile
 
+  # ── Static UI (S3 + CloudFront) ─────────────────────────────────────────────
+
+  HoshiUiBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      # Private bucket — CloudFront OAC handles access, no public website hosting
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # OAC lets CloudFront sign requests to S3 with SigV4 without a public bucket
+  HoshiUiOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${AWS::StackName}-ui-oac"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # Strip /api prefix before forwarding viewer requests to API Gateway
+  HoshiApiRewriteFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub "${AWS::StackName}-api-rewrite"
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Strip /api prefix before forwarding to API Gateway
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          request.uri = request.uri.replace(/^\/api/, '') || '/';
+          return request;
+        }
+
+  HoshiUiDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        HttpVersion: http2and3
+        DefaultRootObject: index.html
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt HoshiUiBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+            OriginAccessControlId: !GetAtt HoshiUiOriginAccessControl.Id
+          - Id: ApiOrigin
+            DomainName: !Sub "${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+            CustomOriginConfig:
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+        # Default: serve static assets from S3 with aggressive caching
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          # Managed-CachingOptimized
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+        CacheBehaviors:
+          # /api/* → API Gateway, no caching, strip prefix via CloudFront Function
+          - PathPattern: /api/*
+            TargetOriginId: ApiOrigin
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            # Managed-CachingDisabled
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            # Managed-AllViewerExceptHostHeader (forwards headers/cookies/QS, not Host)
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt HoshiApiRewriteFunction.FunctionMetadata.FunctionARN
+        # SPA routing: S3 returns 403 for missing keys (private bucket), map to index.html
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+
+  # Allow CloudFront (this distribution only) to read from the private bucket
+  HoshiUiBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref HoshiUiBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${HoshiUiBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${HoshiUiDistribution}"
+
 Outputs:
   ApiUrl:
     Description: HTTP API endpoint URL
     Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+
+  UiBucketName:
+    Description: S3 bucket for UI static assets — use with deploy-ui.sh
+    Value: !Ref HoshiUiBucket
+
+  UiUrl:
+    Description: CloudFront URL for the web UI
+    Value: !Sub "https://${HoshiUiDistribution.DomainName}"
+
+  UiDistributionId:
+    Description: CloudFront distribution ID — use with deploy-ui.sh for cache invalidation
+    Value: !Ref HoshiUiDistribution
