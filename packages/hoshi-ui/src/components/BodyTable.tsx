@@ -37,7 +37,7 @@ export function BodyTable({ bodies, showHouses }: BodyTableProps) {
                     <td className="py-2 pr-5 font-medium min-w-[96px]">
                       {body.name}
                     </td>
-                    {/* Sign — amber if uncertain */}
+                    {/* Sign — amber if uncertain; glyph prefix if available */}
                     <td
                       className={cn(
                         'py-2 pr-5 min-w-[80px]',
@@ -46,6 +46,11 @@ export function BodyTable({ bodies, showHouses }: BodyTableProps) {
                           : 'text-foreground',
                       )}
                     >
+                      {body.sign_symbol && (
+                        <span className="mr-1.5 text-muted-foreground/70 select-none">
+                          {body.sign_symbol}
+                        </span>
+                      )}
                       {body.sign}
                     </td>
                     {/* Degree within sign */}
