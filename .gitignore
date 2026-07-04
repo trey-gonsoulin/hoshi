@@ -15,3 +15,7 @@ wheels/
 .chiron_cache.json
 .lunar_cache.json
 *.bsp
+
+# Node / frontend
+node_modules/
+packages/hoshi-ui/dist/

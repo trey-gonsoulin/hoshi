@@ -18,8 +18,8 @@ from textual import work
 
 from hoshi import Chart, CompareOutput, store
 
-from hoshi_ui.widgets.body_display import build_list_items
-from hoshi_ui.widgets.body_table import populate_aspect_table
+from hoshi_tui.widgets.body_display import build_list_items
+from hoshi_tui.widgets.body_table import populate_aspect_table
 
 
 class CompareScreen(Screen):
@@ -148,7 +148,7 @@ class CompareScreen(Screen):
         item: ListItem = event.item
         data = getattr(item, "data", None)
         if data:
-            from hoshi_ui.screens.info_modal import InfoModal
+            from hoshi_tui.screens.info_modal import InfoModal
 
             self.app.push_screen(InfoModal(data["name"], data["kind"]))
 

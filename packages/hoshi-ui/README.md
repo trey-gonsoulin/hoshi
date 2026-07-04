@@ -1,31 +1,32 @@
-# hoshi-ui
+# React + TypeScript + Vite
 
-Textual TUI for [Hoshi](../../README.md) — a terminal user interface for browsing and comparing real-sky astrological charts.
+This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
-## Running
+Currently, two official plugins are available:
 
-```bash
-uv run --package hoshi-ui hoshi-ui
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+
+## React Compiler
+
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+
+## Expanding the Oxlint configuration
+
+If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+
+```json
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "typescript", "oxc"],
+  "options": {
+    "typeAware": true
+  },
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+  }
+}
 ```
 
-## Screens
-
-| Screen | Description |
-|--------|-------------|
-| Chart list | Browse all saved charts in `./charts/` |
-| Chart detail | Full chart display with bodies, aspects, and dignities |
-| Transits | Current (or specified date) transits against a natal chart |
-| Compare | Synastry between two saved charts |
-| Info | Reference browser for signs, planets, aspects, and houses |
-
-## Navigation
-
-Charts saved with `hoshi chart add` appear in the chart list. Select one to open the detail view; from there you can open transits or pick a second chart for synastry.
-
-## Development
-
-```bash
-uv run --package hoshi-ui pytest packages/hoshi-ui/tests/
-
-uv run ruff check --fix . && uv run ruff format .
-```
+See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.

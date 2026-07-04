@@ -1,5 +1,5 @@
 [project]
-name = "hoshi-ui"
+name = "hoshi-tui"
 version = "1.5.0"
 description = "Textual TUI for hoshi astrological charting."
 readme = "README.md"
@@ -10,7 +10,7 @@ dependencies = [
 ]
 
 [project.scripts]
-hoshi-ui = "hoshi_ui.main:cli"
+hoshi-tui = "hoshi_tui.main:cli"
 
 [tool.uv.sources]
 hoshi-astro = { workspace = true }
@@ -27,7 +27,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["hoshi_ui"]
+packages = ["hoshi_tui"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -36,12 +36,12 @@ testpaths = ["tests"]
 commit_parser = "conventional-monorepo"
 version_toml = ["pyproject.toml:project.version"]
 branch = "main"
-commit_message = "chore(release): hoshi-ui@{version}"
-tag_format = "hoshi-ui-v{version}"
+commit_message = "chore(release): hoshi-tui@{version}"
+tag_format = "hoshi-tui-v{version}"
 
 [tool.semantic_release.commit_parser_options]
 path_filters = ["."]
-scope_prefix = "hoshi-ui-"
+scope_prefix = "hoshi-tui-"
 
 [tool.semantic_release.changelog.default_templates]
 changelog_file = "CHANGELOG.md"

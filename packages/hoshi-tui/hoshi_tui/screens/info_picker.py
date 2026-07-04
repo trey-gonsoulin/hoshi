@@ -66,6 +66,6 @@ class InfoPickerModal(ModalScreen[None]):
         if event.value is Select.NULL:
             return
         name, kind = event.value
-        from hoshi_ui.screens.info_modal import InfoModal
+        from hoshi_tui.screens.info_modal import InfoModal
 
         self.app.push_screen(InfoModal(name, kind))

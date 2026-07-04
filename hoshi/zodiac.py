@@ -87,20 +87,23 @@ SIGN_ATTRS: dict[str, tuple[str, str]] = {
 }
 SIGN_ATTRS["Ophiuchus"] = ("Water", "Fixed")
 
+# U+FE0E (text variation selector) forces text rendering instead of emoji
+# in browsers, which would otherwise show colored boxes for these code points.
+_T = "︎"
 SIGN_GLYPHS: dict[str, str] = {
-    "Aries": "♈",
-    "Taurus": "♉",
-    "Gemini": "♊",
-    "Cancer": "♋",
-    "Leo": "♌",
-    "Virgo": "♍",
-    "Libra": "♎",
-    "Scorpio": "♏",
-    "Ophiuchus": "⛎",
-    "Sagittarius": "♐",
-    "Capricorn": "♑",
-    "Aquarius": "♒",
-    "Pisces": "♓",
+    "Aries": f"♈{_T}",
+    "Taurus": f"♉{_T}",
+    "Gemini": f"♊{_T}",
+    "Cancer": f"♋{_T}",
+    "Leo": f"♌{_T}",
+    "Virgo": f"♍{_T}",
+    "Libra": f"♎{_T}",
+    "Scorpio": f"♏{_T}",
+    "Ophiuchus": f"⛎{_T}",
+    "Sagittarius": f"♐{_T}",
+    "Capricorn": f"♑{_T}",
+    "Aquarius": f"♒{_T}",
+    "Pisces": f"♓{_T}",
 }
 
 PLANET_GLYPHS: dict[str, str] = {
@@ -122,6 +125,16 @@ PLANET_GLYPHS: dict[str, str] = {
     "mc": "MC",
     "dsc": "Dsc",
     "ic": "IC",
+    "vertex": "Vx",
+    "antivertex": "Av",
+    # Hermetic lots — ⊕/⊗ are the standard for Fortune/Spirit in modern software
+    "fortune": "⊕",
+    "spirit": "⊗",
+    "eros": "♥",
+    "necessity": "Nc",
+    "courage": "Cg",
+    "victory": "★",
+    "nemesis": "Nm",
 }
 
 
