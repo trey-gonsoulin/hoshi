@@ -1,4 +1,5 @@
 import { Routes, Route, NavLink } from 'react-router'
+import { Sun, Moon } from 'lucide-react'
 import { ComputePage } from '@/pages/ComputePage'
 import { ChartsPage } from '@/pages/ChartsPage'
 import { ChartDetailPage } from '@/pages/ChartDetailPage'
@@ -7,6 +8,7 @@ import { ComparePage } from '@/pages/ComparePage'
 import { InfoPage } from '@/pages/InfoPage'
 import { InfoCategoryPage } from '@/pages/InfoCategoryPage'
 import { InfoDetailPage } from '@/pages/InfoDetailPage'
+import { useTheme } from '@/hooks/useTheme'
 
 function navClass({ isActive }: { isActive: boolean }) {
   return isActive
@@ -15,6 +17,8 @@ function navClass({ isActive }: { isActive: boolean }) {
 }
 
 export default function App() {
+  const { theme, toggle } = useTheme()
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b px-6 py-3 flex items-center gap-6">
@@ -24,6 +28,13 @@ export default function App() {
           <NavLink to="/compute" className={navClass}>Compute</NavLink>
           <NavLink to="/info" className={navClass}>Info</NavLink>
         </nav>
+        <button
+          onClick={toggle}
+          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          className="ml-auto text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+        </button>
       </header>
       <main className="flex-1">
         <Routes>
