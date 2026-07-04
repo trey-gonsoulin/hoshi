@@ -5,6 +5,7 @@ import { Loader2, BookmarkPlus, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { TimezonePicker } from '@/components/TimezonePicker'
 import { ChartResult } from '@/components/ChartResult'
 import { useChartStore } from '@/hooks/useChartStore'
 import { api, type ChartOutput, type ZodiacMode, type HouseSystem, type ChartCompute } from '@/api/client'
@@ -19,8 +20,6 @@ interface FormState {
   tz: string
   mode: ZodiacMode
   houses: HouseSystem
-  details: boolean
-  aspects: boolean
 }
 
 const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -35,8 +34,6 @@ const defaultForm: FormState = {
   tz: localTz,
   mode: 'realsky',
   houses: 'porphyry',
-  details: false,
-  aspects: false,
 }
 
 function buildRequest(f: FormState): ChartCompute {
@@ -46,9 +43,9 @@ function buildRequest(f: FormState): ChartCompute {
     tz: f.tz || 'UTC',
     mode: f.mode,
     houses: f.houses,
-    details: f.details,
-    aspects: f.aspects,
-    cusps: false,
+    details: true,
+    aspects: true,
+    cusps: true,
   }
   if (f.useCoords) {
     return {
@@ -147,7 +144,8 @@ export function ComputePage() {
             </Label>
             <Input
               id="time"
-              type="time"
+              type="text"
+              placeholder="HH:MM"
               value={form.time}
               onChange={(e) => set({ time: e.target.value })}
             />
@@ -206,12 +204,7 @@ export function ComputePage() {
 
         <div className="space-y-1.5">
           <Label htmlFor="tz">Timezone</Label>
-          <Input
-            id="tz"
-            placeholder="e.g. America/New_York"
-            value={form.tz}
-            onChange={(e) => set({ tz: e.target.value })}
-          />
+          <TimezonePicker value={form.tz} onChange={(tz) => set({ tz })} />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -243,28 +236,6 @@ export function ComputePage() {
             </select>
           </div>
         </div>
-
-        <label className="flex items-center gap-2.5 text-sm cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={form.details}
-            onChange={(e) => set({ details: e.target.checked, aspects: e.target.checked ? form.aspects : false })}
-            className="h-4 w-4 rounded border-input accent-primary"
-          />
-          Include minor bodies, nodes, and lots
-        </label>
-
-        {form.details && (
-          <label className="flex items-center gap-2.5 text-sm cursor-pointer select-none ml-6">
-            <input
-              type="checkbox"
-              checked={form.aspects}
-              onChange={(e) => set({ aspects: e.target.checked })}
-              className="h-4 w-4 rounded border-input accent-primary"
-            />
-            Include aspects
-          </label>
-        )}
 
         <div className="flex items-center justify-between pt-1">
           {mutation.isError && (

@@ -1,30 +1,25 @@
-import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router'
+import { useQuery } from '@tanstack/react-query'
 import { Loader2, ArrowLeft } from 'lucide-react'
 import { ChartResult } from '@/components/ChartResult'
 import { useChartStore } from '@/hooks/useChartStore'
-import { api, type ChartOutput } from '@/api/client'
-
+import { api } from '@/api/client'
 
 export function ChartDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { get } = useChartStore()
   const chart = id ? get(id) : undefined
 
-  const [result, setResult] = useState<ChartOutput | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!chart) return
-    setResult(null)
-    setError(null)
-    api
-      .computeChart({ ...chart.input, details: true, aspects: true, cusps: true })
-      .then(setResult)
-      .catch((e: unknown) =>
-        setError(e instanceof Error ? e.message : 'Failed to compute chart'),
-      )
-  }, [chart])
+  const { data: result, isLoading, error } = useQuery({
+    queryKey: ['chart-compute', id],
+    queryFn: () =>
+      api.computeChart({ ...chart!.input, details: true, aspects: true, cusps: true }),
+    enabled: !!chart,
+    // Natal placements don't change unless backend computation changes,
+    // which requires a page reload anyway — cache for the session lifetime
+    staleTime: Infinity,
+    gcTime: Infinity,
+  })
 
   if (!chart) {
     return (
@@ -67,10 +62,12 @@ export function ChartDetailPage() {
       </div>
 
       {error && (
-        <p className="text-sm text-destructive">{error}</p>
+        <p className="text-sm text-destructive">
+          {error instanceof Error ? error.message : 'Failed to compute chart'}
+        </p>
       )}
 
-      {!result && !error && (
+      {isLoading && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 size={14} className="animate-spin" />
           Computing…

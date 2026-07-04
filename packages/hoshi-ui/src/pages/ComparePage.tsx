@@ -15,8 +15,6 @@ interface FormState {
   chartBId: string
   mode: ZodiacMode
   houses: HouseSystem
-  details: boolean
-  aspects: boolean
 }
 
 export function ComparePage() {
@@ -30,8 +28,6 @@ export function ComparePage() {
     chartBId: otherCharts[0]?.id ?? '',
     mode: chartA?.input.mode ?? 'realsky',
     houses: chartA?.input.houses ?? 'porphyry',
-    details: false,
-    aspects: true,
   })
   const [result, setResult] = useState<CompareOutput | null>(null)
 
@@ -47,8 +43,8 @@ export function ComparePage() {
         chart_b: chartDataFrom(chartB.input),
         mode: form.mode,
         houses: form.houses,
-        details: form.details,
-        aspects: form.aspects,
+        details: true,
+        aspects: true,
       })
     },
     onSuccess: setResult,
@@ -114,19 +110,6 @@ export function ComparePage() {
                   <option value="arc13">Arc-13</option>
                 </select>
               </div>
-            </div>
-
-            <div className="flex gap-6">
-              <label className="flex items-center gap-2.5 text-sm cursor-pointer select-none">
-                <input type="checkbox" checked={form.details} onChange={(e) => set({ details: e.target.checked })}
-                  className="h-4 w-4 rounded border-input accent-primary" />
-                Minor bodies
-              </label>
-              <label className="flex items-center gap-2.5 text-sm cursor-pointer select-none">
-                <input type="checkbox" checked={form.aspects} onChange={(e) => set({ aspects: e.target.checked })}
-                  className="h-4 w-4 rounded border-input accent-primary" />
-                Inter-aspects
-              </label>
             </div>
 
             <div className="flex items-center justify-between pt-1">
