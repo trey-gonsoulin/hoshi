@@ -5,6 +5,7 @@ import { Loader2, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { TimezonePicker } from '@/components/TimezonePicker'
 import { WarningBanner } from '@/components/WarningBanner'
 import { BodyTable } from '@/components/BodyTable'
 import { AspectTable } from '@/components/AspectTable'
@@ -21,8 +22,6 @@ interface FormState {
   tz: string
   mode: ZodiacMode
   houses: HouseSystem
-  details: boolean
-  aspects: boolean
   showNatal: boolean
 }
 
@@ -37,8 +36,6 @@ export function TransitsPage() {
     tz: localTz,
     mode: chart?.input.mode ?? 'realsky',
     houses: chart?.input.houses ?? 'porphyry',
-    details: false,
-    aspects: false,
     showNatal: false,
   })
   const [result, setResult] = useState<TransitsOutput | null>(null)
@@ -55,8 +52,8 @@ export function TransitsPage() {
         tz: form.tz || 'UTC',
         mode: form.mode,
         houses: form.houses,
-        details: form.details,
-        aspects: form.aspects,
+        details: true,
+        aspects: true,
         show_natal: form.showNatal,
       })
     },
@@ -92,13 +89,19 @@ export function TransitsPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="time">Time <span className="text-muted-foreground font-normal">(optional)</span></Label>
-            <Input id="time" type="time" value={form.time} onChange={(e) => set({ time: e.target.value })} />
+            <Input
+              id="time"
+              type="text"
+              placeholder="HH:MM"
+              value={form.time}
+              onChange={(e) => set({ time: e.target.value })}
+            />
           </div>
         </div>
 
         <div className="space-y-1.5">
           <Label htmlFor="tz">Timezone</Label>
-          <Input id="tz" value={form.tz} onChange={(e) => set({ tz: e.target.value })} />
+          <TimezonePicker id="tz" value={form.tz} onChange={(tz) => set({ tz })} />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -123,23 +126,11 @@ export function TransitsPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-x-6 gap-y-3">
-          <label className="flex items-center gap-2.5 text-sm cursor-pointer select-none">
-            <input type="checkbox" checked={form.details} onChange={(e) => set({ details: e.target.checked })}
-              className="h-4 w-4 rounded border-input accent-primary" />
-            Minor bodies
-          </label>
-          <label className="flex items-center gap-2.5 text-sm cursor-pointer select-none">
-            <input type="checkbox" checked={form.aspects} onChange={(e) => set({ aspects: e.target.checked })}
-              className="h-4 w-4 rounded border-input accent-primary" />
-            Inter-aspects
-          </label>
-          <label className="flex items-center gap-2.5 text-sm cursor-pointer select-none">
-            <input type="checkbox" checked={form.showNatal} onChange={(e) => set({ showNatal: e.target.checked })}
-              className="h-4 w-4 rounded border-input accent-primary" />
-            Show natal bodies
-          </label>
-        </div>
+        <label className="flex items-center gap-2.5 text-sm cursor-pointer select-none">
+          <input type="checkbox" checked={form.showNatal} onChange={(e) => set({ showNatal: e.target.checked })}
+            className="h-4 w-4 rounded border-input accent-primary" />
+          Show natal bodies
+        </label>
 
         <div className="flex items-center justify-between pt-1">
           {mutation.isError && (
