@@ -9,6 +9,7 @@ import { TimezonePicker } from '@/components/TimezonePicker'
 import { ChartResult } from '@/components/ChartResult'
 import { useChartStore } from '@/hooks/useChartStore'
 import { api, type ChartOutput, type ZodiacMode, type HouseSystem, type ChartCompute } from '@/api/client'
+import type { PlacementSummary } from '@/hooks/useChartStore'
 
 interface FormState {
   date: string
@@ -57,10 +58,16 @@ function buildRequest(f: FormState): ChartCompute {
   return { ...base, location: f.location || undefined }
 }
 
+function extractPlacements(bodies: { name: string; sign_symbol: string }[]): PlacementSummary {
+  const find = (n: string) => bodies.find((b) => b.name === n)?.sign_symbol
+  return { sun: find('Sun'), moon: find('Moon'), asc: find('Ascendant') }
+}
+
 export function ComputePage() {
   const [form, setForm] = useState<FormState>(defaultForm)
   const [result, setResult] = useState<ChartOutput | null>(null)
   const [savedRequest, setSavedRequest] = useState<ChartCompute | null>(null)
+  const [savedPlacements, setSavedPlacements] = useState<PlacementSummary | null>(null)
   const [saveState, setSaveState] = useState<'idle' | 'naming' | 'saved'>('idle')
   const [saveName, setSaveName] = useState('')
 
@@ -74,6 +81,7 @@ export function ComputePage() {
     onSuccess: (data) => {
       setResult(data)
       setSavedRequest(buildRequest(form))
+      setSavedPlacements(extractPlacements(data.bodies))
       setSaveState('idle')
       setSaveName('')
     },
@@ -87,7 +95,7 @@ export function ComputePage() {
       return
     }
     if (saveState === 'naming' && saveName.trim()) {
-      const chart = save(saveName, savedRequest)
+      const chart = save(saveName, savedRequest, savedPlacements ?? undefined)
       setSaveState('saved')
       setTimeout(() => navigate(`/charts/${chart.id}`), 600)
     }
