@@ -15,6 +15,10 @@ class TestComputeChart:
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["bodies"]) > 0
+        # Every body entry should carry a symbol glyph and a sign_symbol glyph.
+        sun = next(b for b in data["bodies"] if b["name"] == "Sun")
+        assert sun["symbol"] == "☉"
+        assert sun["sign_symbol"]  # non-empty for any valid sign
 
     def test_compute_no_location(self, client, mock_chart):
         resp = client.post(
