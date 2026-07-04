@@ -1,5 +1,7 @@
 import { cn } from '@/lib/utils'
 import { formatDeg, formatLon } from '@/lib/format'
+import { lookupBody, lookupSign, lookupHouse, lookupRetrograde } from '@/lib/astroInfo'
+import { InfoTooltip } from '@/components/InfoTooltip'
 import type { BodyEntry } from '@/api/client'
 
 const GROUPS = [
@@ -29,15 +31,17 @@ export function BodyTable({ bodies, showHouses }: BodyTableProps) {
               <tbody>
                 {group.map((body, i) => (
                   <tr key={i} className="border-b border-border/40 last:border-0">
-                    {/* Glyph — the signature element */}
+                    {/* Glyph */}
                     <td className="py-2 pr-3 w-6 text-base text-muted-foreground/70 select-none leading-none">
                       {body.symbol}
                     </td>
                     {/* Name */}
                     <td className="py-2 pr-5 font-medium min-w-[96px]">
-                      {body.name}
+                      <InfoTooltip info={lookupBody(body.name)}>
+                        {body.name}
+                      </InfoTooltip>
                     </td>
-                    {/* Sign — amber if uncertain; glyph prefix if available */}
+                    {/* Sign */}
                     <td
                       className={cn(
                         'py-2 pr-5 min-w-[80px]',
@@ -51,7 +55,9 @@ export function BodyTable({ bodies, showHouses }: BodyTableProps) {
                           {body.sign_symbol}
                         </span>
                       )}
-                      {body.sign}
+                      <InfoTooltip info={lookupSign(body.sign)}>
+                        {body.sign}
+                      </InfoTooltip>
                     </td>
                     {/* Degree within sign */}
                     <td
@@ -70,12 +76,22 @@ export function BodyTable({ bodies, showHouses }: BodyTableProps) {
                     </td>
                     {/* Retrograde */}
                     <td className="py-2 pr-3 w-5 text-center text-rose-600 dark:text-rose-400 text-xs">
-                      {body.rx ? '℞' : ''}
+                      {body.rx ? (
+                        <InfoTooltip info={lookupRetrograde()}>℞</InfoTooltip>
+                      ) : (
+                        ''
+                      )}
                     </td>
                     {/* House */}
                     {showHouses && (
                       <td className="py-2 pr-3 w-8 text-right tabular-nums text-muted-foreground text-xs">
-                        {body.house != null ? `H${body.house}` : ''}
+                        {body.house != null ? (
+                          <InfoTooltip info={lookupHouse(body.house)}>
+                            H{body.house}
+                          </InfoTooltip>
+                        ) : (
+                          ''
+                        )}
                       </td>
                     )}
                     {/* Dignity */}

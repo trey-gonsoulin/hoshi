@@ -1,31 +1,17 @@
 import { useParams, Link } from 'react-router'
-import { useQuery } from '@tanstack/react-query'
-import { Loader2, ArrowLeft } from 'lucide-react'
-import { api } from '@/api/client'
+import { ArrowLeft } from 'lucide-react'
+import { getInfoDetail } from '@/lib/astroInfo'
 
 export function InfoDetailPage() {
   const { category, name } = useParams<{ category: string; name: string }>()
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['info', category, name],
-    queryFn: () => api.getInfo(category!, decodeURIComponent(name!)),
-    enabled: !!(category && name),
-  })
+  const data =
+    category && name ? getInfoDetail(category, decodeURIComponent(name)) : null
 
-  if (isLoading) {
-    return (
-      <div className="max-w-2xl mx-auto px-6 py-10 flex items-center gap-2 text-muted-foreground text-sm">
-        <Loader2 size={14} className="animate-spin" /> Loading…
-      </div>
-    )
-  }
-
-  if (error || !data) {
+  if (!data) {
     return (
       <div className="max-w-2xl mx-auto px-6 py-10">
-        <p className="text-sm text-destructive">
-          {error instanceof Error ? error.message : 'Failed to load.'}
-        </p>
+        <p className="text-sm text-destructive">Not found.</p>
       </div>
     )
   }

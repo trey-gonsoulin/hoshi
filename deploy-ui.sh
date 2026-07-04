@@ -49,6 +49,9 @@ echo "    Bucket:       $BUCKET"
 echo "    Distribution: $DISTRIBUTION"
 echo "    URL:          $UI_URL"
 
+echo "==> Generating astro data bundle..."
+uv run python scripts/export_astro_data.py
+
 echo "==> Building UI..."
 cd packages/hoshi-ui
 npm run build

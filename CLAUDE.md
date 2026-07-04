@@ -14,6 +14,7 @@ Hoshi is a Python CLI for astrological charting, with a focus on real-sky astrol
 - `charts/` — user-saved charts (one JSON file per chart). Names are normalized to lowercase on save. Not a cache — treat as user data. Persists only inputs; charts are recomputed on `hoshi chart show`.
 - `~/.cache/hoshi/chiron.json` — per-minute cache of Horizons OBSERVER responses for Chiron. Safe to delete.
 - `~/.cache/hoshi/lunar.json` — per-minute cache of Horizons ELEMENTS responses for the Moon (true nodes and true Lilith). Safe to delete.
+- `scripts/export_astro_data.py` — exports `hoshi.info` reference data to `packages/hoshi-ui/src/lib/astroData.json`. Run after editing `hoshi/info.py`. The JSON is committed so UI builds are hermetic. `deploy-ui.sh` runs this automatically before `npm run build`.
 
 ## Package modules (`hoshi/`)
 

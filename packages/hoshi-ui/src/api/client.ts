@@ -13,8 +13,6 @@ export type TransitsRequest = components['schemas']['TransitsRequest']
 export type CompareOutput = components['schemas']['CompareOutput']
 export type CompareRequest = components['schemas']['CompareRequest']
 export type ChartData = components['schemas']['ChartData']
-export type InfoListOutput = components['schemas']['InfoListOutput']
-export type InfoDetailOutput = components['schemas']['InfoDetailOutput']
 export type ZodiacMode = components['schemas']['ZodiacMode']
 export type HouseSystem = components['schemas']['HouseSystem']
 
@@ -36,10 +34,6 @@ function post<T>(path: string, body: unknown): Promise<T> {
   return request<T>(path, { method: 'POST', body: JSON.stringify(body) })
 }
 
-function get<T>(path: string): Promise<T> {
-  return request<T>(path)
-}
-
 export const api = {
   computeChart: (body: ChartCompute) =>
     post<ChartOutput>('/charts/compute', body),
@@ -56,9 +50,4 @@ export const api = {
   chartCompare: (body: CompareRequest) =>
     post<CompareOutput>('/charts/compare', body),
 
-  listInfo: (category: string) =>
-    get<InfoListOutput>(`/info/${category}`),
-
-  getInfo: (category: string, name: string) =>
-    get<InfoDetailOutput>(`/info/${category}/${encodeURIComponent(name)}`),
 }

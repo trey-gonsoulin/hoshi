@@ -36,7 +36,14 @@ from hoshi.chart import (
 from hoshi.dignities import DIGNITY_SYMBOLS, dignity_for, element_modality_tally
 from hoshi.houses import house_13_arc, house_from_cusps
 from hoshi.store import ChartInput
-from hoshi.zodiac import IAU, PLANET_GLYPHS, SIGN_GLYPHS, TROP_NAMES, Placement, format_deg
+from hoshi.zodiac import (
+    IAU,
+    PLANET_GLYPHS,
+    SIGN_GLYPHS,
+    TROP_NAMES,
+    Placement,
+    format_deg,
+)
 
 
 ANGLE_DISPLAY_NAMES: dict[str, str] = {

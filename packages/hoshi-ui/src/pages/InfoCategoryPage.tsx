@@ -1,31 +1,16 @@
 import { useParams, Link } from 'react-router'
-import { useQuery } from '@tanstack/react-query'
-import { Loader2, ArrowLeft } from 'lucide-react'
-import { api } from '@/api/client'
+import { ArrowLeft } from 'lucide-react'
+import { getInfoList } from '@/lib/astroInfo'
 
 export function InfoCategoryPage() {
   const { category } = useParams<{ category: string }>()
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['info', category],
-    queryFn: () => api.listInfo(category!),
-    enabled: !!category,
-  })
+  const data = category ? getInfoList(category) : null
 
-  if (isLoading) {
-    return (
-      <div className="max-w-2xl mx-auto px-6 py-10 flex items-center gap-2 text-muted-foreground text-sm">
-        <Loader2 size={14} className="animate-spin" /> Loading…
-      </div>
-    )
-  }
-
-  if (error || !data) {
+  if (!data) {
     return (
       <div className="max-w-2xl mx-auto px-6 py-10">
-        <p className="text-sm text-destructive">
-          {error instanceof Error ? error.message : 'Failed to load.'}
-        </p>
+        <p className="text-sm text-destructive">Unknown category.</p>
       </div>
     )
   }

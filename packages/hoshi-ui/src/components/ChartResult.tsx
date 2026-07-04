@@ -4,6 +4,8 @@ import { BodyTable } from '@/components/BodyTable'
 import { AspectTable } from '@/components/AspectTable'
 import { TallyDisplay } from '@/components/TallyDisplay'
 import { ChartMeta } from '@/components/ChartMeta'
+import { InfoTooltip } from '@/components/InfoTooltip'
+import { lookupHouse } from '@/lib/astroInfo'
 import { formatLon } from '@/lib/format'
 import type { ChartOutput } from '@/api/client'
 
@@ -73,7 +75,7 @@ function CuspsTable({ cusps }: { cusps: number[] }) {
         {cusps.map((lon, i) => (
           <tr key={i} className="border-b border-border/40 last:border-0">
             <td className="py-1.5 pr-6 text-muted-foreground text-xs w-16">
-              House {i + 1}
+              <InfoTooltip info={lookupHouse(i + 1)}>House {i + 1}</InfoTooltip>
             </td>
             <td className="py-1.5 tabular-nums">{formatLon(lon)}</td>
           </tr>
