@@ -20,6 +20,17 @@ beforeEach(() => {
 })
 
 describe('save', () => {
+  it('returns a chart with a non-empty id', () => {
+    const { result } = renderHook(() => useChartStoreProvider())
+    let saved: ReturnType<typeof result.current.save>
+
+    act(() => { saved = result.current.save('Beyoncé', INPUT) })
+
+    expect(saved!.id).toBeTruthy()
+    expect(typeof saved!.id).toBe('string')
+    expect(saved!.id.length).toBeGreaterThan(0)
+  })
+
   it('adds a chart and returns it', () => {
     const { result } = renderHook(() => useChartStoreProvider())
     let saved: ReturnType<typeof result.current.save>
@@ -79,7 +90,7 @@ describe('remove', () => {
 
   it('leaves other charts intact', () => {
     const { result } = renderHook(() => useChartStoreProvider())
-    let keepId: string
+    let keepId = ''
 
     act(() => {
       const a = result.current.save('Keep', INPUT)
@@ -150,13 +161,25 @@ describe('update', () => {
 })
 
 describe('get', () => {
+  it('returns a defined chart for a valid id from save', () => {
+    const { result } = renderHook(() => useChartStoreProvider())
+    let saved: ReturnType<typeof result.current.save>
+
+    act(() => { saved = result.current.save('Find me', INPUT) })
+
+    const found = result.current.get(saved!.id)
+    expect(found).toBeDefined()
+    expect(found!.name).toBe('Find me')
+    expect(found!.id).toBe(saved!.id)
+  })
+
   it('retrieves a chart by id', () => {
     const { result } = renderHook(() => useChartStoreProvider())
-    let id: string
+    let id = ''
 
     act(() => { id = result.current.save('Find me', INPUT).id })
 
-    expect(result.current.get(id).name).toBe('Find me')
+    expect(result.current.get(id)?.name).toBe('Find me')
   })
 
   it('returns undefined for an unknown id', () => {
