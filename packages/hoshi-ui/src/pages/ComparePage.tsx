@@ -30,6 +30,7 @@ export function ComparePage() {
     houses: chartA?.input.houses ?? 'porphyry',
   })
   const [result, setResult] = useState<CompareOutput | null>(null)
+  const [chartBName, setChartBName] = useState<string>('')
 
   const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }))
 
@@ -47,7 +48,10 @@ export function ComparePage() {
         aspects: true,
       })
     },
-    onSuccess: setResult,
+    onSuccess: (data) => {
+      setChartBName(get(form.chartBId)?.name ?? '')
+      setResult(data)
+    },
   })
 
   if (!chartA) {
@@ -136,23 +140,23 @@ export function ComparePage() {
           <WarningBanner warnings={result.warnings} />
 
           <div className="text-xs text-muted-foreground space-x-3">
-            <span>{result.header.name_a} · {result.header.date_a}</span>
+            <span>{chartA.name} · {result.header.date_a}</span>
             <span>vs</span>
-            <span>{result.header.name_b} · {result.header.date_b}</span>
+            <span>{chartBName} · {result.header.date_b}</span>
             <span>·</span>
             <span className="capitalize">{result.header.mode}</span>
           </div>
 
           <section>
             <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-4 select-none">
-              {result.header.name_a || 'Chart A'}
+              {chartA.name}
             </p>
             <BodyTable bodies={result.bodies_a} showHouses={showHousesA} />
           </section>
 
           <section>
             <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-4 select-none">
-              {result.header.name_b || 'Chart B'}
+              {chartBName}
             </p>
             <BodyTable bodies={result.bodies_b} showHouses={showHousesB} />
           </section>
