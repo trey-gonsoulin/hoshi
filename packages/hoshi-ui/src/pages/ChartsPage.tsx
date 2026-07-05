@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react'
+import { zipSync, strToU8 } from 'fflate'
 import { Link } from 'react-router'
-import { Trash2, Upload, GripVertical } from 'lucide-react'
+import { Trash2, Upload, Download, GripVertical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useChartStore } from '@/hooks/useChartStore'
 import type { ChartCompute } from '@/api/client'
-import type { PlacementSummary } from '@/hooks/useChartStore'
+import type { PlacementSummary, SavedChart } from '@/hooks/useChartStore'
 
 interface CliChart {
   name?: string
@@ -52,10 +53,39 @@ function PlacementBadges({ placements }: { placements?: PlacementSummary }) {
   )
 }
 
+function chartToCliJson(chart: SavedChart): Record<string, unknown> {
+  const { name, input } = chart
+  const out: Record<string, unknown> = { name, date: input.date }
+  if (input.time) out.time = input.time
+  if (input.tz && input.tz !== 'UTC') out.tz = input.tz
+  if (input.lat != null) out.lat = input.lat
+  if (input.lon != null) out.lon = input.lon
+  return out
+}
+
+function downloadBlob(filename: string, blob: Blob) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export function ChartsPage() {
   const { charts, save, remove, reorder } = useChartStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [importResult, setImportResult] = useState<{ ok: number; fail: number } | null>(null)
+
+  function handleExport() {
+    const files: Record<string, Uint8Array> = {}
+    for (const chart of charts) {
+      const slug = chart.name.toLowerCase().replace(/\s+/g, '_')
+      files[`${slug}.json`] = strToU8(JSON.stringify(chartToCliJson(chart), null, 2))
+    }
+    const zipped = zipSync(files, { level: 6 })
+    downloadBlob('hoshi-charts.zip', new Blob([zipped], { type: 'application/zip' }))
+  }
 
   const dragIndex = useRef<number>(-1)
   const [dragOver, setDragOver] = useState<number>(-1)
@@ -95,6 +125,14 @@ export function ChartsPage() {
             {importResult.fail > 0 && `${importResult.fail} failed`}
           </span>
         )}
+        <Button
+          variant="outline"
+          size="icon-sm"
+          title="Export all charts as JSON files"
+          onClick={handleExport}
+        >
+          <Download size={13} />
+        </Button>
         <Button
           variant="outline"
           size="sm"
