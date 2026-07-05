@@ -43,13 +43,6 @@ jobs:
           directory: packages/hoshi-api
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Release hoshi-tui
-        id: release-hoshi-tui
-        uses: python-semantic-release/python-semantic-release@v10
-        with:
-          directory: packages/hoshi-tui
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Publish hoshi to GitHub Release
         uses: python-semantic-release/publish-action@v10
         if: steps.release-hoshi.outputs.released == 'true'
@@ -73,14 +66,6 @@ jobs:
           directory: packages/hoshi-api
           github_token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ steps.release-hoshi-api.outputs.tag }}
-
-      - name: Publish hoshi-tui to GitHub Release
-        uses: python-semantic-release/publish-action@v10
-        if: steps.release-hoshi-tui.outputs.released == 'true'
-        with:
-          directory: packages/hoshi-tui
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ steps.release-hoshi-tui.outputs.tag }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
