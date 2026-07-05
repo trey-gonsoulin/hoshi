@@ -23,7 +23,7 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b px-6 py-3 flex items-center gap-6">
-        <span className="font-semibold tracking-tight text-sm">☽ hoshi</span>
+        <span className="font-semibold tracking-tight text-sm">✦ hoshi</span>
         <nav className="flex gap-5 text-sm">
           <NavLink to="/" end className={navClass}>Sky</NavLink>
           <NavLink to="/charts" className={navClass}>Charts</NavLink>
