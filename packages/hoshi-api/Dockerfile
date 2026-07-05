@@ -15,18 +15,24 @@ COPY packages/hoshi-api/ ./packages/hoshi-api/
 RUN UV_INDEX_URL=https://pypi.org/simple \
     uv sync --package hoshi-api --no-dev --no-editable
 
-# ---- Chiron ephemeris pre-fetch stage ----
-# Fetches daily Chiron positions from JPL Horizons for the given date range and
-# saves them as a date-keyed JSON seed. This stage can be built once, pushed as
-# its own image, and reused as a cache source — it only rebuilds when CHIRON_START
-# or CHIRON_END changes.
+# ---- Small-body ephemeris pre-fetch stage ----
+# Fetches daily positions for Chiron, Ceres, and Eris from JPL Horizons for the
+# given date range and saves them as date-keyed JSON seeds. This stage can be
+# built once, pushed as its own image, and reused as a cache source — it only
+# rebuilds when CHIRON_START or CHIRON_END changes.
 FROM builder AS chiron-cache
 
 ARG CHIRON_START=1900-01-01
 ARG CHIRON_END=2050-12-31
 
 RUN PYTHONPATH=/build/.venv/lib/python3.12/site-packages \
-    python -c "from pathlib import Path; from hoshi.ephemeris import prefetch_chiron_range; prefetch_chiron_range('${CHIRON_START}', '${CHIRON_END}', Path('/chiron-seed/chiron_seed.json'))"
+    python -c "
+from pathlib import Path
+from hoshi.ephemeris import prefetch_chiron_range, prefetch_ceres_range, prefetch_eris_range
+prefetch_chiron_range('${CHIRON_START}', '${CHIRON_END}', Path('/chiron-seed/chiron_seed.json'))
+prefetch_ceres_range('${CHIRON_START}', '${CHIRON_END}', Path('/chiron-seed/ceres_seed.json'))
+prefetch_eris_range('${CHIRON_START}', '${CHIRON_END}', Path('/chiron-seed/eris_seed.json'))
+"
 
 # ---- Final Lambda image ----
 FROM public.ecr.aws/lambda/python:3.12
@@ -49,7 +55,9 @@ RUN cp -r /build/.venv/lib/python3.12/site-packages/. "${LAMBDA_TASK_ROOT}/"
 RUN PYTHONPATH="${LAMBDA_TASK_ROOT}" python \
       -c "from skyfield.api import Loader; Loader('${LAMBDA_TASK_ROOT}')('de421.bsp')"
 
-# Bundle the pre-fetched Chiron seed cache
+# Bundle the pre-fetched small-body seed caches (Chiron, Ceres, Eris)
 COPY --from=chiron-cache /chiron-seed/chiron_seed.json "${LAMBDA_TASK_ROOT}/chiron_seed.json"
+COPY --from=chiron-cache /chiron-seed/ceres_seed.json "${LAMBDA_TASK_ROOT}/ceres_seed.json"
+COPY --from=chiron-cache /chiron-seed/eris_seed.json "${LAMBDA_TASK_ROOT}/eris_seed.json"
 
 CMD ["hoshi_api.lambda_handler.handler"]

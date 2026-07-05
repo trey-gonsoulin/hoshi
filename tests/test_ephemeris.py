@@ -458,8 +458,11 @@ $$SOE
  2451545.500694, , ,  20.001,  0.200,
 $$EOE"""
 
+    SEED_DATA = {"2000-01-01": {"lon": 55.5, "lat": 0.3, "retrograde": False}}
+
     def test_ceres_caches_result(self, tmp_path, monkeypatch):
         monkeypatch.setattr("hoshi.ephemeris.cache_dir", lambda: tmp_path)
+        monkeypatch.setattr("hoshi.ephemeris._ceres_seed_path", lambda: None)
         monkeypatch.setattr(
             "hoshi.ephemeris.horizons_fetch", lambda _: self.MOCK_RESPONSE
         )
@@ -471,7 +474,7 @@ $$EOE"""
         assert pos.retrograde is False
         assert (tmp_path / "ceres.json").exists()
 
-    def test_ceres_reads_from_cache(self, tmp_path, monkeypatch):
+    def test_ceres_reads_from_minute_cache(self, tmp_path, monkeypatch):
         monkeypatch.setattr("hoshi.ephemeris.cache_dir", lambda: tmp_path)
         cache_data = {
             "2000-01-01T12:00:00+00:00": {"lon": 99.9, "lat": 0.1, "retrograde": True}
@@ -487,8 +490,47 @@ $$EOE"""
         pos = _ceres_position(when)
         assert pos.lon == pytest.approx(99.9)
 
+    def test_ceres_seed_skips_horizons(self, tmp_path, monkeypatch):
+        seed = tmp_path / "ceres_seed.json"
+        seed.write_text(__import__("json").dumps(self.SEED_DATA))
+        monkeypatch.setattr("hoshi.ephemeris._ceres_seed_path", lambda: seed)
+        monkeypatch.setattr("hoshi.ephemeris.cache_dir", lambda: tmp_path)
+        monkeypatch.setattr(
+            "hoshi.ephemeris.horizons_fetch",
+            lambda _: (_ for _ in ()).throw(AssertionError("should not call Horizons")),
+        )
+        from hoshi.ephemeris import _ceres_position
+
+        when = datetime(2000, 1, 1, 15, 0, tzinfo=timezone.utc)
+        pos = _ceres_position(when)
+        assert pos.lon == pytest.approx(55.5)
+
+    def test_ceres_minute_cache_beats_seed(self, tmp_path, monkeypatch):
+        seed = tmp_path / "ceres_seed.json"
+        seed.write_text(__import__("json").dumps(self.SEED_DATA))
+        minute_cache = tmp_path / "ceres.json"
+        minute_cache.write_text(
+            __import__("json").dumps(
+                {
+                    "2000-01-01T12:00:00+00:00": {
+                        "lon": 77.7,
+                        "lat": 0.0,
+                        "retrograde": False,
+                    }
+                }
+            )
+        )
+        monkeypatch.setattr("hoshi.ephemeris._ceres_seed_path", lambda: seed)
+        monkeypatch.setattr("hoshi.ephemeris.cache_dir", lambda: tmp_path)
+        from hoshi.ephemeris import _ceres_position
+
+        when = datetime(2000, 1, 1, 12, 0, tzinfo=timezone.utc)
+        pos = _ceres_position(when)
+        assert pos.lon == pytest.approx(77.7)
+
     def test_eris_caches_result(self, tmp_path, monkeypatch):
         monkeypatch.setattr("hoshi.ephemeris.cache_dir", lambda: tmp_path)
+        monkeypatch.setattr("hoshi.ephemeris._eris_seed_path", lambda: None)
         monkeypatch.setattr(
             "hoshi.ephemeris.horizons_fetch", lambda _: self.MOCK_RESPONSE
         )
@@ -499,6 +541,21 @@ $$EOE"""
         assert pos.lon == pytest.approx(20.000)
         assert (tmp_path / "eris.json").exists()
 
+    def test_eris_seed_skips_horizons(self, tmp_path, monkeypatch):
+        seed = tmp_path / "eris_seed.json"
+        seed.write_text(__import__("json").dumps(self.SEED_DATA))
+        monkeypatch.setattr("hoshi.ephemeris._eris_seed_path", lambda: seed)
+        monkeypatch.setattr("hoshi.ephemeris.cache_dir", lambda: tmp_path)
+        monkeypatch.setattr(
+            "hoshi.ephemeris.horizons_fetch",
+            lambda _: (_ for _ in ()).throw(AssertionError("should not call Horizons")),
+        )
+        from hoshi.ephemeris import _eris_position
+
+        when = datetime(2000, 1, 1, 9, 0, tzinfo=timezone.utc)
+        pos = _eris_position(when)
+        assert pos.lon == pytest.approx(55.5)
+
     def test_eris_retrograde(self, tmp_path, monkeypatch):
         retro_response = """\
 $$SOE
@@ -506,12 +563,107 @@ $$SOE
  2451545.500694, , ,  20.000,  0.200,
 $$EOE"""
         monkeypatch.setattr("hoshi.ephemeris.cache_dir", lambda: tmp_path)
+        monkeypatch.setattr("hoshi.ephemeris._eris_seed_path", lambda: None)
         monkeypatch.setattr("hoshi.ephemeris.horizons_fetch", lambda _: retro_response)
         from hoshi.ephemeris import _eris_position
 
         when = datetime(2000, 1, 1, 12, 0, tzinfo=timezone.utc)
         pos = _eris_position(when)
         assert pos.retrograde is True
+
+
+class TestCeresErisSeedPath:
+    def test_ceres_returns_none_without_lambda_env(self, monkeypatch):
+        monkeypatch.delenv("LAMBDA_TASK_ROOT", raising=False)
+        from hoshi.ephemeris import _ceres_seed_path
+
+        assert _ceres_seed_path() is None
+
+    def test_ceres_returns_none_when_file_missing(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("LAMBDA_TASK_ROOT", str(tmp_path))
+        from hoshi.ephemeris import _ceres_seed_path
+
+        assert _ceres_seed_path() is None
+
+    def test_ceres_returns_path_when_file_exists(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("LAMBDA_TASK_ROOT", str(tmp_path))
+        seed = tmp_path / "ceres_seed.json"
+        seed.write_text("{}")
+        from hoshi.ephemeris import _ceres_seed_path
+
+        assert _ceres_seed_path() == seed
+
+    def test_eris_returns_path_when_file_exists(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("LAMBDA_TASK_ROOT", str(tmp_path))
+        seed = tmp_path / "eris_seed.json"
+        seed.write_text("{}")
+        from hoshi.ephemeris import _eris_seed_path
+
+        assert _eris_seed_path() == seed
+
+
+class TestPrefetchCeresErisRange:
+    MOCK_RESPONSE = """\
+$$SOE
+ 2000-Jan-01 00:00,  ,  ,  20.000,  0.100,
+ 2000-Jan-02 00:00,  ,  ,  20.010,  0.101,
+$$EOE"""
+
+    def test_prefetch_ceres_writes_seed(self, tmp_path, monkeypatch):
+        from hoshi.ephemeris import prefetch_ceres_range
+
+        monkeypatch.setattr(
+            "hoshi.ephemeris.horizons_fetch", lambda _: self.MOCK_RESPONSE
+        )
+        out = prefetch_ceres_range("2000-01-01", "2000-01-02", tmp_path / "seed.json")
+        assert out.exists()
+        data = json_cache_get(out, "2000-01-01")
+        assert data is not None
+        pos = PlanetPosition.model_validate(data)
+        assert pos.lon == pytest.approx(20.000)
+        assert pos.retrograde is False
+
+    def test_prefetch_ceres_default_path(self, tmp_path, monkeypatch):
+        from hoshi.ephemeris import prefetch_ceres_range
+
+        monkeypatch.setattr(
+            "hoshi.ephemeris.horizons_fetch", lambda _: self.MOCK_RESPONSE
+        )
+        monkeypatch.setattr("hoshi.ephemeris.cache_dir", lambda: tmp_path)
+        out = prefetch_ceres_range("2000-01-01", "2000-01-02")
+        assert out == tmp_path / "ceres_seed.json"
+        assert out.exists()
+
+    def test_prefetch_eris_writes_seed(self, tmp_path, monkeypatch):
+        from hoshi.ephemeris import prefetch_eris_range
+
+        monkeypatch.setattr(
+            "hoshi.ephemeris.horizons_fetch", lambda _: self.MOCK_RESPONSE
+        )
+        out = prefetch_eris_range("2000-01-01", "2000-01-02", tmp_path / "seed.json")
+        assert out.exists()
+        data = json_cache_get(out, "2000-01-01")
+        assert PlanetPosition.model_validate(data).lon == pytest.approx(20.000)
+
+    def test_prefetch_eris_default_path(self, tmp_path, monkeypatch):
+        from hoshi.ephemeris import prefetch_eris_range
+
+        monkeypatch.setattr(
+            "hoshi.ephemeris.horizons_fetch", lambda _: self.MOCK_RESPONSE
+        )
+        monkeypatch.setattr("hoshi.ephemeris.cache_dir", lambda: tmp_path)
+        out = prefetch_eris_range("2000-01-01", "2000-01-02")
+        assert out == tmp_path / "eris_seed.json"
+        assert out.exists()
+
+    def test_compact_json(self, tmp_path, monkeypatch):
+        from hoshi.ephemeris import prefetch_ceres_range
+
+        monkeypatch.setattr(
+            "hoshi.ephemeris.horizons_fetch", lambda _: self.MOCK_RESPONSE
+        )
+        out = prefetch_ceres_range("2000-01-01", "2000-01-02", tmp_path / "seed.json")
+        assert "  " not in out.read_text()
 
 
 class TestHorizonsFetch:

@@ -242,13 +242,21 @@ def _fetch_horizons_observer(when_utc: datetime, horizons_id: str) -> PlanetPosi
 def _ceres_position(when_utc: datetime) -> PlanetPosition:
     """Fetch geocentric ecliptic lon/lat for Ceres from JPL Horizons.
 
-    Results are cached per minute in `~/.cache/hoshi/ceres.json`.
+    Results are cached per minute in `~/.cache/hoshi/ceres.json`, with a
+    date-keyed seed cache checked first in deployed (Lambda) environments.
     """
     cache_key = when_utc.replace(second=0, microsecond=0).isoformat()
     cache_path = cache_dir() / "ceres.json"
     cached = json_cache_get(cache_path, cache_key)
     if cached is not None:
         return PlanetPosition.model_validate(cached)
+
+    seed_path = _ceres_seed_path()
+    if seed_path is not None:
+        seeded = json_cache_get(seed_path, when_utc.date().isoformat())
+        if seeded is not None:
+            return PlanetPosition.model_validate(seeded)
+
     pos = _fetch_horizons_observer(when_utc, CERES_HORIZONS_ID)
     json_cache_put(cache_path, cache_key, pos.model_dump())
     return pos
@@ -257,31 +265,50 @@ def _ceres_position(when_utc: datetime) -> PlanetPosition:
 def _eris_position(when_utc: datetime) -> PlanetPosition:
     """Fetch geocentric ecliptic lon/lat for Eris from JPL Horizons.
 
-    Results are cached per minute in `~/.cache/hoshi/eris.json`.
+    Results are cached per minute in `~/.cache/hoshi/eris.json`, with a
+    date-keyed seed cache checked first in deployed (Lambda) environments.
     """
     cache_key = when_utc.replace(second=0, microsecond=0).isoformat()
     cache_path = cache_dir() / "eris.json"
     cached = json_cache_get(cache_path, cache_key)
     if cached is not None:
         return PlanetPosition.model_validate(cached)
+
+    seed_path = _eris_seed_path()
+    if seed_path is not None:
+        seeded = json_cache_get(seed_path, when_utc.date().isoformat())
+        if seeded is not None:
+            return PlanetPosition.model_validate(seeded)
+
     pos = _fetch_horizons_observer(when_utc, ERIS_HORIZONS_ID)
     json_cache_put(cache_path, cache_key, pos.model_dump())
     return pos
 
 
-def _chiron_seed_path() -> Path | None:
-    """Path to the bundled daily Chiron seed cache, or None when not present.
+def _seed_path(filename: str) -> Path | None:
+    """Return the path to a bundled seed file in LAMBDA_TASK_ROOT, or None.
 
-    In Lambda, LAMBDA_TASK_ROOT is set to /var/task (read-only). The seed file
-    is copied there at image build time by the chiron-cache Dockerfile stage.
-    Date-keyed ("YYYY-MM-DD"); _chiron_position() falls back to it before
-    hitting Horizons, accepting <0.02° error (Chiron's daily motion ≈ 0.02°).
+    In Lambda, LAMBDA_TASK_ROOT is /var/task (read-only). Seed files are
+    copied there at image build time by the chiron-cache Dockerfile stage.
+    Returns None when not running in Lambda or when the file is absent.
     """
     task_root = os.environ.get("LAMBDA_TASK_ROOT")
     if not task_root:
         return None
-    p = Path(task_root) / "chiron_seed.json"
+    p = Path(task_root) / filename
     return p if p.exists() else None
+
+
+def _chiron_seed_path() -> Path | None:
+    return _seed_path("chiron_seed.json")
+
+
+def _ceres_seed_path() -> Path | None:
+    return _seed_path("ceres_seed.json")
+
+
+def _eris_seed_path() -> Path | None:
+    return _seed_path("eris_seed.json")
 
 
 def _parse_horizons_range(body: str) -> list[tuple[str, float, float, bool]]:
@@ -321,18 +348,14 @@ def _parse_horizons_range(body: str) -> list[tuple[str, float, float, bool]]:
     return results
 
 
-def prefetch_chiron_range(
-    start: str, end: str, output_path: Path | None = None
+def _prefetch_body_range(
+    horizons_id: str, start: str, end: str, output_path: Path
 ) -> Path:
-    """Fetch daily Chiron positions for a date range and write a seed cache.
+    """Fetch daily positions for a Horizons small body and write a date-keyed seed cache.
 
-    Intended for use at image build time (see the chiron-cache Dockerfile stage).
-    start/end are ISO date strings ("YYYY-MM-DD"); align with de421 coverage
-    (1900-01-01 through 2050-12-31).
-
-    The resulting JSON uses date keys ("YYYY-MM-DD") so _chiron_position() can
-    look up any time within a covered day without a network call.
-    output_path defaults to cache_dir() / "chiron_seed.json".
+    start/end are ISO date strings ("YYYY-MM-DD"). The resulting JSON uses date
+    keys ("YYYY-MM-DD") so per-body position functions can look up any time
+    within a covered day without a network call.
     """
     start_horizons = datetime.fromisoformat(start).date().strftime("%Y-%b-%d")
     end_horizons = datetime.fromisoformat(end).date().strftime("%Y-%b-%d")
@@ -340,7 +363,7 @@ def prefetch_chiron_range(
     body = horizons_fetch(
         {
             "format": "text",
-            "COMMAND": CHIRON_HORIZONS_ID,
+            "COMMAND": horizons_id,
             "OBJ_DATA": "NO",
             "MAKE_EPHEM": "YES",
             "EPHEM_TYPE": "OBSERVER",
@@ -360,10 +383,43 @@ def prefetch_chiron_range(
         for date_key, lon, lat, retrograde in rows
     }
 
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(data, sort_keys=True, separators=(",", ":")))
+    return output_path
+
+
+def prefetch_chiron_range(
+    start: str, end: str, output_path: Path | None = None
+) -> Path:
+    """Fetch daily Chiron positions for a date range and write a seed cache.
+
+    Intended for use at image build time (see the chiron-cache Dockerfile stage).
+    start/end are ISO date strings ("YYYY-MM-DD"); align with de421 coverage
+    (1900-01-01 through 2050-12-31).
+    output_path defaults to cache_dir() / "chiron_seed.json".
+    """
     out = output_path or (cache_dir() / "chiron_seed.json")
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(data, sort_keys=True, separators=(",", ":")))
-    return out
+    return _prefetch_body_range(CHIRON_HORIZONS_ID, start, end, out)
+
+
+def prefetch_ceres_range(start: str, end: str, output_path: Path | None = None) -> Path:
+    """Fetch daily Ceres positions for a date range and write a seed cache.
+
+    Same pattern as prefetch_chiron_range. output_path defaults to
+    cache_dir() / "ceres_seed.json".
+    """
+    out = output_path or (cache_dir() / "ceres_seed.json")
+    return _prefetch_body_range(CERES_HORIZONS_ID, start, end, out)
+
+
+def prefetch_eris_range(start: str, end: str, output_path: Path | None = None) -> Path:
+    """Fetch daily Eris positions for a date range and write a seed cache.
+
+    Same pattern as prefetch_chiron_range. output_path defaults to
+    cache_dir() / "eris_seed.json".
+    """
+    out = output_path or (cache_dir() / "eris_seed.json")
+    return _prefetch_body_range(ERIS_HORIZONS_ID, start, end, out)
 
 
 def _parse_horizons_ecliptic(body: str) -> tuple[float, float, float]:
