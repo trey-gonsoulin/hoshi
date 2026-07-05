@@ -5,6 +5,7 @@ import { AspectTable } from '@/components/AspectTable'
 import { TallyDisplay } from '@/components/TallyDisplay'
 import { ChartMeta } from '@/components/ChartMeta'
 import { InfoTooltip } from '@/components/InfoTooltip'
+import { WheelChart } from '@/components/WheelChart'
 import { lookupHouse } from '@/lib/astroInfo'
 import { formatLon } from '@/lib/format'
 import type { ChartOutput } from '@/api/client'
@@ -27,6 +28,12 @@ export function ChartResult({ result, actions }: ChartResultProps) {
         <ChartMeta header={result.chart} />
         {actions && <div className="flex-shrink-0">{actions}</div>}
       </div>
+
+      <WheelChart
+        bodies={result.bodies}
+        cusps={result.cusps}
+        mode={result.chart.mode}
+      />
 
       <Tabs defaultValue="bodies">
         <TabsList>

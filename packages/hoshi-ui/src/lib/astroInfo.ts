@@ -49,6 +49,10 @@ export function lookupRetrograde(): InfoEntry {
   return data.retrograde
 }
 
+export function getAllSigns(): Record<string, SignEntry> {
+  return data.signs
+}
+
 // Page-level helpers — return shapes matching what InfoCategoryPage / InfoDetailPage expect
 
 export type InfoItem = {
