@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.6.1 (2026-07-05)
+
+### Bug Fixes
+
+- **api**: Fix Dockerfile multiline python -c breaking Docker parser
+  ([`342fe4c`](https://github.com/trey-gonsoulin/hoshi/commit/342fe4cbc4d175e1d07218b874eb476fbc863573))
+
+
 ## v1.6.0 (2026-07-05)
 
 ### Features
