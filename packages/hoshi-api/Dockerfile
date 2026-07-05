@@ -26,13 +26,7 @@ ARG CHIRON_START=1900-01-01
 ARG CHIRON_END=2050-12-31
 
 RUN PYTHONPATH=/build/.venv/lib/python3.12/site-packages \
-    python -c "
-from pathlib import Path
-from hoshi.ephemeris import prefetch_chiron_range, prefetch_ceres_range, prefetch_eris_range
-prefetch_chiron_range('${CHIRON_START}', '${CHIRON_END}', Path('/chiron-seed/chiron_seed.json'))
-prefetch_ceres_range('${CHIRON_START}', '${CHIRON_END}', Path('/chiron-seed/ceres_seed.json'))
-prefetch_eris_range('${CHIRON_START}', '${CHIRON_END}', Path('/chiron-seed/eris_seed.json'))
-"
+    python -c "from pathlib import Path; from hoshi.ephemeris import prefetch_chiron_range, prefetch_ceres_range, prefetch_eris_range; prefetch_chiron_range('${CHIRON_START}', '${CHIRON_END}', Path('/chiron-seed/chiron_seed.json')); prefetch_ceres_range('${CHIRON_START}', '${CHIRON_END}', Path('/chiron-seed/ceres_seed.json')); prefetch_eris_range('${CHIRON_START}', '${CHIRON_END}', Path('/chiron-seed/eris_seed.json'))"
 
 # ---- Final Lambda image ----
 FROM public.ecr.aws/lambda/python:3.12
