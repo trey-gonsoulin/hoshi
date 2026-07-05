@@ -21,3 +21,6 @@ resolve_s3 = true
 s3_prefix = "hoshi-api"
 region = "us-east-1"
 image_repositories = ["HoshiApiFunction=268834972001.dkr.ecr.us-east-1.amazonaws.com/hoshiapi227ac4bd/hoshiapifunction1ae17dbarepo"]
+# Hosted zone created when hoshiastrology.app was registered in Route 53.
+# Find it at: aws route53 list-hosted-zones-by-name --dns-name hoshiastrology.app
+parameter_overrides = ["HostedZoneId=Z07479631WG6K236OVPJX"]
