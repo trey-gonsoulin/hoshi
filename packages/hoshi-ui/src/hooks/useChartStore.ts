@@ -13,6 +13,7 @@ export interface SavedChart {
   savedAt: string
   input: ChartCompute
   placements?: PlacementSummary
+  tags?: string[]
 }
 
 const STORAGE_KEY = 'hoshi:charts'
@@ -32,7 +33,7 @@ function persistToStorage(charts: SavedChart[]) {
 interface ChartStore {
   charts: SavedChart[]
   save: (name: string, input: ChartCompute, placements?: PlacementSummary) => SavedChart
-  update: (id: string, patch: { name?: string; input?: ChartCompute; placements?: PlacementSummary }) => void
+  update: (id: string, patch: { name?: string; input?: ChartCompute; placements?: PlacementSummary; tags?: string[] }) => void
   remove: (id: string) => void
   reorder: (fromIdx: number, toIdx: number) => void
   get: (id: string) => SavedChart | undefined
@@ -59,7 +60,7 @@ export function useChartStoreProvider(): ChartStore {
     return entry
   }, [])
 
-  const update = useCallback((id: string, patch: { name?: string; input?: ChartCompute; placements?: PlacementSummary }) => {
+  const update = useCallback((id: string, patch: { name?: string; input?: ChartCompute; placements?: PlacementSummary; tags?: string[] }) => {
     setCharts((prev) => {
       const next = prev.map((c) =>
         c.id === id ? { ...c, ...patch } : c,

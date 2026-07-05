@@ -160,6 +160,37 @@ describe('update', () => {
   })
 })
 
+describe('tags', () => {
+  it('saves tags via update', () => {
+    const { result } = renderHook(() => useChartStoreProvider())
+    let id: string
+
+    act(() => { id = result.current.save('Tagged', INPUT).id })
+    act(() => { result.current.update(id, { tags: ['family', 'natal'] }) })
+
+    expect(result.current.charts[0].tags).toEqual(['family', 'natal'])
+  })
+
+  it('replaces tags on update', () => {
+    const { result } = renderHook(() => useChartStoreProvider())
+    let id: string
+
+    act(() => { id = result.current.save('Tagged', INPUT).id })
+    act(() => { result.current.update(id, { tags: ['a', 'b'] }) })
+    act(() => { result.current.update(id, { tags: ['c'] }) })
+
+    expect(result.current.charts[0].tags).toEqual(['c'])
+  })
+
+  it('defaults to undefined when no tags saved', () => {
+    const { result } = renderHook(() => useChartStoreProvider())
+
+    act(() => { result.current.save('No tags', INPUT) })
+
+    expect(result.current.charts[0].tags).toBeUndefined()
+  })
+})
+
 describe('get', () => {
   it('returns a defined chart for a valid id from save', () => {
     const { result } = renderHook(() => useChartStoreProvider())

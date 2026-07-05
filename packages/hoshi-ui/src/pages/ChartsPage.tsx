@@ -76,6 +76,24 @@ export function ChartsPage() {
   const { charts, save, remove, reorder } = useChartStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [importResult, setImportResult] = useState<{ ok: number; fail: number } | null>(null)
+  const [activeTags, setActiveTags] = useState<Set<string>>(new Set())
+
+  const allTags = Array.from(
+    new Set(charts.flatMap((c) => c.tags ?? []))
+  ).sort()
+
+  const visibleCharts = activeTags.size === 0
+    ? charts
+    : charts.filter((c) => (c.tags ?? []).some((t) => activeTags.has(t)))
+
+  function toggleTag(tag: string) {
+    setActiveTags((prev) => {
+      const next = new Set(prev)
+      if (next.has(tag)) next.delete(tag)
+      else next.add(tag)
+      return next
+    })
+  }
 
   function handleExport() {
     const files: Record<string, Uint8Array> = {}
@@ -157,6 +175,24 @@ export function ChartsPage() {
     </div>
   )
 
+  const tagFilter = allTags.length > 0 && (
+    <div className="flex flex-wrap gap-1.5 mb-5">
+      {allTags.map((tag) => (
+        <button
+          key={tag}
+          onClick={() => toggleTag(tag)}
+          className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+            activeTags.has(tag)
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'bg-muted border-border text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          {tag}
+        </button>
+      ))}
+    </div>
+  )
+
   if (!charts.length) {
     return (
       <div className="max-w-2xl mx-auto px-6 py-10">
@@ -177,46 +213,66 @@ export function ChartsPage() {
   return (
     <div className="max-w-2xl mx-auto px-6 py-10">
       {header}
+      {tagFilter}
+      {visibleCharts.length === 0 && (
+        <div className="py-10 text-center">
+          <p className="text-muted-foreground text-sm">No charts match the selected tags.</p>
+        </div>
+      )}
       <ul className="space-y-1">
-        {charts.map((chart, idx) => (
-          <li
-            key={chart.id}
-            className={`flex items-center justify-between gap-2 py-2.5 border-b border-border/40 last:border-0 transition-opacity ${dragOver === idx ? 'opacity-50' : ''}`}
-            onDragOver={(e) => { e.preventDefault(); setDragOver(idx) }}
-            onDragLeave={() => setDragOver(-1)}
-            onDrop={() => handleDrop(idx)}
-          >
-            <div
-              draggable
-              onDragStart={() => { dragIndex.current = idx }}
-              onDragEnd={() => { dragIndex.current = -1; setDragOver(-1) }}
-              className="text-muted-foreground/40 hover:text-muted-foreground cursor-grab active:cursor-grabbing p-1 -ml-1 touch-none"
-              aria-label="Drag to reorder"
+        {visibleCharts.map((chart) => {
+          const realIdx = charts.indexOf(chart)
+          return (
+            <li
+              key={chart.id}
+              className={`flex items-center justify-between gap-2 py-2.5 border-b border-border/40 last:border-0 transition-opacity ${dragOver === realIdx ? 'opacity-50' : ''}`}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(realIdx) }}
+              onDragLeave={() => setDragOver(-1)}
+              onDrop={() => handleDrop(realIdx)}
             >
-              <GripVertical size={14} />
-            </div>
-            <Link
-              to={`/charts/${chart.id}`}
-              className="flex-1 min-w-0 group flex items-center"
-            >
-              <span className="font-medium group-hover:text-primary transition-colors">
-                {chart.name}
-              </span>
-              <PlacementBadges placements={chart.placements} />
-              <span className="ml-3 text-xs text-muted-foreground tabular-nums">
-                {chart.input.date}
-                {chart.input.time ? ` ${chart.input.time}` : ''}
-              </span>
-            </Link>
-            <button
-              onClick={() => remove(chart.id)}
-              aria-label={`Delete ${chart.name}`}
-              className="text-muted-foreground hover:text-destructive transition-colors p-1"
-            >
-              <Trash2 size={14} />
-            </button>
-          </li>
-        ))}
+              <div
+                draggable
+                onDragStart={() => { dragIndex.current = realIdx }}
+                onDragEnd={() => { dragIndex.current = -1; setDragOver(-1) }}
+                className="text-muted-foreground/40 hover:text-muted-foreground cursor-grab active:cursor-grabbing p-1 -ml-1 touch-none"
+                aria-label="Drag to reorder"
+              >
+                <GripVertical size={14} />
+              </div>
+              <Link
+                to={`/charts/${chart.id}`}
+                className="flex-1 min-w-0 group"
+              >
+                <div className="flex items-center">
+                  <span className="font-medium group-hover:text-primary transition-colors">
+                    {chart.name}
+                  </span>
+                  <PlacementBadges placements={chart.placements} />
+                  <span className="ml-3 text-xs text-muted-foreground tabular-nums">
+                    {chart.input.date}
+                    {chart.input.time ? ` ${chart.input.time}` : ''}
+                  </span>
+                </div>
+                {chart.tags && chart.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {chart.tags.map((tag) => (
+                      <span key={tag} className="text-xs px-1.5 py-0.5 rounded-full bg-muted border border-border/60 text-muted-foreground">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </Link>
+              <button
+                onClick={() => remove(chart.id)}
+                aria-label={`Delete ${chart.name}`}
+                className="text-muted-foreground hover:text-destructive transition-colors p-1"
+              >
+                <Trash2 size={14} />
+              </button>
+            </li>
+          )
+        })}
       </ul>
     </div>
   )

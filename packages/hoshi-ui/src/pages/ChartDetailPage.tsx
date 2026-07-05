@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, ArrowLeft, Pencil, Check, X } from 'lucide-react'
+import { Loader2, ArrowLeft, Pencil, Check, X, Tag } from 'lucide-react'
 import { ChartResult } from '@/components/ChartResult'
 import { useChartStore } from '@/hooks/useChartStore'
 import { api, type ZodiacMode, type HouseSystem } from '@/api/client'
@@ -24,6 +24,8 @@ interface EditState {
   tz: string
   mode: ZodiacMode
   houses: HouseSystem
+  tags: string[]
+  tagInput: string
 }
 
 function extractPlacements(bodies: { name: string; sign_symbol: string }[]): PlacementSummary {
@@ -39,6 +41,7 @@ export function ChartDetailPage() {
 
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState<EditState | null>(null)
+  const tagInputRef = useRef<HTMLInputElement>(null)
 
   const { data: result, isLoading, error } = useQuery({
     queryKey: ['chart-compute', id],
@@ -70,6 +73,8 @@ export function ChartDetailPage() {
       tz: input.tz ?? localTz,
       mode: input.mode ?? 'realsky',
       houses: input.houses ?? 'porphyry',
+      tags: chart.tags ?? [],
+      tagInput: '',
     })
     setEditing(true)
   }
@@ -101,7 +106,7 @@ export function ChartDetailPage() {
           }),
     }
     // Clear cached placements — they'll be backfilled after recompute
-    update(chart.id, { name: editForm.name.trim() || chart.name, input, placements: undefined })
+    update(chart.id, { name: editForm.name.trim() || chart.name, input, placements: undefined, tags: editForm.tags })
     queryClient.removeQueries({ queryKey: ['chart-compute', id] })
     setEditing(false)
     setEditForm(null)
@@ -133,6 +138,15 @@ export function ChartDetailPage() {
             <ArrowLeft size={16} />
           </Link>
           <h1 className="text-lg font-semibold">{chart.name}</h1>
+          {!editing && chart.tags && chart.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {chart.tags.map((tag) => (
+                <span key={tag} className="text-xs px-1.5 py-0.5 rounded-full bg-muted border border-border text-muted-foreground">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
           {!editing && (
             <button
               onClick={startEdit}
@@ -293,6 +307,65 @@ export function ChartDetailPage() {
                 <option value="equal">Equal</option>
                 <option value="arc13">Arc-13</option>
               </select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Tags</Label>
+            <div className="flex flex-wrap gap-1.5 mb-1.5">
+              {editForm.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-muted border border-border"
+                >
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => setEdit({ tags: editForm.tags.filter((t) => t !== tag) })}
+                    aria-label={`Remove tag ${tag}`}
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <X size={10} />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Input
+                ref={tagInputRef}
+                id="edit-tag-input"
+                placeholder="Add a tag…"
+                value={editForm.tagInput}
+                onChange={(e) => setEdit({ tagInput: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    const tag = editForm.tagInput.trim().toLowerCase()
+                    if (tag && !editForm.tags.includes(tag)) {
+                      setEdit({ tags: [...editForm.tags, tag], tagInput: '' })
+                    } else {
+                      setEdit({ tagInput: '' })
+                    }
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const tag = editForm.tagInput.trim().toLowerCase()
+                  if (tag && !editForm.tags.includes(tag)) {
+                    setEdit({ tags: [...editForm.tags, tag], tagInput: '' })
+                  } else {
+                    setEdit({ tagInput: '' })
+                  }
+                  tagInputRef.current?.focus()
+                }}
+              >
+                <Tag size={12} />
+                Add
+              </Button>
             </div>
           </div>
         </div>
