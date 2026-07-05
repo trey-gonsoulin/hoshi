@@ -100,15 +100,24 @@ to shift the boundaries into the of-date frame before the sign lookup.
 ## Horizons-backed bodies
 
 Skyfield/jplephem can't read JPL Horizons' small-body SPKs (SPK data type 21
-is unsupported). Two bodies use Horizons HTTP APIs directly:
+is unsupported). Four bodies use Horizons HTTP APIs directly:
 
 - **Chiron** (`_chiron_position` in `hoshi/ephemeris.py`) — Horizons
   **OBSERVER** ephemeris at chart time + 1 minute for ecliptic lon/lat and
-  retrograde state.
+  retrograde state. Also has a date-keyed seed cache for deployed (Lambda)
+  environments to avoid runtime network calls.
+- **Ceres** (`_ceres_position`) — same OBSERVER pattern; Horizons ID `"1;"`.
+  Note: bare `"1"` is Mercury barycenter in SPICE — the trailing semicolon
+  (small-body designation) is required.
+- **Eris** (`_eris_position`) — same OBSERVER pattern; Horizons ID `"136199;"`.
 - **True lunar nodes & Black Moon Lilith** (`lunar_elements` in
   `hoshi/points.py`) — Horizons **ELEMENTS** API at chart time, parses
   OM (ascending node) and W (argument of perigee) for the Moon. True Lilith
   = OM + W + 180°.
+
+Chiron, Ceres, and Eris share `_fetch_horizons_observer(when_utc, horizons_id)`
+in `ephemeris.py`. Each has its own per-minute JSON cache in `~/.cache/hoshi/`.
+Passing `include_chiron=False` to `positions()` skips all three.
 
 Shared HTTP/SSL/cache helpers (`horizons_fetch`, `json_cache_get/put`) live
 in `hoshi/ephemeris.py`. The SSL context uses `certifi` because macOS

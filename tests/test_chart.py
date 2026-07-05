@@ -30,6 +30,8 @@ def mock_deps(monkeypatch):
                 "neptune",
                 "pluto",
                 "chiron",
+                "ceres",
+                "eris",
             ]
         )
     }
@@ -91,7 +93,7 @@ class TestChartBuild:
     def test_planet_count(self, mock_deps):
         when = datetime(2000, 1, 1, 12, 0, tzinfo=timezone.utc)
         chart = Chart.build(when, 0.0, 0.0, "porphyry")
-        assert len(chart.planets) == 11
+        assert len(chart.planets) == 13
 
     def test_angle_count(self, mock_deps):
         when = datetime(2000, 1, 1, 12, 0, tzinfo=timezone.utc)

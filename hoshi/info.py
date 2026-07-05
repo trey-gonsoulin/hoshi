@@ -153,6 +153,28 @@ PLANETS: dict[str, Info] = {
             "ability to guide and heal others in the same area."
         ),
     ),
+    "Ceres": Info(
+        name="Ceres",
+        keywords=["nourishment", "nurturing", "cycles", "loss", "abundance"],
+        meaning=(
+            "Ceres is the dwarf planet of sustenance and the maternal cycle. Mythologically "
+            "the goddess of grain and harvest, she governs how you give and receive nourishment "
+            "— physical, emotional, and spiritual. Her placement reveals your relationship to "
+            "loss and return: where you have experienced grief over separation and where you "
+            "find renewal and abundance after the fallow season."
+        ),
+    ),
+    "Eris": Info(
+        name="Eris",
+        keywords=["discord", "disruption", "equality", "hidden truth", "catalyst"],
+        meaning=(
+            "Eris is the dwarf planet of discord and awakening. Named for the goddess who "
+            "sparked the Trojan War by tossing a golden apple labeled 'for the fairest,' her "
+            "placement points to where hidden tensions surface — often through disruption that "
+            "exposes an injustice or imbalance that had been glossed over. Eris does not create "
+            "conflict so much as reveal what was already there, demanding that it be faced."
+        ),
+    ),
 }
 
 SIGNS: dict[str, SignInfo] = {

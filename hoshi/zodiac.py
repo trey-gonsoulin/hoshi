@@ -118,6 +118,8 @@ PLANET_GLYPHS: dict[str, str] = {
     "neptune": "♆",
     "pluto": "♇",
     "chiron": "⚷",
+    "ceres": "⚳",
+    "eris": "Eri",
     "true node": "☊",
     "south node": "☋",
     "lilith": "⚸",

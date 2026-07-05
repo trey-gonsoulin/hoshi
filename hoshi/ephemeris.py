@@ -35,10 +35,12 @@ SKYFIELD_TARGETS: dict[str, str] = {
     "pluto": "pluto barycenter",
 }
 
-PLANET_ORDER = list(SKYFIELD_TARGETS.keys()) + ["chiron"]
+PLANET_ORDER = list(SKYFIELD_TARGETS.keys()) + ["chiron", "ceres", "eris"]
 
 HORIZONS_URL = "https://ssd.jpl.nasa.gov/api/horizons.api"
 CHIRON_HORIZONS_ID = "2060;"  # trailing ';' = small-body designation
+CERES_HORIZONS_ID = "1;"  # 1 Ceres — NOTE: bare "1" is Mercury barycenter in SPICE
+ERIS_HORIZONS_ID = "136199;"  # 136199 Eris
 
 
 def cache_dir() -> Path:
@@ -132,8 +134,8 @@ def positions(
     """Return geocentric ecliptic positions for all supported bodies at `when`.
 
     `when` must be timezone-aware. Use UTC for reproducibility. Set
-    `include_chiron=False` to skip the Horizons round-trip when Chiron isn't
-    needed (e.g. the birth-time uncertainty check).
+    `include_chiron=False` to skip all Horizons round-trips (Chiron, Ceres,
+    Eris) when they aren't needed (e.g. the birth-time uncertainty check).
     """
     if when.tzinfo is None:
         raise ValueError("`when` must be timezone-aware (use UTC)")
@@ -172,6 +174,8 @@ def positions(
 
     if include_chiron:
         out["chiron"] = _chiron_position(when_utc)
+        out["ceres"] = _ceres_position(when_utc)
+        out["eris"] = _eris_position(when_utc)
     return out
 
 
@@ -179,14 +183,10 @@ def _chiron_position(when_utc: datetime) -> PlanetPosition:
     """Fetch geocentric ecliptic lon/lat for Chiron from JPL Horizons.
 
     Skyfield can't read Horizons' small-body SPKs (data type 21), so we use
-    the OBSERVER ephemeris API and parse two epochs to derive retrograde.
-    Results are cached per minute in `~/.cache/hoshi/chiron.json`.
+    the OBSERVER ephemeris API. Results are cached per minute in
+    `~/.cache/hoshi/chiron.json`, with a date-keyed seed cache checked first
+    in deployed (Lambda) environments.
     """
-    ts = timescale()
-    t = ts.from_datetime(when_utc)
-    jd = t.tdb
-    jd_next = jd + 1.0 / 1440.0  # +1 minute
-
     cache_key = when_utc.replace(second=0, microsecond=0).isoformat()
     chiron_cache_path = cache_dir() / "chiron.json"
     cached = json_cache_get(chiron_cache_path, cache_key)
@@ -202,10 +202,26 @@ def _chiron_position(when_utc: datetime) -> PlanetPosition:
         if seeded is not None:
             return PlanetPosition.model_validate(seeded)
 
+    pos = _fetch_horizons_observer(when_utc, CHIRON_HORIZONS_ID)
+    json_cache_put(chiron_cache_path, cache_key, pos.model_dump())
+    return pos
+
+
+def _fetch_horizons_observer(when_utc: datetime, horizons_id: str) -> PlanetPosition:
+    """Fetch geocentric ecliptic lon/lat for a small body from the Horizons OBSERVER API.
+
+    Requests two epochs (+1 minute) so retrograde state can be derived from the
+    longitude derivative. Does not perform caching — callers are responsible.
+    """
+    ts = timescale()
+    t = ts.from_datetime(when_utc)
+    jd = t.tdb
+    jd_next = jd + 1.0 / 1440.0
+
     body = horizons_fetch(
         {
             "format": "text",
-            "COMMAND": CHIRON_HORIZONS_ID,
+            "COMMAND": horizons_id,
             "OBJ_DATA": "NO",
             "MAKE_EPHEM": "YES",
             "EPHEM_TYPE": "OBSERVER",
@@ -220,8 +236,36 @@ def _chiron_position(when_utc: datetime) -> PlanetPosition:
 
     lon, lat, lon_next = _parse_horizons_ecliptic(body)
     delta = ((lon_next - lon + 540.0) % 360.0) - 180.0
-    pos = PlanetPosition(lon=lon % 360.0, lat=lat, retrograde=delta < 0)
-    json_cache_put(chiron_cache_path, cache_key, pos.model_dump())
+    return PlanetPosition(lon=lon % 360.0, lat=lat, retrograde=delta < 0)
+
+
+def _ceres_position(when_utc: datetime) -> PlanetPosition:
+    """Fetch geocentric ecliptic lon/lat for Ceres from JPL Horizons.
+
+    Results are cached per minute in `~/.cache/hoshi/ceres.json`.
+    """
+    cache_key = when_utc.replace(second=0, microsecond=0).isoformat()
+    cache_path = cache_dir() / "ceres.json"
+    cached = json_cache_get(cache_path, cache_key)
+    if cached is not None:
+        return PlanetPosition.model_validate(cached)
+    pos = _fetch_horizons_observer(when_utc, CERES_HORIZONS_ID)
+    json_cache_put(cache_path, cache_key, pos.model_dump())
+    return pos
+
+
+def _eris_position(when_utc: datetime) -> PlanetPosition:
+    """Fetch geocentric ecliptic lon/lat for Eris from JPL Horizons.
+
+    Results are cached per minute in `~/.cache/hoshi/eris.json`.
+    """
+    cache_key = when_utc.replace(second=0, microsecond=0).isoformat()
+    cache_path = cache_dir() / "eris.json"
+    cached = json_cache_get(cache_path, cache_key)
+    if cached is not None:
+        return PlanetPosition.model_validate(cached)
+    pos = _fetch_horizons_observer(when_utc, ERIS_HORIZONS_ID)
+    json_cache_put(cache_path, cache_key, pos.model_dump())
     return pos
 
 

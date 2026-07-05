@@ -49,6 +49,8 @@ def _make_chart(**overrides) -> Chart:
                 "neptune",
                 "pluto",
                 "chiron",
+                "ceres",
+                "eris",
             ]
         )
     ]

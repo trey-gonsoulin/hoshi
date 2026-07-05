@@ -189,10 +189,9 @@ class TestPositions:
 
         monkeypatch.setattr("hoshi.ephemeris._load_ephemeris", lambda: FakeEph())
         monkeypatch.setattr("hoshi.ephemeris.timescale", lambda: FakeTS())
-        monkeypatch.setattr(
-            "hoshi.ephemeris._chiron_position",
-            lambda _: fake_pos,
-        )
+        monkeypatch.setattr("hoshi.ephemeris._chiron_position", lambda _: fake_pos)
+        monkeypatch.setattr("hoshi.ephemeris._ceres_position", lambda _: fake_pos)
+        monkeypatch.setattr("hoshi.ephemeris._eris_position", lambda _: fake_pos)
 
         when = datetime(2000, 1, 1, 12, 0, tzinfo=timezone.utc)
         result = positions(when)
@@ -206,14 +205,19 @@ class TestPositions:
         self._patch_skyfield(monkeypatch)
 
         def _boom(_):
-            raise AssertionError("_chiron_position should not be called")
+            raise AssertionError("Horizons position functions should not be called")
 
         monkeypatch.setattr("hoshi.ephemeris._chiron_position", _boom)
+        monkeypatch.setattr("hoshi.ephemeris._ceres_position", _boom)
+        monkeypatch.setattr("hoshi.ephemeris._eris_position", _boom)
 
         when = datetime(2000, 1, 1, 12, 0, tzinfo=timezone.utc)
         result = positions(when, include_chiron=False)
         assert "chiron" not in result
-        assert set(result.keys()) == {p for p in PLANET_ORDER if p != "chiron"}
+        assert "ceres" not in result
+        assert "eris" not in result
+        small_bodies = {"chiron", "ceres", "eris"}
+        assert set(result.keys()) == {p for p in PLANET_ORDER if p not in small_bodies}
         assert all(isinstance(pp, PlanetPosition) for pp in result.values())
 
     def _patch_skyfield(self, monkeypatch):
@@ -445,6 +449,69 @@ class TestChironSeedPath:
         from hoshi.ephemeris import _chiron_seed_path
 
         assert _chiron_seed_path() == seed
+
+
+class TestCeresErisPosition:
+    MOCK_RESPONSE = """\
+$$SOE
+ 2451545.500000, , ,  20.000,  0.200,
+ 2451545.500694, , ,  20.001,  0.200,
+$$EOE"""
+
+    def test_ceres_caches_result(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("hoshi.ephemeris.cache_dir", lambda: tmp_path)
+        monkeypatch.setattr(
+            "hoshi.ephemeris.horizons_fetch", lambda _: self.MOCK_RESPONSE
+        )
+        from hoshi.ephemeris import _ceres_position
+
+        when = datetime(2000, 1, 1, 12, 0, tzinfo=timezone.utc)
+        pos = _ceres_position(when)
+        assert pos.lon == pytest.approx(20.000)
+        assert pos.retrograde is False
+        assert (tmp_path / "ceres.json").exists()
+
+    def test_ceres_reads_from_cache(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("hoshi.ephemeris.cache_dir", lambda: tmp_path)
+        cache_data = {
+            "2000-01-01T12:00:00+00:00": {"lon": 99.9, "lat": 0.1, "retrograde": True}
+        }
+        (tmp_path / "ceres.json").write_text(__import__("json").dumps(cache_data))
+        monkeypatch.setattr(
+            "hoshi.ephemeris.horizons_fetch",
+            lambda _: (_ for _ in ()).throw(AssertionError("should not call Horizons")),
+        )
+        from hoshi.ephemeris import _ceres_position
+
+        when = datetime(2000, 1, 1, 12, 0, tzinfo=timezone.utc)
+        pos = _ceres_position(when)
+        assert pos.lon == pytest.approx(99.9)
+
+    def test_eris_caches_result(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("hoshi.ephemeris.cache_dir", lambda: tmp_path)
+        monkeypatch.setattr(
+            "hoshi.ephemeris.horizons_fetch", lambda _: self.MOCK_RESPONSE
+        )
+        from hoshi.ephemeris import _eris_position
+
+        when = datetime(2000, 1, 1, 12, 0, tzinfo=timezone.utc)
+        pos = _eris_position(when)
+        assert pos.lon == pytest.approx(20.000)
+        assert (tmp_path / "eris.json").exists()
+
+    def test_eris_retrograde(self, tmp_path, monkeypatch):
+        retro_response = """\
+$$SOE
+ 2451545.500000, , ,  20.010,  0.200,
+ 2451545.500694, , ,  20.000,  0.200,
+$$EOE"""
+        monkeypatch.setattr("hoshi.ephemeris.cache_dir", lambda: tmp_path)
+        monkeypatch.setattr("hoshi.ephemeris.horizons_fetch", lambda _: retro_response)
+        from hoshi.ephemeris import _eris_position
+
+        when = datetime(2000, 1, 1, 12, 0, tzinfo=timezone.utc)
+        pos = _eris_position(when)
+        assert pos.retrograde is True
 
 
 class TestHorizonsFetch:

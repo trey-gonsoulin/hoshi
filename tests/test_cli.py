@@ -29,6 +29,8 @@ def _full_mock_chart():
                 "neptune",
                 "pluto",
                 "chiron",
+                "ceres",
+                "eris",
             ]
         )
     ]
