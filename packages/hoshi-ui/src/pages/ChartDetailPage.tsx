@@ -119,7 +119,7 @@ export function ChartDetailPage() {
     return (
       <div className="max-w-2xl mx-auto px-6 py-16 text-center">
         <p className="text-muted-foreground text-sm">Chart not found.</p>
-        <Link to="/" className="text-xs text-primary hover:underline mt-2 inline-block">
+        <Link to="/charts" className="text-xs text-primary hover:underline mt-2 inline-block">
           Back to charts
         </Link>
       </div>
@@ -131,7 +131,7 @@ export function ChartDetailPage() {
       <div className="flex items-center justify-between gap-4 mb-8">
         <div className="flex items-center gap-2">
           <Link
-            to="/"
+            to="/charts"
             className="text-muted-foreground hover:text-foreground transition-colors"
             aria-label="Back to charts"
           >

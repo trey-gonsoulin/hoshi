@@ -1424,3 +1424,77 @@ class DeleteOutput(OutputModel):
 
     def render(self, console: Console) -> None:
         console.print(f"Deleted {self.path}")
+
+
+# ---------------------------------------------------------------------------
+# Sky events output
+# ---------------------------------------------------------------------------
+
+
+class SkyEventEntry(BaseModel, frozen=True):
+    when: str  # ISO 8601 UTC
+    event_type: str
+    body: str
+    body_symbol: str = ""
+    detail: str = ""
+    sign: str | None = None
+    sign_symbol: str | None = None
+    body_b: str | None = None
+    aspect_name: str | None = None
+    aspect_symbol: str | None = None
+
+
+class SkyEventsOutput(OutputModel):
+    events: list[SkyEventEntry] = []
+    mode: str = "realsky"
+    from_date: str = ""
+    to_date: str = ""
+
+    @classmethod
+    def build(
+        cls,
+        events: list,  # list[SkyEvent]
+        mode: str,
+        from_date: str,
+        to_date: str,
+    ) -> "SkyEventsOutput":
+        entries = [
+            SkyEventEntry(
+                when=e.when.isoformat(),
+                event_type=e.event_type,
+                body=e.body,
+                body_symbol=e.body_symbol,
+                detail=e.detail,
+                sign=e.sign,
+                sign_symbol=e.sign_symbol,
+                body_b=e.body_b,
+                aspect_name=e.aspect_name,
+                aspect_symbol=e.aspect_symbol,
+            )
+            for e in events
+        ]
+        return cls(events=entries, mode=mode, from_date=from_date, to_date=to_date)
+
+    def render(self, console: Console) -> None:
+        _EVENT_ICONS = {
+            "retrograde_station": "℞",
+            "direct_station": "D",
+            "ingress": "→",
+            "moon_new": "🌑",
+            "moon_first_quarter": "🌓",
+            "moon_full": "🌕",
+            "moon_last_quarter": "🌗",
+            "voc_start": "∅",
+            "voc_end": "✓",
+            "exact_aspect": "⊼",
+        }
+        table = _new_table()
+        table.add_column("When")
+        table.add_column("Event")
+        for e in self.events:
+            icon = _EVENT_ICONS.get(e.event_type, "·")
+            sign_part = (
+                f" [dim]{e.sign_symbol or ''} {e.sign or ''}[/dim]" if e.sign else ""
+            )
+            table.add_row(e.when[:16], f"{icon} {e.detail}{sign_part}")
+        console.print(_panel(f"Sky Events {self.from_date} – {self.to_date}", table))

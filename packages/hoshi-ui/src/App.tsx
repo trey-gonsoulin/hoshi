@@ -1,5 +1,6 @@
 import { Routes, Route, NavLink } from 'react-router'
 import { Sun, Moon } from 'lucide-react'
+import { SkyPage } from '@/pages/SkyPage'
 import { ComputePage } from '@/pages/ComputePage'
 import { ChartsPage } from '@/pages/ChartsPage'
 import { ChartDetailPage } from '@/pages/ChartDetailPage'
@@ -24,7 +25,8 @@ export default function App() {
       <header className="border-b px-6 py-3 flex items-center gap-6">
         <span className="font-semibold tracking-tight text-sm">☽ hoshi</span>
         <nav className="flex gap-5 text-sm">
-          <NavLink to="/" end className={navClass}>Charts</NavLink>
+          <NavLink to="/" end className={navClass}>Sky</NavLink>
+          <NavLink to="/charts" className={navClass}>Charts</NavLink>
           <NavLink to="/compute" className={navClass}>Compute</NavLink>
           <NavLink to="/info" className={navClass}>Info</NavLink>
         </nav>
@@ -38,7 +40,8 @@ export default function App() {
       </header>
       <main className="flex-1">
         <Routes>
-          <Route path="/" element={<ChartsPage />} />
+          <Route path="/" element={<SkyPage />} />
+          <Route path="/charts" element={<ChartsPage />} />
           <Route path="/compute" element={<ComputePage />} />
           <Route path="/charts/:id" element={<ChartDetailPage />} />
           <Route path="/charts/:id/transits" element={<TransitsPage />} />

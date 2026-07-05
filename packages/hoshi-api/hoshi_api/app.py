@@ -12,7 +12,7 @@ from hoshi.adb import ADBError
 from hoshi.ephemeris import HorizonsError
 
 from hoshi_api.mcp_server import mcp
-from hoshi_api.routes import charts, info
+from hoshi_api.routes import charts, info, sky
 
 
 async def _normalize_mcp_path(request: Request, call_next):
@@ -56,6 +56,7 @@ def create_app() -> FastAPI:
 
     application.include_router(charts.router)
     application.include_router(info.router)
+    application.include_router(sky.router)
 
     # streamable_http_app() lazily creates the session_manager used in _lifespan.
     # Mount the resulting ASGI app at /mcp; streamable_http_path="/" on the

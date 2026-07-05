@@ -14,6 +14,7 @@ functions from here rather than the internal submodules, e.g.::
 """
 
 from hoshi.adb import ADBError, ADBResult, adb_to_chart_input
+from hoshi.events import BODY_DISPLAY, BODY_SYMBOL, SIGN_SYMBOL, SkyEvent, sky_events
 from hoshi.output import (
     BodySelection,
     ChartListOutput,
@@ -23,6 +24,7 @@ from hoshi.output import (
     HouseComparisonOutput,
     InfoDetailOutput,
     InfoListOutput,
+    SkyEventsOutput,
     TransitsOutput,
 )
 from hoshi.utils import fuzzy_match
@@ -118,6 +120,12 @@ __all__ = [
     "ADBError",
     "ADBResult",
     "adb_to_chart_input",
+    # Sky events
+    "SkyEvent",
+    "sky_events",
+    "BODY_DISPLAY",
+    "BODY_SYMBOL",
+    "SIGN_SYMBOL",
     # Output models
     "BodySelection",
     "ChartOutput",
@@ -128,6 +136,7 @@ __all__ = [
     "HouseComparisonOutput",
     "InfoDetailOutput",
     "InfoListOutput",
+    "SkyEventsOutput",
     # Utilities
     "fuzzy_match",
 ]

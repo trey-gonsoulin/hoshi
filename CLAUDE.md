@@ -27,7 +27,8 @@ Hoshi is a Python CLI for astrological charting, with a focus on real-sky astrol
 | `chart.py` | `Chart.build()` / `Chart.from_input()` — assembles all bodies; `Chart.bodies()`/`Chart.body(id)` uniform `BodyRef` iteration; `uncertain_signs()`; `Placed.for_longitude(...)` and `Placed.placement(mode)`; `location_known`/`time_known` flags; `house` is `None` when location unknown |
 | `aspects.py` | Aspect definitions and orbs; `compute_aspects()`, `compute_inter_aspects()` |
 | `dignities.py` | Planetary dignities table, element/modality tally |
-| `output.py` | Pydantic output models for every command (`ChartOutput`, `TransitsOutput`, etc.) with `.build()` classmethods that assemble models from SDK types. Shared by CLI and API. |
+| `events.py` | Sky event detection over a date range — stations (retrograde/direct), sign ingresses, moon phases, void-of-course windows, and transit-to-transit exact aspects. Public API: `sky_events(start, end, mode, ...)` → `list[SkyEvent]`. Display tables: `BODY_DISPLAY`, `BODY_SYMBOL`, `SIGN_SYMBOL`. Seed-cache bodies (Chiron/Ceres/Eris) included when seed JSON is available (Lambda/Docker). |
+| `output.py` | Pydantic output models for every command (`ChartOutput`, `TransitsOutput`, `SkyEventsOutput`, etc.) with `.build()` classmethods that assemble models from SDK types. Shared by CLI and API. |
 | `store.py` | Save/load/list/delete named charts in `./charts/` |
 | `utils.py` | Shared utilities (`fuzzy_match`) used by both CLI and API |
 | `adb.py` | Astro-Databank import via MediaWiki API; `adb_to_chart_input()` fetches + parses `ASTRODATABANK_dma` template into `ChartInput`; coordinate/time/timezone converters; `ADBError` on failure |
@@ -167,6 +168,8 @@ with auto-reload). Interactive docs at `/docs`.
 | `GET` | `/charts/{name}/compare/{other}` | Synastry |
 | `GET` | `/info/{category}` | List reference info |
 | `GET` | `/info/{category}/{name}` | Single item detail |
+| `GET` | `/sky/now` | Current transiting sky — all bodies, no natal required |
+| `GET` | `/sky/events` | Sky events over a date range (`?from=YYYY-MM-DD&to=YYYY-MM-DD&mode=realsky&stations=true&ingresses=true&phases=true&voc=true&aspects=true`) |
 
 All route handlers are synchronous (`def`, not `async def`) so uvicorn
 dispatches them to a thread pool — blocking Horizons/Skyfield calls work
