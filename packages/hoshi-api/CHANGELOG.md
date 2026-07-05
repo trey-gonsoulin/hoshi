@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.7.0 (2026-07-05)
+
+### Features
+
+- **sky**: Add sky event timeline and landing page
+  ([`4697e4d`](https://github.com/trey-gonsoulin/hoshi/commit/4697e4defb68251a0129ce66cbc11414c357bd15))
+
+
 ## v1.6.1 (2026-07-05)
 
 ### Bug Fixes
