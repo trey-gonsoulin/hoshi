@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v1.6.0 (2026-07-05)
+
+### Features
+
+- **ephemeris**: Add Ceres and Eris as Horizons-backed bodies
+  ([`3574041`](https://github.com/trey-gonsoulin/hoshi/commit/3574041fd9955671bf9da19f06c9fdf735f5cb53))
+
+- **ephemeris**: Pre-seed Ceres and Eris for deployed Lambda environments
+  ([`1b0574c`](https://github.com/trey-gonsoulin/hoshi/commit/1b0574c49a47e3faa812f196b1bc20116bc913bb))
+
+### Testing
+
+- **api**: Assert symbol and sign_symbol fields on body entries
+  ([`2e72212`](https://github.com/trey-gonsoulin/hoshi/commit/2e72212b267519c756545a852a552e8b84fabe8a))
+
+
 ## v1.5.2 (2026-07-01)
 
 ### Bug Fixes
