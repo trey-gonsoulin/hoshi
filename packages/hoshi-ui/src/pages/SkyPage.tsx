@@ -5,8 +5,10 @@ import { Loader2, ChevronDown, ChevronUp, Calendar } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { BodyTable } from '@/components/BodyTable'
+import { InfoTooltip } from '@/components/InfoTooltip'
 import { useChartStore } from '@/hooks/useChartStore'
 import { api, type SkyEventEntry, type ZodiacMode } from '@/api/client'
+import { lookupBody, lookupSign, lookupAspect } from '@/lib/astroInfo'
 
 const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone
 
@@ -133,11 +135,20 @@ function EventRows({ events, tz }: { events: SkyEventEntry[]; tz: string }) {
             {/* Body glyph + detail */}
             <span className="text-sm flex-1 min-w-0">
               {e.bodySymbol && (
-                <span className="text-muted-foreground/70 mr-1.5 select-none">{e.bodySymbol}</span>
+                <span className="text-muted-foreground/70 mr-1.5 select-none">
+                  <InfoTooltip info={lookupBody(e.body)}>{e.bodySymbol}</InfoTooltip>
+                </span>
               )}
               <span className={isVocStart || isVocEnd ? 'italic' : ''}>{e.detail}</span>
+              {e.aspectSymbol && e.aspectName && (
+                <span className="ml-1 text-muted-foreground/70 select-none">
+                  <InfoTooltip info={lookupAspect(e.aspectName)}>{e.aspectSymbol}</InfoTooltip>
+                </span>
+              )}
               {e.sign && e.signSymbol && (
-                <span className="ml-1.5 text-muted-foreground text-xs">{e.signSymbol}</span>
+                <span className="ml-1.5 text-muted-foreground text-xs">
+                  <InfoTooltip info={lookupSign(e.sign)}>{e.signSymbol}</InfoTooltip>
+                </span>
               )}
             </span>
           </li>
