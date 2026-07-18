@@ -198,6 +198,7 @@ export function SkyPage() {
 
   const isToday = from === today && to === today
   const multiDay = from !== to
+  const nowTime = new Date().toTimeString().slice(0, 5)
 
   function setRange(fromDate: string, toDate: string) {
     setFrom(fromDate)
@@ -383,7 +384,7 @@ export function SkyPage() {
               {charts.map((chart) => (
                 <li key={chart.id}>
                   <Link
-                    to={`/charts/${chart.id}/transits`}
+                    to={`/charts/${chart.id}/transits?date=${today}&time=${nowTime}&tz=${encodeURIComponent(tz)}&mode=${mode}&autorun=1`}
                     className="flex items-center justify-between py-2 border-b border-border/30 last:border-0 group"
                   >
                     <span className="text-sm font-medium group-hover:text-primary transition-colors">

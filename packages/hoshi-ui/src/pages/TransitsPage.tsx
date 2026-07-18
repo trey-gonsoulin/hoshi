@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useParams, Link } from 'react-router'
+import { useState, useEffect, useRef } from 'react'
+import { useParams, Link, useSearchParams } from 'react-router'
 import { useMutation } from '@tanstack/react-query'
 import { Loader2, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -30,14 +30,17 @@ export function TransitsPage() {
   const { get } = useChartStore()
   const chart = id ? get(id) : undefined
 
-  const [form, setForm] = useState<FormState>({
-    date: today,
-    time: '',
-    tz: localTz,
-    mode: chart?.input.mode ?? 'realsky',
+  const [searchParams] = useSearchParams()
+  const autorun = searchParams.get('autorun') === '1'
+
+  const [form, setForm] = useState<FormState>(() => ({
+    date: searchParams.get('date') ?? today,
+    time: searchParams.get('time') ?? '',
+    tz: searchParams.get('tz') ?? localTz,
+    mode: (searchParams.get('mode') as ZodiacMode | null) ?? chart?.input.mode ?? 'realsky',
     houses: chart?.input.houses ?? 'porphyry',
     showNatal: false,
-  })
+  }))
   const [result, setResult] = useState<TransitsOutput | null>(null)
 
   const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }))
@@ -60,6 +63,14 @@ export function TransitsPage() {
     },
     onSuccess: setResult,
   })
+
+  const didAutorun = useRef(false)
+  useEffect(() => {
+    if (autorun && !didAutorun.current && chart) {
+      didAutorun.current = true
+      mutation.mutate()
+    }
+  }, []) // intentional: one-shot on mount
 
   if (!chart) {
     return (
