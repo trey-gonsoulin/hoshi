@@ -58,8 +58,8 @@ function buildRequest(f: FormState): ChartCompute {
   return { ...base, location: f.location || undefined }
 }
 
-function extractPlacements(bodies: { name: string; sign_symbol: string }[]): PlacementSummary {
-  const find = (n: string) => bodies.find((b) => b.name === n)?.sign_symbol
+function extractPlacements(bodies: { name: string; signSymbol: string }[]): PlacementSummary {
+  const find = (n: string) => bodies.find((b) => b.name === n)?.signSymbol
   return { sun: find('Sun'), moon: find('Moon'), asc: find('Ascendant') }
 }
 

@@ -33,8 +33,8 @@ export function AspectTable({ aspects }: AspectTableProps) {
                   <tr key={i} className="border-b border-border/40 last:border-0">
                     {/* Body A */}
                     <td className="py-2 pr-4 font-medium min-w-[90px]">
-                      <InfoTooltip info={lookupBody(asp.body_a)}>
-                        {asp.body_a}
+                      <InfoTooltip info={lookupBody(asp.bodyA)}>
+                        {asp.bodyA}
                       </InfoTooltip>
                     </td>
                     {/* Aspect symbol */}
@@ -43,8 +43,8 @@ export function AspectTable({ aspects }: AspectTableProps) {
                     </td>
                     {/* Body B */}
                     <td className="py-2 pr-5 font-medium min-w-[90px]">
-                      <InfoTooltip info={lookupBody(asp.body_b)}>
-                        {asp.body_b}
+                      <InfoTooltip info={lookupBody(asp.bodyB)}>
+                        {asp.bodyB}
                       </InfoTooltip>
                     </td>
                     {/* Aspect name */}

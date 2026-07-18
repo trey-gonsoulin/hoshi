@@ -109,9 +109,9 @@ function EventRows({ events, tz }: { events: SkyEventEntry[]; tz: string }) {
   return (
     <ul className="space-y-0">
       {events.map((e, i) => {
-        const meta = EVENT_META[e.event_type] ?? { icon: '·', label: '', color: 'text-muted-foreground' }
-        const isVocStart = e.event_type === 'voc_start'
-        const isVocEnd = e.event_type === 'voc_end'
+        const meta = EVENT_META[e.eventType] ?? { icon: '·', label: '', color: 'text-muted-foreground' }
+        const isVocStart = e.eventType === 'voc_start'
+        const isVocEnd = e.eventType === 'voc_end'
 
         return (
           <li
@@ -132,12 +132,12 @@ function EventRows({ events, tz }: { events: SkyEventEntry[]; tz: string }) {
 
             {/* Body glyph + detail */}
             <span className="text-sm flex-1 min-w-0">
-              {e.body_symbol && (
-                <span className="text-muted-foreground/70 mr-1.5 select-none">{e.body_symbol}</span>
+              {e.bodySymbol && (
+                <span className="text-muted-foreground/70 mr-1.5 select-none">{e.bodySymbol}</span>
               )}
               <span className={isVocStart || isVocEnd ? 'italic' : ''}>{e.detail}</span>
-              {e.sign && e.sign_symbol && (
-                <span className="ml-1.5 text-muted-foreground text-xs">{e.sign_symbol}</span>
+              {e.sign && e.signSymbol && (
+                <span className="ml-1.5 text-muted-foreground text-xs">{e.signSymbol}</span>
               )}
             </span>
           </li>

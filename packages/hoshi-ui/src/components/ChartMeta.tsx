@@ -17,8 +17,8 @@ export function ChartMeta({ header }: { header: ChartHeader }) {
   const parts: string[] = []
   if (header.when) parts.push(header.when)
   if (header.mode) parts.push(MODE_LABELS[header.mode] ?? header.mode)
-  if (header.house_system)
-    parts.push(HOUSE_LABELS[header.house_system] ?? header.house_system)
+  if (header.houseSystem)
+    parts.push(HOUSE_LABELS[header.houseSystem] ?? header.houseSystem)
   if (header.lat != null && header.lon != null)
     parts.push(`${header.lat.toFixed(2)}°, ${header.lon.toFixed(2)}°`)
 

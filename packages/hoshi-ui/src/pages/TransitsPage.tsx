@@ -10,7 +10,7 @@ import { WarningBanner } from '@/components/WarningBanner'
 import { BodyTable } from '@/components/BodyTable'
 import { AspectTable } from '@/components/AspectTable'
 import { useChartStore } from '@/hooks/useChartStore'
-import { api, type TransitsOutput, type ZodiacMode, type HouseSystem } from '@/api/client'
+import { api, type TransitsOutput, type ZodiacMode, type HouseSystem, type TransitsRequest } from '@/api/client'
 import { chartDataFrom } from '@/lib/chartData'
 
 const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -45,17 +45,18 @@ export function TransitsPage() {
   const mutation = useMutation({
     mutationFn: () => {
       if (!chart) throw new Error('Chart not found')
-      return api.chartTransits({
+      const req: TransitsRequest = {
         natal: chartDataFrom(chart.input),
-        date: form.date || undefined,
-        time: form.time || undefined,
+        date: form.date || null,
+        time: form.time || null,
         tz: form.tz || 'UTC',
         mode: form.mode,
         houses: form.houses,
         details: true,
         aspects: true,
-        show_natal: form.showNatal,
-      })
+        showNatal: form.showNatal,
+      }
+      return api.chartTransits(req)
     },
     onSuccess: setResult,
   })
@@ -69,7 +70,7 @@ export function TransitsPage() {
     )
   }
 
-  const showHousesNatal = result?.natal_bodies?.some((b) => b.house != null) ?? false
+  const showHousesNatal = result?.natalBodies?.some((b) => b.house != null) ?? false
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-10">
@@ -154,9 +155,9 @@ export function TransitsPage() {
           <WarningBanner warnings={result.warnings} />
 
           <div className="text-xs text-muted-foreground space-x-3">
-            <span>Natal: {result.header.natal_date}</span>
+            <span>Natal: {result.header.natalDate}</span>
             <span>·</span>
-            <span>Transit: {result.header.transit_when}</span>
+            <span>Transit: {result.header.transitWhen}</span>
             <span>·</span>
             <span className="capitalize">{result.header.mode}</span>
           </div>
@@ -165,15 +166,15 @@ export function TransitsPage() {
             <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-4 select-none">
               Transit bodies
             </p>
-            <BodyTable bodies={result.transit_bodies} showHouses={false} />
+            <BodyTable bodies={result.transitBodies} showHouses={false} />
           </section>
 
-          {result.natal_bodies?.length ? (
+          {result.natalBodies?.length ? (
             <section>
               <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-4 select-none">
                 Natal bodies
               </p>
-              <BodyTable bodies={result.natal_bodies} showHouses={showHousesNatal} />
+              <BodyTable bodies={result.natalBodies!} showHouses={showHousesNatal} />
             </section>
           ) : null}
 

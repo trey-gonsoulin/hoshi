@@ -40,8 +40,8 @@ export function ComparePage() {
       const chartB = get(form.chartBId)
       if (!chartB) throw new Error('Select a chart to compare against')
       return api.chartCompare({
-        chart_a: chartDataFrom(chartA.input),
-        chart_b: chartDataFrom(chartB.input),
+        chartA: chartDataFrom(chartA.input),
+        chartB: chartDataFrom(chartB.input),
         mode: form.mode,
         houses: form.houses,
         details: true,
@@ -63,8 +63,8 @@ export function ComparePage() {
     )
   }
 
-  const showHousesA = result?.bodies_a.some((b) => b.house != null) ?? false
-  const showHousesB = result?.bodies_b.some((b) => b.house != null) ?? false
+  const showHousesA = result?.bodiesA.some((b) => b.house != null) ?? false
+  const showHousesB = result?.bodiesB.some((b) => b.house != null) ?? false
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-10">
@@ -140,9 +140,9 @@ export function ComparePage() {
           <WarningBanner warnings={result.warnings} />
 
           <div className="text-xs text-muted-foreground space-x-3">
-            <span>{chartA.name} · {result.header.date_a}</span>
+            <span>{chartA.name} · {result.header.dateA}</span>
             <span>vs</span>
-            <span>{chartBName} · {result.header.date_b}</span>
+            <span>{chartBName} · {result.header.dateB}</span>
             <span>·</span>
             <span className="capitalize">{result.header.mode}</span>
           </div>
@@ -151,14 +151,14 @@ export function ComparePage() {
             <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-4 select-none">
               {chartA.name}
             </p>
-            <BodyTable bodies={result.bodies_a} showHouses={showHousesA} />
+            <BodyTable bodies={result.bodiesA} showHouses={showHousesA} />
           </section>
 
           <section>
             <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-4 select-none">
               {chartBName}
             </p>
-            <BodyTable bodies={result.bodies_b} showHouses={showHousesB} />
+            <BodyTable bodies={result.bodiesB} showHouses={showHousesB} />
           </section>
 
           {result.aspects?.length ? (

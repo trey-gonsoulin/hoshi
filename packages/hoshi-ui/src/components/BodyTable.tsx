@@ -50,9 +50,9 @@ export function BodyTable({ bodies, showHouses }: BodyTableProps) {
                           : 'text-foreground',
                       )}
                     >
-                      {body.sign_symbol && (
+                      {body.signSymbol && (
                         <span className="mr-1.5 text-muted-foreground/70 select-none">
-                          {body.sign_symbol}
+                          {body.signSymbol}
                         </span>
                       )}
                       <InfoTooltip info={lookupSign(body.sign)}>

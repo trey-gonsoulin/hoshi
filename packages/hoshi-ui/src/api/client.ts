@@ -1,40 +1,188 @@
-import type { components } from './types'
+/**
+ * GraphQL client for the Hoshi API.
+ *
+ * All response types use camelCase field names — Strawberry auto-converts
+ * Python snake_case to camelCase in the GraphQL schema.
+ */
 
-export type ChartCompute = components['schemas']['ChartCompute']
-export type ChartOutput = components['schemas']['ChartOutput']
-export type BodyEntry = components['schemas']['BodyEntry']
-export type Aspect = components['schemas']['Aspect']
-export type TallyOutput = components['schemas']['TallyOutput']
-export type ChartHeader = components['schemas']['ChartHeader']
-export type CuspsOutput = components['schemas']['CuspsOutput']
-export type CuspsRequest = components['schemas']['CuspsRequest']
-export type TransitsOutput = components['schemas']['TransitsOutput']
-export type TransitsRequest = components['schemas']['TransitsRequest']
-export type CompareOutput = components['schemas']['CompareOutput']
-export type CompareRequest = components['schemas']['CompareRequest']
-export type ChartData = components['schemas']['ChartData']
-export type ZodiacMode = components['schemas']['ZodiacMode']
-export type HouseSystem = components['schemas']['HouseSystem']
+export type ZodiacMode = 'realsky' | 'tropical' | 'vedic'
+export type HouseSystem = 'porphyry' | 'equal' | 'placidus' | 'arc13'
 
-// Sky types — defined inline (not yet in auto-generated types.ts)
+// ---------------------------------------------------------------------------
+// Response types
+// ---------------------------------------------------------------------------
+
+export interface BodyEntry {
+  kind: string
+  name: string
+  sign: string
+  signSymbol: string
+  degree: number
+  lon: number
+  house?: number | null
+  rx: boolean
+  approximate: boolean
+  dignity: string
+  symbol: string
+}
+
+export interface Aspect {
+  bodyA: string
+  signA: string
+  bodyB: string
+  signB: string
+  name: string
+  symbol: string
+  angle: number
+  orb: number
+  kind: string
+}
+
+export interface TallyRow {
+  primary: number
+  total: number
+}
+
+export interface ElementTally {
+  fire: TallyRow
+  earth: TallyRow
+  air: TallyRow
+  water: TallyRow
+}
+
+export interface ModalityTally {
+  cardinal: TallyRow
+  fixed: TallyRow
+  mutable: TallyRow
+}
+
+export interface TallyOutput {
+  elements: ElementTally
+  modalities: ModalityTally
+}
+
+export interface ChartHeader {
+  name: string
+  when: string
+  lat?: number | null
+  lon?: number | null
+  mode: string
+  houseSystem?: string | null
+}
+
+export interface ChartOutput {
+  chart: ChartHeader
+  warnings: string[]
+  bodies: BodyEntry[]
+  cusps: number[]
+  tallies?: TallyOutput | null
+  aspects?: Aspect[] | null
+}
+
+export interface CuspEntry {
+  house: number
+  sign: string
+  degree: number
+  lon: number
+}
+
+export interface CuspsOutput {
+  houseSystem: string
+  cusps: CuspEntry[]
+}
+
+export interface TransitHeader {
+  name: string
+  natalDate: string
+  transitWhen: string
+  mode: string
+  houseSystem?: string | null
+}
+
+export interface TransitsOutput {
+  header: TransitHeader
+  warnings: string[]
+  transitBodies: BodyEntry[]
+  natalBodies?: BodyEntry[] | null
+  aspects?: Aspect[] | null
+}
+
+export interface CompareHeader {
+  nameA: string
+  nameB: string
+  dateA: string
+  dateB: string
+  mode: string
+}
+
+export interface CompareOutput {
+  header: CompareHeader
+  warnings: string[]
+  bodiesA: BodyEntry[]
+  bodiesB: BodyEntry[]
+  aspects?: Aspect[] | null
+}
+
 export interface SkyEventEntry {
-  when: string          // ISO 8601 UTC
-  event_type: string    // "retrograde_station" | "direct_station" | "ingress" | "moon_new" | etc.
+  when: string
+  eventType: string
   body: string
-  body_symbol: string
+  bodySymbol: string
   detail: string
   sign?: string | null
-  sign_symbol?: string | null
-  body_b?: string | null
-  aspect_name?: string | null
-  aspect_symbol?: string | null
+  signSymbol?: string | null
+  bodyB?: string | null
+  aspectName?: string | null
+  aspectSymbol?: string | null
 }
 
 export interface SkyEventsOutput {
   events: SkyEventEntry[]
   mode: string
-  from_date: string
-  to_date: string
+  fromDate: string
+  toDate: string
+}
+
+// ---------------------------------------------------------------------------
+// Input types (form state / saved chart data — not API response shapes)
+// ---------------------------------------------------------------------------
+
+export interface ChartData {
+  date: string
+  time?: string | null
+  lat?: number | null
+  lon?: number | null
+  location?: string | null
+  tz: string
+}
+
+export interface ChartCompute extends ChartData {
+  mode: ZodiacMode
+  houses: HouseSystem
+  details: boolean
+  aspects: boolean
+  cusps: boolean
+}
+
+export interface TransitsRequest {
+  natal: ChartData
+  date?: string | null
+  time?: string | null
+  tz: string
+  mode: ZodiacMode
+  houses: HouseSystem
+  details: boolean
+  aspects: boolean
+  showNatal: boolean
+}
+
+export interface CompareRequest {
+  chartA: ChartData
+  chartB: ChartData
+  mode: ZodiacMode
+  houses: HouseSystem
+  details: boolean
+  aspects: boolean
 }
 
 export interface SkyEventsParams {
@@ -49,64 +197,195 @@ export interface SkyEventsParams {
   aspects?: boolean
 }
 
-const BASE = '/api'
+// ---------------------------------------------------------------------------
+// GraphQL fragments
+// ---------------------------------------------------------------------------
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+const BODY_FIELDS = `kind name sign signSymbol degree lon house rx approximate dignity symbol`
+
+const ASPECT_FIELDS = `bodyA signA bodyB signB name symbol angle orb kind`
+
+const TALLY_FIELDS = `
+  elements {
+    fire { primary total } earth { primary total }
+    air  { primary total } water { primary total }
+  }
+  modalities {
+    cardinal { primary total } fixed { primary total } mutable { primary total }
+  }
+`
+
+const CHART_RESULT_FIELDS = `
+  chart { name when lat lon mode houseSystem }
+  warnings
+  bodies { ${BODY_FIELDS} }
+  cusps
+  tallies { ${TALLY_FIELDS} }
+  aspects { ${ASPECT_FIELDS} }
+`
+
+// ---------------------------------------------------------------------------
+// GraphQL executor
+// ---------------------------------------------------------------------------
+
+const GQL = '/api/graphql'
+
+async function gql<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
+  const res = await fetch(GQL, {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    ...options,
+    body: JSON.stringify({ query, variables }),
   })
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error((body as { detail?: string }).detail ?? `HTTP ${res.status}`)
+    const body = await res.json().catch(() => ({})) as { errors?: { message: string }[] }
+    throw new Error(body?.errors?.[0]?.message ?? `HTTP ${res.status}`)
   }
-  return res.json() as Promise<T>
+  const json = await res.json() as { data?: T; errors?: { message: string }[] }
+  if (json.errors?.length) throw new Error(json.errors[0].message)
+  return json.data as T
 }
 
-function post<T>(path: string, body: unknown): Promise<T> {
-  return request<T>(path, { method: 'POST', body: JSON.stringify(body) })
-}
-
-function get<T>(path: string, params?: Record<string, string | boolean | undefined>): Promise<T> {
-  const qs = params
-    ? '?' + new URLSearchParams(
-        Object.entries(params)
-          .filter(([, v]) => v !== undefined)
-          .map(([k, v]) => [k, String(v)])
-      ).toString()
-    : ''
-  return request<T>(`${path}${qs}`, { method: 'GET' })
-}
+// ---------------------------------------------------------------------------
+// API
+// ---------------------------------------------------------------------------
 
 export const api = {
-  computeChart: (body: ChartCompute) =>
-    post<ChartOutput>('/charts/compute', body),
+  computeChart: (req: ChartCompute): Promise<ChartOutput> =>
+    gql<{ chart: ChartOutput }>(
+      `query ComputeChart(
+        $date: String!, $tz: String!,
+        $time: String, $lat: Float, $lon: Float, $location: String,
+        $mode: ZodiacMode!, $houses: HouseSystem!, $details: Boolean!, $aspects: Boolean!
+      ) {
+        chart(date: $date, tz: $tz, time: $time, lat: $lat, lon: $lon,
+              location: $location, mode: $mode, houses: $houses,
+              details: $details, aspects: $aspects) { ${CHART_RESULT_FIELDS} }
+      }`,
+      {
+        date: req.date,
+        tz: req.tz,
+        time: req.time ?? null,
+        lat: req.lat ?? null,
+        lon: req.lon ?? null,
+        location: req.location ?? null,
+        mode: req.mode,
+        houses: req.houses,
+        details: req.details,
+        aspects: req.aspects,
+      },
+    ).then((d) => d.chart),
 
-  importChart: (source: string, opts?: Partial<Omit<ChartCompute, 'date'>>) =>
-    post<ChartOutput>('/charts/import', { source, ...opts }),
+  importChart: (source: string, opts?: Partial<Omit<ChartCompute, 'date'>>): Promise<ChartOutput> =>
+    gql<{ importChart: ChartOutput }>(
+      `query ImportChart(
+        $source: String!, $mode: ZodiacMode!, $houses: HouseSystem!,
+        $details: Boolean!, $aspects: Boolean!
+      ) {
+        importChart(source: $source, mode: $mode, houses: $houses,
+                    details: $details, aspects: $aspects) { ${CHART_RESULT_FIELDS} }
+      }`,
+      {
+        source,
+        mode: opts?.mode ?? 'realsky',
+        houses: opts?.houses ?? 'porphyry',
+        details: opts?.details ?? false,
+        aspects: opts?.aspects ?? false,
+      },
+    ).then((d) => d.importChart),
 
-  chartCusps: (body: CuspsRequest) =>
-    post<CuspsOutput>('/charts/cusps', body),
+  chartTransits: (req: TransitsRequest): Promise<TransitsOutput> =>
+    gql<{ transits: TransitsOutput }>(
+      `query ChartTransits(
+        $natal: ChartDataInput!, $tz: String!,
+        $date: String, $time: String,
+        $mode: ZodiacMode!, $houses: HouseSystem!,
+        $details: Boolean!, $aspects: Boolean!, $showNatal: Boolean!
+      ) {
+        transits(natal: $natal, tz: $tz, date: $date, time: $time,
+                 mode: $mode, houses: $houses, details: $details,
+                 aspects: $aspects, showNatal: $showNatal) {
+          header { name natalDate transitWhen mode houseSystem }
+          warnings
+          transitBodies { ${BODY_FIELDS} }
+          natalBodies { ${BODY_FIELDS} }
+          aspects { ${ASPECT_FIELDS} }
+        }
+      }`,
+      {
+        natal: req.natal,
+        tz: req.tz,
+        date: req.date ?? null,
+        time: req.time ?? null,
+        mode: req.mode,
+        houses: req.houses,
+        details: req.details,
+        aspects: req.aspects,
+        showNatal: req.showNatal,
+      },
+    ).then((d) => d.transits),
 
-  chartTransits: (body: TransitsRequest) =>
-    post<TransitsOutput>('/charts/transits', body),
+  chartCompare: (req: CompareRequest): Promise<CompareOutput> =>
+    gql<{ compare: CompareOutput }>(
+      `query ChartCompare(
+        $chartA: ChartDataInput!, $chartB: ChartDataInput!,
+        $mode: ZodiacMode!, $houses: HouseSystem!,
+        $details: Boolean!, $aspects: Boolean!
+      ) {
+        compare(chartA: $chartA, chartB: $chartB, mode: $mode, houses: $houses,
+                details: $details, aspects: $aspects) {
+          header { nameA nameB dateA dateB mode }
+          warnings
+          bodiesA { ${BODY_FIELDS} }
+          bodiesB { ${BODY_FIELDS} }
+          aspects { ${ASPECT_FIELDS} }
+        }
+      }`,
+      {
+        chartA: req.chartA,
+        chartB: req.chartB,
+        mode: req.mode,
+        houses: req.houses,
+        details: req.details,
+        aspects: req.aspects,
+      },
+    ).then((d) => d.compare),
 
-  chartCompare: (body: CompareRequest) =>
-    post<CompareOutput>('/charts/compare', body),
+  skyNow: (opts?: { mode?: ZodiacMode; tz?: string }): Promise<ChartOutput> =>
+    gql<{ skyNow: ChartOutput }>(
+      `query SkyNow($mode: ZodiacMode!, $tz: String!) {
+        skyNow(mode: $mode, tz: $tz) {
+          chart { name when lat lon mode houseSystem }
+          warnings
+          bodies { ${BODY_FIELDS} }
+        }
+      }`,
+      { mode: opts?.mode ?? 'realsky', tz: opts?.tz ?? 'UTC' },
+    ).then((d) => d.skyNow),
 
-  skyNow: (opts?: { mode?: ZodiacMode; tz?: string }) =>
-    get<ChartOutput>('/sky/now', { mode: opts?.mode, tz: opts?.tz }),
-
-  skyEvents: (params: SkyEventsParams) =>
-    get<SkyEventsOutput>('/sky/events', {
-      from: params.from,
-      to: params.to,
-      mode: params.mode,
-      tz: params.tz,
-      stations: params.stations,
-      ingresses: params.ingresses,
-      phases: params.phases,
-      voc: params.voc,
-      aspects: params.aspects,
-    }),
+  skyEvents: (params: SkyEventsParams): Promise<SkyEventsOutput> =>
+    gql<{ skyEvents: SkyEventsOutput }>(
+      `query SkyEvents(
+        $tz: String!, $fromDate: String, $toDate: String, $mode: ZodiacMode!,
+        $stations: Boolean!, $ingresses: Boolean!, $phases: Boolean!,
+        $voc: Boolean!, $aspects: Boolean!
+      ) {
+        skyEvents(tz: $tz, fromDate: $fromDate, toDate: $toDate, mode: $mode,
+                  stations: $stations, ingresses: $ingresses, phases: $phases,
+                  voc: $voc, aspects: $aspects) {
+          events { when eventType body bodySymbol detail sign signSymbol bodyB aspectName aspectSymbol }
+          mode fromDate toDate
+        }
+      }`,
+      {
+        tz: params.tz ?? 'UTC',
+        fromDate: params.from ?? null,
+        toDate: params.to ?? null,
+        mode: params.mode ?? 'realsky',
+        stations: params.stations ?? true,
+        ingresses: params.ingresses ?? true,
+        phases: params.phases ?? true,
+        voc: params.voc ?? true,
+        aspects: params.aspects ?? true,
+      },
+    ).then((d) => d.skyEvents),
 }
