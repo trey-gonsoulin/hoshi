@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Tooltip } from '@base-ui/react/tooltip'
 import type { InfoEntry } from '@/lib/astroInfo'
 
@@ -7,13 +8,19 @@ interface InfoTooltipProps {
 }
 
 export function InfoTooltip({ info, children }: InfoTooltipProps) {
+  const [open, setOpen] = useState(false)
+
   if (!info) return <>{children}</>
 
   return (
-    <Tooltip.Root>
+    <Tooltip.Root open={open} onOpenChange={setOpen}>
       <Tooltip.Trigger
         render={<span className="cursor-default" />}
         delay={300}
+        onTouchEnd={(e) => {
+          e.preventDefault()
+          setOpen((o) => !o)
+        }}
       >
         {children}
       </Tooltip.Trigger>
