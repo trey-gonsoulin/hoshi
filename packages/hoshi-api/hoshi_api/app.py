@@ -11,6 +11,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from hoshi.adb import ADBError
 from hoshi.ephemeris import HorizonsError
 
+from hoshi_api.graphql.schema import router as graphql_router
 from hoshi_api.mcp_server import mcp
 from hoshi_api.routes import charts, info, sky
 
@@ -57,6 +58,7 @@ def create_app() -> FastAPI:
     application.include_router(charts.router)
     application.include_router(info.router)
     application.include_router(sky.router)
+    application.include_router(graphql_router, prefix="/graphql")
 
     # streamable_http_app() lazily creates the session_manager used in _lifespan.
     # Mount the resulting ASGI app at /mcp; streamable_http_path="/" on the

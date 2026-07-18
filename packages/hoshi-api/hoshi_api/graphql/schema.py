@@ -1,0 +1,255 @@
+"""GraphQL schema — Query type with resolvers.
+
+Resolvers are synchronous (matching the REST routes), so sibling fields in a
+batched query execute sequentially rather than in parallel.  The primary win
+is eliminating N cold starts and N HTTP round trips for the UI — each batched
+query is one Lambda invocation and one network request.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Optional
+from zoneinfo import ZoneInfo
+
+import strawberry
+from strawberry.fastapi import GraphQLRouter
+
+from hoshi.chart import Chart, HouseSystem
+from hoshi.output import (
+    ChartOutput,
+    CompareOutput,
+    CuspsOutput,
+    SkyEventsOutput,
+    TransitsOutput,
+)
+from hoshi.store import ChartInput
+from hoshi.zodiac import ZodiacMode
+
+from hoshi_api.routes.charts import _resolve_coords
+
+from hoshi_api.graphql.types import (
+    ChartDataInput,
+    ChartResult,
+    CompareResult,
+    CuspsResult,
+    SkyEventsResult,
+    TransitsResult,
+    from_chart_output,
+    from_compare_output,
+    from_cusps_output,
+    from_sky_events_output,
+    from_transits_output,
+)
+
+
+@strawberry.type
+class Query:
+    @strawberry.field
+    def chart(
+        self,
+        date: str,
+        tz: str = "UTC",
+        time: Optional[str] = None,
+        lat: Optional[float] = None,
+        lon: Optional[float] = None,
+        location: Optional[str] = None,
+        mode: ZodiacMode = ZodiacMode.realsky,
+        houses: HouseSystem = HouseSystem.porphyry,
+        details: bool = False,
+        aspects: bool = False,
+    ) -> ChartResult:
+        resolved_lat, resolved_lon = _resolve_coords(lat, lon, location)
+        ci = ChartInput(
+            name="", date=date, time=time, tz=tz, lat=resolved_lat, lon=resolved_lon
+        )
+        chart = Chart.from_input(ci, house_system=houses)
+        output = ChartOutput.build(ci, chart, mode, details=details, aspects=aspects)
+        return from_chart_output(output)
+
+    @strawberry.field
+    def import_chart(
+        self,
+        source: str,
+        mode: ZodiacMode = ZodiacMode.realsky,
+        houses: HouseSystem = HouseSystem.porphyry,
+        details: bool = False,
+        aspects: bool = False,
+    ) -> ChartResult:
+        from hoshi.adb import adb_to_chart_input
+
+        result = adb_to_chart_input(source, None)
+        ci = result.chart_input
+        chart = Chart.from_input(ci, house_system=houses)
+        output = ChartOutput.build(ci, chart, mode, details=details, aspects=aspects)
+        return from_chart_output(output)
+
+    @strawberry.field
+    def cusps(
+        self,
+        date: str,
+        time: str,
+        lat: float,
+        lon: float,
+        tz: str = "UTC",
+        mode: ZodiacMode = ZodiacMode.realsky,
+        houses: HouseSystem = HouseSystem.porphyry,
+    ) -> CuspsResult:
+        ci = ChartInput(name="", date=date, time=time, tz=tz, lat=lat, lon=lon)
+        chart = Chart.from_input(ci, house_system=houses)
+        output = CuspsOutput.build(chart, mode)
+        return from_cusps_output(output)
+
+    @strawberry.field
+    def transits(
+        self,
+        natal: ChartDataInput,
+        tz: str = "UTC",
+        date: Optional[str] = None,
+        time: Optional[str] = None,
+        mode: ZodiacMode = ZodiacMode.realsky,
+        houses: HouseSystem = HouseSystem.porphyry,
+        details: bool = False,
+        aspects: bool = False,
+        show_natal: bool = False,
+    ) -> TransitsResult:
+        resolved_lat, resolved_lon = _resolve_coords(
+            natal.lat, natal.lon, natal.location
+        )
+        ci = ChartInput(
+            name="",
+            date=natal.date,
+            time=natal.time,
+            tz=natal.tz,
+            lat=resolved_lat,
+            lon=resolved_lon,
+        )
+        now = datetime.now().astimezone()
+        if date is None:
+            transit_dt = now
+        else:
+            t = time if time is not None else now.strftime("%H:%M")
+            local = datetime.fromisoformat(f"{date}T{t}")
+            transit_dt = local.replace(tzinfo=ZoneInfo(tz))
+
+        chart_natal = Chart.from_input(ci, house_system=houses)
+        output = TransitsOutput.build(
+            ci,
+            chart_natal,
+            transit_dt,
+            mode,
+            details=details,
+            aspects=aspects,
+            natal=show_natal,
+        )
+        return from_transits_output(output)
+
+    @strawberry.field
+    def compare(
+        self,
+        chart_a: ChartDataInput,
+        chart_b: ChartDataInput,
+        mode: ZodiacMode = ZodiacMode.realsky,
+        houses: HouseSystem = HouseSystem.porphyry,
+        details: bool = False,
+        aspects: bool = False,
+    ) -> CompareResult:
+        lat_a, lon_a = _resolve_coords(chart_a.lat, chart_a.lon, chart_a.location)
+        lat_b, lon_b = _resolve_coords(chart_b.lat, chart_b.lon, chart_b.location)
+        ci_a = ChartInput(
+            name="",
+            date=chart_a.date,
+            time=chart_a.time,
+            tz=chart_a.tz,
+            lat=lat_a,
+            lon=lon_a,
+        )
+        ci_b = ChartInput(
+            name="",
+            date=chart_b.date,
+            time=chart_b.time,
+            tz=chart_b.tz,
+            lat=lat_b,
+            lon=lon_b,
+        )
+        a = Chart.from_input(ci_a, house_system=houses)
+        b = Chart.from_input(ci_b, house_system=houses)
+        output = CompareOutput.build(
+            ci_a, ci_b, a, b, mode, details=details, aspects=aspects
+        )
+        return from_compare_output(output)
+
+    @strawberry.field
+    def sky_now(
+        self,
+        mode: ZodiacMode = ZodiacMode.realsky,
+        tz: str = "UTC",
+    ) -> ChartResult:
+        try:
+            now = datetime.now(ZoneInfo(tz))
+        except Exception:
+            now = datetime.now(timezone.utc)
+        ci = ChartInput(
+            name="", date=now.date().isoformat(), time=now.strftime("%H:%M"), tz=tz
+        )
+        chart = Chart.positions_only(now.astimezone(timezone.utc))
+        output = ChartOutput.build(ci, chart, mode, details=True, aspects=True)
+        return from_chart_output(output)
+
+    @strawberry.field
+    def sky_events(
+        self,
+        tz: str = "UTC",
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        mode: ZodiacMode = ZodiacMode.realsky,
+        stations: bool = True,
+        ingresses: bool = True,
+        phases: bool = True,
+        voc: bool = True,
+        aspects: bool = True,
+    ) -> SkyEventsResult:
+        from hoshi.events import sky_events as _sky_events
+
+        try:
+            local_tz = ZoneInfo(tz)
+        except Exception:
+            local_tz = timezone.utc
+
+        now = datetime.now(local_tz)
+        today = now.date()
+
+        if from_date:
+            start = datetime.fromisoformat(from_date).replace(tzinfo=local_tz)
+        else:
+            start = datetime.combine(today, datetime.min.time()).replace(
+                tzinfo=local_tz
+            )
+
+        if to_date:
+            end = datetime.fromisoformat(to_date).replace(tzinfo=local_tz)
+            end = end.replace(hour=23, minute=59, second=59)
+        else:
+            end = datetime.combine(today, datetime.max.time()).replace(tzinfo=local_tz)
+
+        events = _sky_events(
+            start,
+            end,
+            mode,
+            include_stations=stations,
+            include_ingresses=ingresses,
+            include_moon_phases=phases,
+            include_voc=voc,
+            include_aspects=aspects,
+        )
+        output = SkyEventsOutput.build(
+            events,
+            mode=str(mode),
+            from_date=start.date().isoformat(),
+            to_date=end.date().isoformat(),
+        )
+        return from_sky_events_output(output)
+
+
+schema = strawberry.Schema(query=Query)
+router = GraphQLRouter(schema, graphql_ide="graphiql")
