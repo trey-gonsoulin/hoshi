@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Link } from 'react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueries } from '@tanstack/react-query'
 import { Loader2, ChevronDown, ChevronUp, Calendar } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -176,6 +176,17 @@ function RangeButton({
 
 export function SkyPage() {
   const today = todayLocal()
+  const yesterday = addDays(today, -1)
+  const weekEnd = addDays(today, 6)
+  const monthEnd = addDays(today, 29)
+
+  const PRESETS = [
+    { key: 'yesterday', from: yesterday, to: yesterday, label: 'Yesterday' },
+    { key: 'today',     from: today,     to: today,     label: 'Today' },
+    { key: 'week',      from: today,     to: weekEnd,   label: 'Next 7 days' },
+    { key: 'month',     from: today,     to: monthEnd,  label: 'Next 30 days' },
+  ]
+
   const [from, setFrom] = useState(today)
   const [to, setTo] = useState(today)
   const [mode, setMode] = useState<ZodiacMode>('realsky')
@@ -186,8 +197,6 @@ export function SkyPage() {
   const tz = localTz
 
   const isToday = from === today && to === today
-  const isWeek = from === today && to === addDays(today, 6)
-  const isMonth = from === today && to === addDays(today, 29)
   const multiDay = from !== to
 
   function setRange(fromDate: string, toDate: string) {
@@ -196,17 +205,39 @@ export function SkyPage() {
     setCustomRange(false)
   }
 
-  // Events query — auto-fetches when range/mode changes
+  // Prefetch all preset ranges + sky-now + saved charts in parallel at mount
+  useQueries({
+    queries: [
+      ...PRESETS.map((p) => ({
+        queryKey: ['sky-events', p.from, p.to, mode, tz],
+        queryFn: () => api.skyEvents({ from: p.from, to: p.to, mode, tz }),
+        staleTime: 30 * 60 * 1000,
+      })),
+      {
+        queryKey: ['sky-now', mode, tz],
+        queryFn: () => api.skyNow({ mode, tz }),
+        staleTime: 5 * 60 * 1000,
+      },
+      ...charts.map((chart) => ({
+        queryKey: ['chart-compute', chart.id],
+        queryFn: () => api.computeChart({ ...chart.input, details: true, aspects: true, cusps: true }),
+        staleTime: Infinity,
+        gcTime: Infinity,
+      })),
+    ],
+  })
+
+  // Display queries read from cache for presets; fetch fresh for custom ranges
   const eventsQuery = useQuery({
     queryKey: ['sky-events', from, to, mode, tz],
     queryFn: () => api.skyEvents({ from, to, mode, tz }),
+    staleTime: 30 * 60 * 1000,
   })
 
-  // Current sky — lazy, triggered by showSky toggle
   const skyQuery = useQuery({
     queryKey: ['sky-now', mode, tz],
     queryFn: () => api.skyNow({ mode, tz }),
-    enabled: showSky,
+    staleTime: 5 * 60 * 1000,
   })
 
   return (
@@ -232,9 +263,14 @@ export function SkyPage() {
 
       {/* Range selector */}
       <div className="flex flex-wrap items-center gap-2 mb-6">
-        <RangeButton label="Today" active={isToday && !customRange} onClick={() => setRange(today, today)} />
-        <RangeButton label="Next 7 days" active={isWeek && !customRange} onClick={() => setRange(today, addDays(today, 6))} />
-        <RangeButton label="Next 30 days" active={isMonth && !customRange} onClick={() => setRange(today, addDays(today, 29))} />
+        {PRESETS.map((p) => (
+          <RangeButton
+            key={p.key}
+            label={p.label}
+            active={from === p.from && to === p.to && !customRange}
+            onClick={() => setRange(p.from, p.to)}
+          />
+        ))}
         <RangeButton
           label="Custom…"
           active={customRange}
@@ -271,7 +307,13 @@ export function SkyPage() {
       {/* Events section */}
       <section>
         <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-4 select-none">
-          {isToday ? "Today's events" : multiDay ? 'Upcoming events' : 'Events'}
+          {from === yesterday && to === yesterday
+            ? "Yesterday's events"
+            : isToday
+            ? "Today's events"
+            : multiDay
+            ? 'Upcoming events'
+            : 'Events'}
         </p>
 
         {eventsQuery.isPending && (
