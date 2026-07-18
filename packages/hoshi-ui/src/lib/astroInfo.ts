@@ -22,6 +22,7 @@ interface AstroData {
   aspects: Record<string, InfoEntry>
   houses: Record<string, InfoEntry>
   points: Record<string, InfoEntry>
+  dignities: Record<string, InfoEntry>
   retrograde: InfoEntry
 }
 
@@ -47,6 +48,19 @@ export function lookupAspect(name: string): InfoEntry | undefined {
 
 export function lookupRetrograde(): InfoEntry {
   return data.retrograde
+}
+
+// Maps dignity symbol → key in data.dignities
+const DIGNITY_SYMBOL_KEY: Record<string, string> = {
+  '⊕': 'domicile',
+  '△': 'exaltation',
+  '▽': 'detriment',
+  '✕': 'fall',
+}
+
+export function lookupDignity(symbol: string): InfoEntry | undefined {
+  const key = DIGNITY_SYMBOL_KEY[symbol]
+  return key ? data.dignities[key] : undefined
 }
 
 export function getAllSigns(): Record<string, SignEntry> {

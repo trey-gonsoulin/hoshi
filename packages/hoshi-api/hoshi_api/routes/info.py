@@ -17,6 +17,7 @@ class InfoCategory(StrEnum):
     aspects = "aspects"
     houses = "houses"
     points = "points"
+    dignities = "dignities"
 
 
 _EXTRA_COLS: dict[str, list[str]] = {
@@ -25,7 +26,7 @@ _EXTRA_COLS: dict[str, list[str]] = {
 
 
 def _catalog_for(category: InfoCategory) -> dict:
-    from hoshi.info import ANGLES, ASPECTS, HOUSES, PLANETS, POINTS, SIGNS
+    from hoshi.info import ANGLES, ASPECTS, DIGNITIES, HOUSES, PLANETS, POINTS, SIGNS
 
     return {
         InfoCategory.planets: PLANETS,
@@ -34,6 +35,7 @@ def _catalog_for(category: InfoCategory) -> dict:
         InfoCategory.aspects: ASPECTS,
         InfoCategory.houses: HOUSES,
         InfoCategory.points: POINTS,
+        InfoCategory.dignities: DIGNITIES,
     }[category]
 
 

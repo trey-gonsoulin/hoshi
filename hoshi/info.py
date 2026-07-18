@@ -762,6 +762,50 @@ HOUSES: dict[int, Info] = {
     ),
 }
 
+DIGNITIES: dict[str, Info] = {
+    "domicile": Info(
+        name="Domicile",
+        aliases=["home", "rulership"],
+        keywords=["at home", "strong", "natural expression", "unimpeded"],
+        meaning=(
+            "A planet in domicile occupies one of the signs it rules. Here it operates freely "
+            "and confidently, expressing its nature without friction. Domicile is the strongest "
+            "essential dignity: the planet is in familiar territory and can do what it does best."
+        ),
+    ),
+    "exaltation": Info(
+        name="Exaltation",
+        aliases=["exalted"],
+        keywords=["honored", "elevated", "peak expression", "celebrated"],
+        meaning=(
+            "A planet in exaltation is especially honored in its sign, operating at a heightened "
+            "and refined level. The energy is raised above its ordinary expression — potent and "
+            "auspicious, though sometimes idealized to the point of excess or pride."
+        ),
+    ),
+    "detriment": Info(
+        name="Detriment",
+        aliases=["exile"],
+        keywords=["uncomfortable", "weakened", "opposing home", "strained"],
+        meaning=(
+            "A planet in detriment occupies the sign opposite its domicile. It is away from home "
+            "and must express itself through a sign that runs contrary to its nature. The planet "
+            "can still function, but with more effort and less ease than in its own sign."
+        ),
+    ),
+    "fall": Info(
+        name="Fall",
+        aliases=["fallen"],
+        keywords=["debilitated", "humbled", "opposing exaltation", "diminished"],
+        meaning=(
+            "A planet in fall occupies the sign opposite its exaltation — the weakest essential "
+            "dignity. The planet is not only away from its preferred territory but in a sign that "
+            "actively undermines its best qualities. Its energies are muted, distorted, or hard "
+            "to express cleanly."
+        ),
+    ),
+}
+
 POINTS: dict[str, Info] = {
     "N.Node": Info(
         name="North Node",

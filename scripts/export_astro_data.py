@@ -11,7 +11,7 @@ Add a CI step or pre-commit hook to verify the file is up-to-date.
 import json
 from pathlib import Path
 
-from hoshi.info import ANGLES, ASPECTS, HOUSES, PLANETS, POINTS, RETROGRADE, SIGNS
+from hoshi.info import ANGLES, ASPECTS, DIGNITIES, HOUSES, PLANETS, POINTS, RETROGRADE, SIGNS
 
 
 def _info(item) -> dict:
@@ -41,6 +41,7 @@ output = {
     "aspects": {k: _info(v) for k, v in ASPECTS.items()},
     "houses": {str(k): _info(v) for k, v in HOUSES.items()},
     "points": {k: _info(v) for k, v in POINTS.items()},
+    "dignities": {k: _info(v) for k, v in DIGNITIES.items()},
     "retrograde": _info(RETROGRADE),
 }
 

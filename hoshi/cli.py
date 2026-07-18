@@ -636,6 +636,21 @@ def info_houses(
         _output(InfoListOutput.build("Houses", list(HOUSES.values())), fmt)
 
 
+@info_app.command(name="dignities")
+def info_dignities(
+    name: str | None = typer.Argument(
+        None, help="Dignity name (domicile, exaltation, detriment, fall)."
+    ),
+    fmt: OutputFormat = typer.Option(
+        OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
+    ),
+) -> None:
+    """Reference info on the four essential dignities."""
+    from hoshi.info import DIGNITIES
+
+    _render_info(name, fmt, DIGNITIES, title="Dignities", noun="dignity")
+
+
 @info_app.command(name="points")
 def info_points(
     name: str | None = typer.Argument(

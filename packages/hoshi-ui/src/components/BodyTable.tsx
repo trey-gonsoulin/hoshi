@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils'
 import { formatDeg, formatLon } from '@/lib/format'
-import { lookupBody, lookupSign, lookupHouse, lookupRetrograde } from '@/lib/astroInfo'
+import { lookupBody, lookupSign, lookupHouse, lookupRetrograde, lookupDignity } from '@/lib/astroInfo'
 import { InfoTooltip } from '@/components/InfoTooltip'
 import type { BodyEntry } from '@/api/client'
 
@@ -96,7 +96,11 @@ export function BodyTable({ bodies, showHouses }: BodyTableProps) {
                     )}
                     {/* Dignity */}
                     <td className="py-2 w-5 text-center text-muted-foreground">
-                      {body.dignity ?? ''}
+                      {body.dignity ? (
+                        <InfoTooltip info={lookupDignity(body.dignity)}>
+                          {body.dignity}
+                        </InfoTooltip>
+                      ) : ''}
                     </td>
                   </tr>
                 ))}
