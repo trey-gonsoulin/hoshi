@@ -20,8 +20,11 @@ from rich.table import Table
 from rich.text import Text
 
 from hoshi.aspects import (
+    ASPECT_DEFS,
     Aspect,
     KIND_ORDER,
+    _bodies as _aspect_bodies,
+    _match_aspect,
     compute_aspects,
     compute_inter_aspects,
     fmt_orb,
@@ -36,6 +39,7 @@ from hoshi.chart import (
 from hoshi.dignities import DIGNITY_SYMBOLS, dignity_for, element_modality_tally
 from hoshi.houses import house_13_arc, house_from_cusps
 from hoshi.store import ChartInput
+from hoshi.transits import transit_aspect_window
 from hoshi.zodiac import (
     IAU,
     PLANET_GLYPHS,
@@ -56,6 +60,85 @@ ANGLE_DISPLAY_NAMES: dict[str, str] = {
 }
 
 NODE_NAMES = {"N.Node", "S.Node"}
+
+
+class TransitAspect(Aspect, frozen=True):
+    """An Aspect enriched with ingress / exact / egress window dates.
+
+    Used exclusively in :class:`TransitsOutput` — natal-chart and synastry
+    aspects remain plain :class:`~hoshi.aspects.Aspect` objects.
+    """
+
+    ingress: datetime | None = None
+    exact: list[datetime] = Field(default_factory=list)
+    egress: datetime | None = None
+
+
+def _fmt_window_dt(dt: datetime | None, *, fast: bool = False) -> str:
+    """Format a window datetime for display.
+
+    Fast bodies (Moon, Mercury, Venus) show date + time; others show date only.
+    None renders as an em-dash indicating an open-ended window.
+    """
+    if dt is None:
+        return "—"
+    if fast:
+        return dt.strftime("%b %-d %H:%M")
+    return dt.strftime("%b %-d")
+
+
+def _compute_transit_aspects(
+    chart_natal: Chart,
+    chart_transit: Chart,
+    details: bool,
+    mode: str,
+    transit_dt: datetime,
+    *,
+    windows: bool = True,
+) -> list[TransitAspect]:
+    """Compute transit-to-natal aspects, optionally enriched with window dates."""
+    natal_bodies = _aspect_bodies(chart_natal, details, mode)
+    transit_bodies = _aspect_bodies(chart_transit, details, mode)
+
+    transit_pid_map: dict[str, str] = {}
+    for b in chart_transit.bodies():
+        transit_pid_map[b.label] = b.id
+
+    adef_by_name = {a.name: a for a in ASPECT_DEFS}
+
+    result: list[TransitAspect] = []
+    for natal_name, natal_lon, natal_sign in natal_bodies:
+        for transit_name, transit_lon, transit_sign in transit_bodies:
+            asp = _match_aspect(
+                natal_name,
+                natal_lon,
+                transit_name,
+                transit_lon,
+                natal_sign,
+                transit_sign,
+            )
+            if asp is None:
+                continue
+            ingress = None
+            exact: list[datetime] = []
+            egress = None
+            if windows:
+                transit_pid = transit_pid_map.get(transit_name, transit_name.lower())
+                adef = adef_by_name[asp.name]
+                ingress, exact, egress = transit_aspect_window(
+                    transit_pid, natal_lon, adef, transit_dt
+                )
+            result.append(
+                TransitAspect(
+                    **asp.model_dump(),
+                    ingress=ingress,
+                    exact=exact,
+                    egress=egress,
+                )
+            )
+
+    result.sort(key=lambda a: abs(a.orb))
+    return result
 
 
 class BodySelection(BaseModel, frozen=True):
@@ -372,11 +455,15 @@ def _render_by_house(
         console.print(_panel(title, content))
 
 
+_FAST_TRANSIT_PIDS = {"moon", "mercury", "venus"}
+
+
 def _aspect_table(
     aspects: list[Aspect],
     *,
     show_signs: bool = False,
     show_kind: bool = False,
+    show_windows: bool = False,
 ) -> Table:
     table = _new_table()
     table.add_column("Body A", style="bold")
@@ -391,6 +478,10 @@ def _aspect_table(
         table.add_column("Kind")
     table.add_column("Angle", justify="right")
     table.add_column("Orb", justify="right")
+    if show_windows:
+        table.add_column("Ingress", justify="right")
+        table.add_column("Exact", justify="right")
+        table.add_column("Egress", justify="right")
     for asp in aspects:
         row: list[str] = [asp.body_a]
         if show_signs:
@@ -403,6 +494,19 @@ def _aspect_table(
         if show_kind:
             row.append(asp.kind)
         row.extend([f"{asp.angle:.0f}°", fmt_orb(asp.orb)])
+        if show_windows:
+            if isinstance(asp, TransitAspect):
+                fast = asp.body_b.lower() in _FAST_TRANSIT_PIDS
+                exact_str = ", ".join(_fmt_window_dt(dt, fast=fast) for dt in asp.exact)
+                row.extend(
+                    [
+                        _fmt_window_dt(asp.ingress, fast=fast),
+                        exact_str or "—",
+                        _fmt_window_dt(asp.egress, fast=fast),
+                    ]
+                )
+            else:
+                row.extend(["", "", ""])
         table.add_row(*row)
     return table
 
@@ -415,6 +519,7 @@ def _render_aspects(
     group_by: str = "category",
     body_houses: dict[str, int] | None = None,
     mode: str = "realsky",
+    show_windows: bool = False,
 ) -> None:
     if not aspects:
         return
@@ -426,7 +531,9 @@ def _render_aspects(
             seen.setdefault(asp.body_a, []).append(asp)
             seen.setdefault(asp.body_b, []).append(asp)
         for body, group in seen.items():
-            table = _aspect_table(group, show_signs=show_signs, show_kind=True)
+            table = _aspect_table(
+                group, show_signs=show_signs, show_kind=True, show_windows=show_windows
+            )
             console.print()
             console.print(_panel(f"{prefix}{body}", table))
     elif group_by == "sign":
@@ -439,7 +546,12 @@ def _render_aspects(
             if asp.sign_b and asp.sign_b != asp.sign_a:
                 by_sign.setdefault(asp.sign_b, []).append(asp)
         for sign in sorted(by_sign, key=lambda s: rank.get(s, 99)):
-            table = _aspect_table(by_sign[sign], show_signs=show_signs, show_kind=True)
+            table = _aspect_table(
+                by_sign[sign],
+                show_signs=show_signs,
+                show_kind=True,
+                show_windows=show_windows,
+            )
             console.print()
             console.print(_panel(f"{prefix}{sign}", table))
     elif group_by == "house" and body_houses:
@@ -453,7 +565,10 @@ def _render_aspects(
                 by_house.setdefault(h_b, []).append(asp)
         for house in sorted(by_house):
             table = _aspect_table(
-                by_house[house], show_signs=show_signs, show_kind=True
+                by_house[house],
+                show_signs=show_signs,
+                show_kind=True,
+                show_windows=show_windows,
             )
             console.print()
             console.print(_panel(f"{prefix}House {house}", table))
@@ -465,7 +580,9 @@ def _render_aspects(
             group = by_kind.get(kind)
             if not group:
                 continue
-            table = _aspect_table(group, show_signs=show_signs)
+            table = _aspect_table(
+                group, show_signs=show_signs, show_windows=show_windows
+            )
             console.print()
             console.print(_panel(f"{prefix}{kind} Aspects", table))
 
@@ -929,7 +1046,7 @@ class TransitsOutput(OutputModel):
     warnings: list[str] = []
     transit_bodies: list[BodyEntry] = []
     natal_bodies: list[BodyEntry] | None = None
-    aspects: list[Aspect] | None = None
+    aspects: list[TransitAspect] | None = None
 
     # Rendering-only
     show_houses: bool = Field(default=True, exclude=True)
@@ -948,6 +1065,7 @@ class TransitsOutput(OutputModel):
         aspects: bool = False,
         natal: bool = False,
         group_by: str = "category",
+        windows: bool = True,
     ) -> TransitsOutput:
         natal_time_known = ci.time_known
         natal_loc_known = ci.location_known
@@ -987,7 +1105,9 @@ class TransitsOutput(OutputModel):
             )
 
         aspect_list = (
-            compute_inter_aspects(chart_natal, chart_transit, details, mode)
+            _compute_transit_aspects(
+                chart_natal, chart_transit, details, mode, transit_dt, windows=windows
+            )
             if aspects
             else None
         )
@@ -1062,13 +1182,18 @@ class TransitsOutput(OutputModel):
             body_houses = {
                 b.name: b.house for b in self.transit_bodies if b.house is not None
             }
+            has_windows = any(
+                asp.ingress is not None or asp.exact or asp.egress is not None
+                for asp in self.aspects
+            )
             _render_aspects(
                 console,
-                self.aspects,
+                self.aspects,  # type: ignore[arg-type]
                 prefix,
                 group_by=self.group_by,
                 body_houses=body_houses,
                 mode=self.header.mode,
+                show_windows=has_windows,
             )
 
     def _render_side_by_side(self, console: Console) -> None:

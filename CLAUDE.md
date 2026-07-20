@@ -28,6 +28,7 @@ Hoshi is a Python CLI for astrological charting, with a focus on real-sky astrol
 | `aspects.py` | Aspect definitions and orbs; `compute_aspects()`, `compute_inter_aspects()` |
 | `dignities.py` | Planetary dignities table, element/modality tally |
 | `events.py` | Sky event detection over a date range — stations (retrograde/direct), sign ingresses, moon phases, void-of-course windows, and transit-to-transit exact aspects. Public API: `sky_events(start, end, mode, ...)` → `list[SkyEvent]`. Display tables: `BODY_DISPLAY`, `BODY_SYMBOL`, `SIGN_SYMBOL`. Seed-cache bodies (Chiron/Ceres/Eris) included when seed JSON is available (Lambda/Docker). |
+| `transits.py` | Transit aspect window computation. `transit_aspect_window(body_pid, natal_lon, aspect_def, transit_dt)` returns `(ingress, exact_dates, egress)` as UTC datetimes for an active transit-to-natal aspect. Scan window and step scale with planet mean motion so sample count stays constant (~120 samples). Returns `(None, [], None)` for Horizons-backed bodies (Chiron/Ceres/Eris/nodes). |
 | `output.py` | Pydantic output models for every command (`ChartOutput`, `TransitsOutput`, `SkyEventsOutput`, etc.) with `.build()` classmethods that assemble models from SDK types. Shared by CLI and API. |
 | `store.py` | Save/load/list/delete named charts in `./charts/` |
 | `utils.py` | Shared utilities (`fuzzy_match`) used by both CLI and API |
@@ -180,6 +181,9 @@ correctly without async wrappers.
 ## Conventions
 
 - Use `uv` for dependency and run management (`uv add`, `uv run`).
+- When asked to remove or simplify something, remove it entirely — do not add fallback logic, compatibility shims, or feature flags unless explicitly asked.
+- This is a **uv workspace monorepo** (core `hoshi/`, `packages/hoshi-api/`, `packages/hoshi-ui/`). Changes to core data structures or output models must be reflected in the API package. Per-package semantic-release versioning is in effect.
+- For dependency version floors, use `build-constraint-dependencies` in `pyproject.toml` (not `dependencies`) and validate with `uv sync --resolution=lowest-direct`.
 
 ## Commit message format
 
@@ -223,4 +227,5 @@ Before considering any code change complete, verify all of the following:
 1. **Lint and format** — run `uv run ruff check --fix .` and `uv run ruff format .` to fix lint issues and enforce consistent formatting.
 2. **Tests are written** — new or changed functionality must have corresponding tests.
 3. **All tests pass** — run the full test suite (`uv run pytest`) and confirm zero failures.
-4. **Documentation is updated** — update this file (CLAUDE.md), CLI help text, and any other relevant docs to reflect the change.
+4. **End-to-end verified** — for CLI/API/UI changes, exercise the actual feature path (run the command, hit the endpoint, open the page) before considering the task complete. Type checks and tests verify correctness, not feature behavior.
+5. **Documentation is updated** — update this file (CLAUDE.md), CLI help text, and any other relevant docs to reflect the change.

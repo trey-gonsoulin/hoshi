@@ -79,6 +79,7 @@ class TransitsRequest(BaseModel):
     details: bool = False
     aspects: bool = False
     show_natal: bool = False
+    windows: bool = False
 
 
 class CompareRequest(BaseModel):
@@ -212,6 +213,7 @@ def chart_transits(body: TransitsRequest) -> TransitsOutput:
         details=body.details,
         aspects=body.aspects,
         natal=body.show_natal,
+        windows=body.windows,
     )
 
 

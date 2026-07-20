@@ -64,6 +64,22 @@ class Aspect:
 
 
 @strawberry.type
+class TransitAspect:
+    body_a: str
+    sign_a: str
+    body_b: str
+    sign_b: str
+    name: str
+    symbol: str
+    angle: float
+    orb: float
+    kind: str
+    ingress: Optional[str]
+    exact: list[str]
+    egress: Optional[str]
+
+
+@strawberry.type
 class TallyRow:
     primary: int
     total: int
@@ -139,7 +155,7 @@ class TransitsResult:
     warnings: list[str]
     transit_bodies: list[BodyEntry]
     natal_bodies: Optional[list[BodyEntry]]
-    aspects: Optional[list[Aspect]]
+    aspects: Optional[list[TransitAspect]]
 
 
 @strawberry.type
@@ -237,6 +253,23 @@ def from_cusps_output(output: _pydantic.CuspsOutput) -> CuspsResult:
     )
 
 
+def _transit_aspect(a: dict) -> TransitAspect:
+    return TransitAspect(
+        body_a=a["body_a"],
+        sign_a=a["sign_a"],
+        body_b=a["body_b"],
+        sign_b=a["sign_b"],
+        name=a["name"],
+        symbol=a["symbol"],
+        angle=a["angle"],
+        orb=a["orb"],
+        kind=a["kind"],
+        ingress=a.get("ingress"),
+        exact=a.get("exact") or [],
+        egress=a.get("egress"),
+    )
+
+
 def from_transits_output(output: _pydantic.TransitsOutput) -> TransitsResult:
     data = output.model_dump(mode="json")
     return TransitsResult(
@@ -249,7 +282,7 @@ def from_transits_output(output: _pydantic.TransitsOutput) -> TransitsResult:
             else None
         ),
         aspects=(
-            [_aspect(a) for a in data["aspects"]]
+            [_transit_aspect(a) for a in data["aspects"]]
             if data["aspects"] is not None
             else None
         ),
