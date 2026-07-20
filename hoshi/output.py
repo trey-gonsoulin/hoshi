@@ -63,15 +63,32 @@ NODE_NAMES = {"N.Node", "S.Node"}
 
 
 class TransitAspect(Aspect, frozen=True):
-    """An Aspect enriched with ingress / exact / egress window dates.
+    """An Aspect enriched with ingress / exact / egress window dates and pass info.
 
     Used exclusively in :class:`TransitsOutput` — natal-chart and synastry
     aspects remain plain :class:`~hoshi.aspects.Aspect` objects.
+
+    pass_count is the total number of exact dates (= number of retrograde passes).
+    current_pass is the 1-based index of the next upcoming exact, or the last
+    pass index if all exacts are already in the past.  Both are None when window
+    computation was skipped or no exact dates were found.
     """
 
     ingress: datetime | None = None
     exact: list[datetime] = Field(default_factory=list)
     egress: datetime | None = None
+    pass_count: int = 0
+    current_pass: int | None = None
+
+
+def _next_pass(exact: list[datetime], transit_dt: datetime) -> int | None:
+    """Return 1-based index of the next upcoming exact, or last pass if all are past."""
+    if not exact:
+        return None
+    for i, dt in enumerate(exact):
+        if dt >= transit_dt:
+            return i + 1
+    return len(exact)
 
 
 def _fmt_window_dt(dt: datetime | None, *, fast: bool = False) -> str:
@@ -134,6 +151,8 @@ def _compute_transit_aspects(
                     ingress=ingress,
                     exact=exact,
                     egress=egress,
+                    pass_count=len(exact),
+                    current_pass=_next_pass(exact, transit_dt) if exact else None,
                 )
             )
 
@@ -478,7 +497,12 @@ def _aspect_table(
         table.add_column("Kind")
     table.add_column("Angle", justify="right")
     table.add_column("Orb", justify="right")
+    show_passes = show_windows and any(
+        isinstance(a, TransitAspect) and a.pass_count > 1 for a in aspects
+    )
     if show_windows:
+        if show_passes:
+            table.add_column("Pass", justify="center")
         table.add_column("Ingress", justify="right")
         table.add_column("Exact", justify="right")
         table.add_column("Egress", justify="right")
@@ -498,6 +522,11 @@ def _aspect_table(
             if isinstance(asp, TransitAspect):
                 fast = asp.body_b.lower() in _FAST_TRANSIT_PIDS
                 exact_str = ", ".join(_fmt_window_dt(dt, fast=fast) for dt in asp.exact)
+                if show_passes:
+                    if asp.pass_count > 1 and asp.current_pass is not None:
+                        row.append(f"{asp.current_pass}/{asp.pass_count}")
+                    else:
+                        row.append("")
                 row.extend(
                     [
                         _fmt_window_dt(asp.ingress, fast=fast),
@@ -506,7 +535,7 @@ def _aspect_table(
                     ]
                 )
             else:
-                row.extend(["", "", ""])
+                row.extend([""] * (4 if show_passes else 3))
         table.add_row(*row)
     return table
 
