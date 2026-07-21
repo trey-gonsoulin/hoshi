@@ -57,7 +57,7 @@ from hoshi.ephemeris import (
 )
 from hoshi.houses import Angles
 from hoshi.points import HERMETIC_LOT_NAMES, LunarElements, hermetic_lots
-from hoshi.transits import transit_aspect_window
+from hoshi.transits import TransitTier, transit_aspect_window, transit_tier
 from hoshi.store import ChartInput
 from hoshi.zodiac import (
     IAU,
@@ -129,7 +129,9 @@ __all__ = [
     "BODY_SYMBOL",
     "SIGN_SYMBOL",
     # Transit windows
+    "TransitTier",
     "transit_aspect_window",
+    "transit_tier",
     # Output models
     "BodySelection",
     "ChartOutput",

@@ -168,3 +168,70 @@ class TestPassTracking:
 
         dt = datetime(2025, 6, 1, tzinfo=timezone.utc)
         assert _next_pass([], dt) is None
+
+
+class TestTransitTier:
+    def test_known_slow_bodies(self):
+        from hoshi.transits import TransitTier, transit_tier
+
+        for pid in (
+            "jupiter",
+            "saturn",
+            "uranus",
+            "neptune",
+            "pluto",
+            "chiron",
+            "ceres",
+            "eris",
+        ):
+            assert transit_tier(pid) == TransitTier.slow
+
+    def test_medium_body(self):
+        from hoshi.transits import TransitTier, transit_tier
+
+        assert transit_tier("mars") == TransitTier.medium
+
+    def test_fast_bodies(self):
+        from hoshi.transits import TransitTier, transit_tier
+
+        for pid in ("sun", "mercury", "venus"):
+            assert transit_tier(pid) == TransitTier.fast
+
+    def test_luminary(self):
+        from hoshi.transits import TransitTier, transit_tier
+
+        assert transit_tier("moon") == TransitTier.luminary
+
+    def test_unknown_defaults_to_slow(self):
+        from hoshi.transits import TransitTier, transit_tier
+
+        assert transit_tier("n.node") == TransitTier.slow
+        assert transit_tier("lilith") == TransitTier.slow
+
+    def test_case_insensitive(self):
+        from hoshi.transits import TransitTier, transit_tier
+
+        assert transit_tier("Saturn") == TransitTier.slow
+        assert transit_tier("MOON") == TransitTier.luminary
+
+    def test_tier_field_on_transit_aspect(self):
+        """TransitAspect.tier is populated (non-empty) when computed."""
+        from datetime import timezone
+
+        from hoshi.output import _compute_transit_aspects
+        from hoshi.store import ChartInput
+        from hoshi.chart import Chart
+
+        dt = datetime(2025, 7, 18, 12, 0, tzinfo=timezone.utc)
+        ci = ChartInput(
+            name="test", date="1990-01-01", time="12:00", tz="UTC", lat=40.7, lon=-74.0
+        )
+        chart_natal = Chart.from_input(ci)
+        chart_transit = Chart.positions_only(dt)
+
+        aspects = _compute_transit_aspects(
+            chart_natal, chart_transit, False, "realsky", dt, windows=False
+        )
+        assert len(aspects) > 0
+        for asp in aspects:
+            assert asp.tier in ("slow", "medium", "fast", "luminary")

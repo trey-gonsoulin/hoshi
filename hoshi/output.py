@@ -39,7 +39,7 @@ from hoshi.chart import (
 from hoshi.dignities import DIGNITY_SYMBOLS, dignity_for, element_modality_tally
 from hoshi.houses import house_13_arc, house_from_cusps
 from hoshi.store import ChartInput
-from hoshi.transits import transit_aspect_window
+from hoshi.transits import TransitTier, transit_aspect_window, transit_tier
 from hoshi.zodiac import (
     IAU,
     PLANET_GLYPHS,
@@ -49,6 +49,13 @@ from hoshi.zodiac import (
     format_deg,
 )
 
+# Display order for tier grouping (most impactful first).
+_TIER_DISPLAY_ORDER = [
+    TransitTier.slow,
+    TransitTier.medium,
+    TransitTier.fast,
+    TransitTier.luminary,
+]
 
 ANGLE_DISPLAY_NAMES: dict[str, str] = {
     "asc": "Ascendant",
@@ -63,7 +70,7 @@ NODE_NAMES = {"N.Node", "S.Node"}
 
 
 class TransitAspect(Aspect, frozen=True):
-    """An Aspect enriched with ingress / exact / egress window dates and pass info.
+    """An Aspect enriched with ingress / exact / egress window dates, pass info, and tier.
 
     Used exclusively in :class:`TransitsOutput` — natal-chart and synastry
     aspects remain plain :class:`~hoshi.aspects.Aspect` objects.
@@ -72,6 +79,7 @@ class TransitAspect(Aspect, frozen=True):
     current_pass is the 1-based index of the next upcoming exact, or the last
     pass index if all exacts are already in the past.  Both are None when window
     computation was skipped or no exact dates were found.
+    tier is the speed classification of the transiting body.
     """
 
     ingress: datetime | None = None
@@ -79,6 +87,7 @@ class TransitAspect(Aspect, frozen=True):
     egress: datetime | None = None
     pass_count: int = 0
     current_pass: int | None = None
+    tier: str = ""
 
 
 def _next_pass(exact: list[datetime], transit_dt: datetime) -> int | None:
@@ -136,11 +145,11 @@ def _compute_transit_aspects(
             )
             if asp is None:
                 continue
+            transit_pid = transit_pid_map.get(transit_name, transit_name.lower())
             ingress = None
             exact: list[datetime] = []
             egress = None
             if windows:
-                transit_pid = transit_pid_map.get(transit_name, transit_name.lower())
                 adef = adef_by_name[asp.name]
                 ingress, exact, egress = transit_aspect_window(
                     transit_pid, natal_lon, adef, transit_dt
@@ -153,6 +162,7 @@ def _compute_transit_aspects(
                     egress=egress,
                     pass_count=len(exact),
                     current_pass=_next_pass(exact, transit_dt) if exact else None,
+                    tier=transit_tier(transit_pid),
                 )
             )
 
@@ -601,6 +611,21 @@ def _render_aspects(
             )
             console.print()
             console.print(_panel(f"{prefix}House {house}", table))
+    elif group_by == "tier":
+        by_tier: dict[str, list[Aspect]] = {}
+        for asp in aspects:
+            tier_val = getattr(asp, "tier", "") or "slow"
+            by_tier.setdefault(tier_val, []).append(asp)
+        for tier in _TIER_DISPLAY_ORDER:
+            group = by_tier.get(str(tier))
+            if not group:
+                continue
+            label = tier.capitalize()
+            table = _aspect_table(
+                group, show_signs=show_signs, show_kind=True, show_windows=show_windows
+            )
+            console.print()
+            console.print(_panel(f"{prefix}{label} Transits", table))
     else:
         by_kind: dict[str, list[Aspect]] = {}
         for asp in aspects:
@@ -1095,6 +1120,7 @@ class TransitsOutput(OutputModel):
         natal: bool = False,
         group_by: str = "category",
         windows: bool = True,
+        tier: str = "all",
     ) -> TransitsOutput:
         natal_time_known = ci.time_known
         natal_loc_known = ci.location_known
@@ -1140,6 +1166,8 @@ class TransitsOutput(OutputModel):
             if aspects
             else None
         )
+        if tier != "all" and aspect_list is not None:
+            aspect_list = [a for a in aspect_list if a.tier == tier]
 
         return cls(
             header=TransitHeader(

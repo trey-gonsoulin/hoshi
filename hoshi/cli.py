@@ -45,6 +45,7 @@ class GroupBy(StrEnum):
     sign = "sign"
     house = "house"
     planet = "planet"
+    tier = "tier"
 
 
 class OutputFormat(StrEnum):
@@ -466,7 +467,12 @@ def chart_transits(
     group_by: GroupBy = typer.Option(
         GroupBy.category,
         "--group-by",
-        help="Group output by category (default), sign, house, or planet.",
+        help="Group output by category (default), sign, house, planet, or tier.",
+    ),
+    tier: str = typer.Option(
+        "all",
+        "--tier",
+        help="Filter transit aspects by speed tier: slow, medium, fast, luminary, or all.",
     ),
     fmt: OutputFormat = typer.Option(
         OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
@@ -499,6 +505,7 @@ def chart_transits(
         aspects=aspects,
         natal=natal,
         group_by=group_by,
+        tier=tier,
     )
     _output(output, fmt)
 

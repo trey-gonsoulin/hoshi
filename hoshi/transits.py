@@ -18,12 +18,45 @@ always return (None, [], None).
 from __future__ import annotations
 
 from datetime import datetime
+from enum import StrEnum
 
 import numpy as np
 
 from hoshi.aspects import AspectDef
 from hoshi.ephemeris import SKYFIELD_TARGETS
 from hoshi.events import _body_lons, _datetime_to_jd, _jd_to_utc
+
+
+class TransitTier(StrEnum):
+    """Speed tier classification for transiting bodies."""
+
+    slow = "slow"
+    medium = "medium"
+    fast = "fast"
+    luminary = "luminary"
+
+
+_BODY_TIER: dict[str, TransitTier] = {
+    "moon": TransitTier.luminary,
+    "sun": TransitTier.fast,
+    "mercury": TransitTier.fast,
+    "venus": TransitTier.fast,
+    "mars": TransitTier.medium,
+    "jupiter": TransitTier.slow,
+    "saturn": TransitTier.slow,
+    "uranus": TransitTier.slow,
+    "neptune": TransitTier.slow,
+    "pluto": TransitTier.slow,
+    "chiron": TransitTier.slow,
+    "ceres": TransitTier.slow,
+    "eris": TransitTier.slow,
+}
+
+
+def transit_tier(pid: str) -> str:
+    """Return the speed tier for a transiting body pid (defaults to slow)."""
+    return _BODY_TIER.get(pid.lower(), TransitTier.slow)
+
 
 # Approximate mean daily motions (degrees/day) for scan-window scaling.
 # Using averages; retrograde periods cut actual progress significantly.

@@ -79,6 +79,7 @@ class TransitAspect:
     egress: Optional[str]
     pass_count: int
     current_pass: Optional[int]
+    tier: str
 
 
 @strawberry.type
@@ -271,6 +272,7 @@ def _transit_aspect(a: dict) -> TransitAspect:
         egress=a.get("egress"),
         pass_count=a.get("pass_count", 0),
         current_pass=a.get("current_pass"),
+        tier=a.get("tier", "slow"),
     )
 
 
