@@ -82,6 +82,7 @@ class TransitsRequest(BaseModel):
     show_natal: bool = False
     windows: bool = False
     tier: str = "all"
+    sensitivity: str = ""
 
 
 class ForecastRequest(BaseModel):
@@ -93,6 +94,7 @@ class ForecastRequest(BaseModel):
     houses: HouseSystem = HouseSystem.porphyry
     tier: str = "slow"
     details: bool = False
+    sensitivity: str = ""
 
 
 class CompareRequest(BaseModel):
@@ -228,6 +230,7 @@ def chart_transits(body: TransitsRequest) -> TransitsOutput:
         natal=body.show_natal,
         windows=body.windows,
         tier=body.tier,
+        sensitivity=body.sensitivity,
     )
 
 
@@ -254,6 +257,7 @@ def chart_forecast(body: ForecastRequest) -> ForecastOutput:
         body.mode,
         tier=body.tier,
         details=body.details,
+        sensitivity=body.sensitivity,
     )
 
 

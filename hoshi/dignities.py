@@ -96,6 +96,48 @@ _SIGN_DIGNITIES: dict[str, dict[str, list[str]]] = {
 _DIGNITY_PRIORITY = ["domicile", "exaltation", "detriment", "fall"]
 
 
+def chart_ruler(asc_sign: str) -> str | None:
+    """Return the primary domicile ruler id of asc_sign (lowercase), or None."""
+    rulers = _SIGN_DIGNITIES.get(asc_sign, {}).get("domicile", [])
+    return rulers[0] if rulers else None
+
+
+_PRIMARY_NATAL_ALWAYS = frozenset({"sun", "moon"})
+_PRIMARY_NATAL_LOC = frozenset({"asc", "mc"})
+_SECONDARY_NATAL = frozenset({"mercury", "venus", "mars"})
+
+
+def natal_sensitivity(
+    body_name: str,
+    *,
+    chart_ruler_pid: str | None = None,
+    location_known: bool = True,
+) -> str:
+    """Return the transit significance tier of a natal body.
+
+    primary: Sun and Moon always; Asc, MC, and chart ruler only when location is known.
+    secondary: Mercury, Venus, Mars.
+    tertiary: everything else (outer planets, nodes, points, lots).
+
+    When location is unknown the Ascendant sign (and chart ruler) cannot be
+    trusted, so only Sun/Moon remain primary.
+    """
+    pid = body_name.lower()
+    if pid == "ascendant":
+        pid = "asc"
+    elif pid == "midheaven":
+        pid = "mc"
+    if pid in _PRIMARY_NATAL_ALWAYS:
+        return "primary"
+    if location_known and pid in _PRIMARY_NATAL_LOC:
+        return "primary"
+    if location_known and chart_ruler_pid and pid == chart_ruler_pid.lower():
+        return "primary"
+    if pid in _SECONDARY_NATAL:
+        return "secondary"
+    return "tertiary"
+
+
 def dignity_for(planet: str, sign: str) -> str | None:
     """Return the highest-priority dignity of `planet` in `sign`, or None."""
     entry = _SIGN_DIGNITIES.get(sign, {})

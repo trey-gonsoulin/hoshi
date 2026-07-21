@@ -474,6 +474,11 @@ def chart_transits(
         "--tier",
         help="Filter transit aspects by speed tier: slow, medium, fast, luminary, or all.",
     ),
+    sensitivity: str = typer.Option(
+        "",
+        "--sensitivity",
+        help="Filter by natal point sensitivity: primary, secondary, or tertiary.",
+    ),
     fmt: OutputFormat = typer.Option(
         OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
     ),
@@ -506,6 +511,7 @@ def chart_transits(
         natal=natal,
         group_by=group_by,
         tier=tier,
+        sensitivity=sensitivity,
     )
     _output(output, fmt)
 
@@ -533,6 +539,11 @@ def chart_forecast(
     ),
     details: bool = typer.Option(
         False, "--details", help="Include angles, nodes, and points as natal targets."
+    ),
+    sensitivity: str = typer.Option(
+        "",
+        "--sensitivity",
+        help="Filter by natal point sensitivity: primary, secondary, or tertiary.",
     ),
     fmt: OutputFormat = typer.Option(
         OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
@@ -574,6 +585,7 @@ def chart_forecast(
         mode,
         tier=tier,
         details=details,
+        sensitivity=sensitivity,
     )
     _output(output, fmt)
 

@@ -36,7 +36,13 @@ from hoshi.chart import (
     HouseSystem,
     uncertain_signs,
 )
-from hoshi.dignities import DIGNITY_SYMBOLS, dignity_for, element_modality_tally
+from hoshi.dignities import (
+    DIGNITY_SYMBOLS,
+    chart_ruler,
+    dignity_for,
+    element_modality_tally,
+    natal_sensitivity,
+)
 from hoshi.houses import house_13_arc, house_from_cusps
 from hoshi.store import ChartInput
 from hoshi.transits import TransitTier, transit_aspect_window, transit_tier
@@ -88,6 +94,7 @@ class TransitAspect(Aspect, frozen=True):
     pass_count: int = 0
     current_pass: int | None = None
     tier: str = ""
+    natal_sensitivity: str = ""
 
 
 def _next_pass(exact: list[datetime], transit_dt: datetime) -> int | None:
@@ -113,6 +120,15 @@ def _fmt_window_dt(dt: datetime | None, *, fast: bool = False) -> str:
     return dt.strftime("%b %-d")
 
 
+def _chart_ruler_pid(chart: Chart, mode: str) -> str | None:
+    """Return the lowercase planet id ruling the chart's Ascendant sign, or None."""
+    for a in chart.angles:
+        if a.name == "asc":
+            asc_sign = a.placed.placement(mode).name
+            return chart_ruler(asc_sign)
+    return None
+
+
 def _compute_transit_aspects(
     chart_natal: Chart,
     chart_transit: Chart,
@@ -121,6 +137,8 @@ def _compute_transit_aspects(
     transit_dt: datetime,
     *,
     windows: bool = True,
+    chart_ruler_pid: str | None = None,
+    location_known: bool = True,
 ) -> list[TransitAspect]:
     """Compute transit-to-natal aspects, optionally enriched with window dates."""
     natal_bodies = _aspect_bodies(chart_natal, details, mode)
@@ -163,6 +181,11 @@ def _compute_transit_aspects(
                     pass_count=len(exact),
                     current_pass=_next_pass(exact, transit_dt) if exact else None,
                     tier=transit_tier(transit_pid),
+                    natal_sensitivity=natal_sensitivity(
+                        natal_name,
+                        chart_ruler_pid=chart_ruler_pid,
+                        location_known=location_known,
+                    ),
                 )
             )
 
@@ -1121,6 +1144,7 @@ class TransitsOutput(OutputModel):
         group_by: str = "category",
         windows: bool = True,
         tier: str = "all",
+        sensitivity: str = "",
     ) -> TransitsOutput:
         natal_time_known = ci.time_known
         natal_loc_known = ci.location_known
@@ -1159,15 +1183,25 @@ class TransitsOutput(OutputModel):
                 ),
             )
 
+        ruler_pid = _chart_ruler_pid(chart_natal, mode) if natal_loc_known else None
         aspect_list = (
             _compute_transit_aspects(
-                chart_natal, chart_transit, details, mode, transit_dt, windows=windows
+                chart_natal,
+                chart_transit,
+                details,
+                mode,
+                transit_dt,
+                windows=windows,
+                chart_ruler_pid=ruler_pid,
+                location_known=natal_loc_known,
             )
             if aspects
             else None
         )
         if tier != "all" and aspect_list is not None:
             aspect_list = [a for a in aspect_list if a.tier == tier]
+        if sensitivity and aspect_list is not None:
+            aspect_list = [a for a in aspect_list if a.natal_sensitivity == sensitivity]
 
         return cls(
             header=TransitHeader(
@@ -1713,6 +1747,7 @@ class ForecastOutput(OutputModel):
         *,
         tier: str = "slow",
         details: bool = False,
+        sensitivity: str = "",
     ) -> ForecastOutput:
         from hoshi.transits import ForecastWindow, forecast_transits
 
@@ -1726,6 +1761,9 @@ class ForecastOutput(OutputModel):
             tiers: frozenset[str] = frozenset(t.value for t in TransitTier)
         else:
             tiers = frozenset({tier})
+
+        loc_known = ci.location_known
+        ruler_pid = _chart_ruler_pid(chart_natal, mode) if loc_known else None
 
         natal_bodies = _aspect_bodies(chart_natal, details, mode)
         windows: list[ForecastWindow] = forecast_transits(
@@ -1754,9 +1792,17 @@ class ForecastOutput(OutputModel):
                 pass_count=w.pass_count,
                 current_pass=None,
                 tier=w.tier,
+                natal_sensitivity=natal_sensitivity(
+                    w.natal_name,
+                    chart_ruler_pid=ruler_pid,
+                    location_known=loc_known,
+                ),
             )
             for w in windows
         ]
+
+        if sensitivity:
+            aspect_list = [a for a in aspect_list if a.natal_sensitivity == sensitivity]
 
         return cls(
             header=ForecastHeader(

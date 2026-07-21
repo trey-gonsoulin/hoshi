@@ -26,7 +26,7 @@ Hoshi is a Python CLI for astrological charting, with a focus on real-sky astrol
 | `points.py` | True lunar nodes, Black Moon Lilith, Hermetic lots |
 | `chart.py` | `Chart.build()` / `Chart.from_input()` — assembles all bodies; `Chart.bodies()`/`Chart.body(id)` uniform `BodyRef` iteration; `uncertain_signs()`; `Placed.for_longitude(...)` and `Placed.placement(mode)`; `location_known`/`time_known` flags; `house` is `None` when location unknown |
 | `aspects.py` | Aspect definitions and orbs; `compute_aspects()`, `compute_inter_aspects()` |
-| `dignities.py` | Planetary dignities table, element/modality tally |
+| `dignities.py` | Planetary dignities table, element/modality tally; `chart_ruler(asc_sign)` returns the domicile ruler of a sign; `natal_sensitivity(body_name, *, chart_ruler_pid, location_known)` returns `"primary"` / `"secondary"` / `"tertiary"` for a natal body (primary = Sun/Moon always + Asc/MC/chart-ruler when location known; secondary = Mercury/Venus/Mars; tertiary = everything else) |
 | `events.py` | Sky event detection over a date range — stations (retrograde/direct), sign ingresses, moon phases, void-of-course windows, and transit-to-transit exact aspects. Public API: `sky_events(start, end, mode, ...)` → `list[SkyEvent]`. Display tables: `BODY_DISPLAY`, `BODY_SYMBOL`, `SIGN_SYMBOL`. Seed-cache bodies (Chiron/Ceres/Eris) included when seed JSON is available (Lambda/Docker). |
 | `transits.py` | Transit aspect window computation. `transit_aspect_window(body_pid, natal_lon, aspect_def, transit_dt)` returns `(ingress, exact_dates, egress)` as UTC datetimes for an active transit-to-natal aspect. Scan window and step scale with planet mean motion so sample count stays constant (~120 samples). Returns `(None, [], None)` for Horizons-backed bodies (Chiron/Ceres/Eris/nodes). `forecast_transits(natal_bodies, from_dt, to_dt, mode, tiers, aspect_defs)` scans a date range and returns `list[ForecastWindow]` — one per transit window with at least one exact date in range; one ephemeris call per planet reused across all natal bodies and aspects. `transit_tier(pid)` returns the `TransitTier` for a body. |
 | `output.py` | Pydantic output models for every command (`ChartOutput`, `TransitsOutput`, `SkyEventsOutput`, etc.) with `.build()` classmethods that assemble models from SDK types. Shared by CLI and API. |
@@ -61,8 +61,8 @@ Guidance when changing the package:
 hoshi chart add      NAME DATE [TIME] [--lat] [--lon] [--tz] [--mode] [--houses] [--details] [--aspects] [--group-by] [--cusps] [--force]
 hoshi chart show     NAME|DATE [TIME] [--lat --lon] ...   [--format table|json] [--compare-houses]
 hoshi chart cusps    NAME|DATE [TIME] [--lat --lon] ...   [--mode] [--houses]
-hoshi chart transits NAME [DATE [TIME]]                   [--tz] [--mode] [--houses] [--details] [--aspects] [--natal] [--group-by] [--tier]
-hoshi chart forecast NAME                                 [--from DATE] [--to DATE] [--tz] [--mode] [--houses] [--tier slow|medium|fast|luminary|all] [--details] [--format]
+hoshi chart transits NAME [DATE [TIME]]                   [--tz] [--mode] [--houses] [--details] [--aspects] [--natal] [--group-by] [--tier] [--sensitivity primary|secondary|tertiary]
+hoshi chart forecast NAME                                 [--from DATE] [--to DATE] [--tz] [--mode] [--houses] [--tier slow|medium|fast|luminary|all] [--details] [--sensitivity primary|secondary|tertiary] [--format]
 hoshi chart compare  NAME1 NAME2                          [--mode] [--houses] [--aspects] [--details] [--group-by]
 hoshi chart import   SOURCE [NAME]                        [--force] [--mode] [--houses] [--details] [--aspects] [--group-by] [--cusps] [--format]
 hoshi chart list
@@ -166,8 +166,8 @@ with auto-reload). Interactive docs at `/docs`.
 | `GET` | `/charts/{name}` | Show a saved chart |
 | `DELETE` | `/charts/{name}` | Delete a saved chart |
 | `GET` | `/charts/{name}/cusps` | House cusps |
-| `GET` | `/charts/{name}/transits` | Transits against natal |
-| `POST` | `/charts/forecast` | Transit-to-natal aspects over a date range |
+| `GET` | `/charts/{name}/transits` | Transits against natal (supports `sensitivity` field in request body) |
+| `POST` | `/charts/forecast` | Transit-to-natal aspects over a date range (supports `sensitivity` field in request body) |
 | `GET` | `/charts/{name}/compare/{other}` | Synastry |
 | `GET` | `/info/{category}` | List reference info |
 | `GET` | `/info/{category}/{name}` | Single item detail |

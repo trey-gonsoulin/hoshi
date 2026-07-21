@@ -48,7 +48,12 @@ from hoshi.chart import (
     PointChart,
     uncertain_signs,
 )
-from hoshi.dignities import dignity_for, element_modality_tally
+from hoshi.dignities import (
+    chart_ruler,
+    dignity_for,
+    element_modality_tally,
+    natal_sensitivity,
+)
 from hoshi.ephemeris import (
     PLANET_ORDER,
     HorizonsError,
@@ -126,6 +131,8 @@ __all__ = [
     # Dignities
     "dignity_for",
     "element_modality_tally",
+    "chart_ruler",
+    "natal_sensitivity",
     # ADB import
     "ADBError",
     "ADBResult",
