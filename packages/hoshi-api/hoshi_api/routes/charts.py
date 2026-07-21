@@ -1,6 +1,6 @@
 """Chart endpoints."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter
@@ -12,6 +12,7 @@ from hoshi.output import (
     ChartOutput,
     CompareOutput,
     CuspsOutput,
+    ForecastOutput,
     TransitsOutput,
 )
 from hoshi.zodiac import ZodiacMode
@@ -81,6 +82,17 @@ class TransitsRequest(BaseModel):
     show_natal: bool = False
     windows: bool = False
     tier: str = "all"
+
+
+class ForecastRequest(BaseModel):
+    natal: ChartData
+    from_date: str | None = None
+    to_date: str | None = None
+    tz: str = "UTC"
+    mode: ZodiacMode = ZodiacMode.realsky
+    houses: HouseSystem = HouseSystem.porphyry
+    tier: str = "slow"
+    details: bool = False
 
 
 class CompareRequest(BaseModel):
@@ -216,6 +228,32 @@ def chart_transits(body: TransitsRequest) -> TransitsOutput:
         natal=body.show_natal,
         windows=body.windows,
         tier=body.tier,
+    )
+
+
+@router.post("/forecast", response_model=ForecastOutput)
+def chart_forecast(body: ForecastRequest) -> ForecastOutput:
+    ci = _chart_input_from(body.natal)
+    now = datetime.now().astimezone(ZoneInfo(body.tz))
+    from_dt = (
+        datetime.fromisoformat(body.from_date).replace(tzinfo=ZoneInfo(body.tz))
+        if body.from_date is not None
+        else now.replace(hour=0, minute=0, second=0, microsecond=0)
+    )
+    to_dt = (
+        datetime.fromisoformat(body.to_date).replace(tzinfo=ZoneInfo(body.tz))
+        if body.to_date is not None
+        else from_dt + timedelta(days=90)
+    )
+    chart_natal = Chart.from_input(ci, house_system=body.houses)
+    return ForecastOutput.build(
+        ci,
+        chart_natal,
+        from_dt,
+        to_dt,
+        body.mode,
+        tier=body.tier,
+        details=body.details,
     )
 
 

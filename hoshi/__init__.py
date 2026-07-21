@@ -21,6 +21,8 @@ from hoshi.output import (
     ChartOutput,
     CompareOutput,
     CuspsOutput,
+    ForecastHeader,
+    ForecastOutput,
     HouseComparisonOutput,
     InfoDetailOutput,
     InfoListOutput,
@@ -57,7 +59,13 @@ from hoshi.ephemeris import (
 )
 from hoshi.houses import Angles
 from hoshi.points import HERMETIC_LOT_NAMES, LunarElements, hermetic_lots
-from hoshi.transits import TransitTier, transit_aspect_window, transit_tier
+from hoshi.transits import (
+    ForecastWindow,
+    TransitTier,
+    forecast_transits,
+    transit_aspect_window,
+    transit_tier,
+)
 from hoshi.store import ChartInput
 from hoshi.zodiac import (
     IAU,
@@ -128,10 +136,12 @@ __all__ = [
     "BODY_DISPLAY",
     "BODY_SYMBOL",
     "SIGN_SYMBOL",
-    # Transit windows
+    # Transit windows and forecast
     "TransitTier",
     "transit_aspect_window",
     "transit_tier",
+    "ForecastWindow",
+    "forecast_transits",
     # Output models
     "BodySelection",
     "ChartOutput",
@@ -139,6 +149,8 @@ __all__ = [
     "CuspsOutput",
     "TransitAspect",
     "TransitsOutput",
+    "ForecastHeader",
+    "ForecastOutput",
     "CompareOutput",
     "HouseComparisonOutput",
     "InfoDetailOutput",

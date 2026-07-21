@@ -235,3 +235,192 @@ class TestTransitTier:
         assert len(aspects) > 0
         for asp in aspects:
             assert asp.tier in ("slow", "medium", "fast", "luminary")
+
+
+class TestForecastTransits:
+    """Tests for the date-range transit-to-natal aspect scanner."""
+
+    # Fixed natal chart: New York, 1990-01-01 noon UTC
+    _CI = {
+        "name": "test",
+        "date": "1990-01-01",
+        "time": "12:00",
+        "tz": "UTC",
+        "lat": 40.7,
+        "lon": -74.0,
+    }
+
+    def _natal_bodies(self, details: bool = False):
+        from hoshi.aspects import _bodies
+        from hoshi.chart import Chart
+        from hoshi.store import ChartInput
+
+        ci = ChartInput(**self._CI)
+        chart = Chart.from_input(ci)
+        return _bodies(chart, details, "realsky")
+
+    def test_returns_list(self):
+        from datetime import timezone
+
+        from hoshi.transits import forecast_transits
+
+        from_dt = datetime(2025, 7, 1, tzinfo=timezone.utc)
+        to_dt = datetime(2025, 9, 30, tzinfo=timezone.utc)
+        natal_bodies = self._natal_bodies()
+        windows = forecast_transits(natal_bodies, from_dt, to_dt)
+        assert isinstance(windows, list)
+
+    def test_default_tier_is_slow(self):
+        from datetime import timezone
+
+        from hoshi.transits import TransitTier, forecast_transits
+
+        from_dt = datetime(2025, 7, 1, tzinfo=timezone.utc)
+        to_dt = datetime(2025, 9, 30, tzinfo=timezone.utc)
+        natal_bodies = self._natal_bodies()
+        windows = forecast_transits(natal_bodies, from_dt, to_dt)
+        for w in windows:
+            assert w.tier == TransitTier.slow, f"{w.transit_name} has tier {w.tier}"
+
+    def test_windows_have_in_range_exact_dates(self):
+        from datetime import timezone
+
+        from hoshi.transits import forecast_transits
+
+        from_dt = datetime(2025, 7, 1, tzinfo=timezone.utc)
+        to_dt = datetime(2025, 9, 30, tzinfo=timezone.utc)
+        natal_bodies = self._natal_bodies()
+        windows = forecast_transits(natal_bodies, from_dt, to_dt)
+        for w in windows:
+            in_range = [e for e in w.exact if from_dt <= e <= to_dt]
+            assert len(in_range) >= 1, (
+                f"{w.transit_name} {w.aspect_name} {w.natal_name}: "
+                f"no exact dates in range (exact={w.exact})"
+            )
+
+    def test_ingress_before_exact_before_egress(self):
+        from datetime import timezone
+
+        from hoshi.transits import forecast_transits
+
+        from_dt = datetime(2025, 7, 1, tzinfo=timezone.utc)
+        to_dt = datetime(2025, 9, 30, tzinfo=timezone.utc)
+        natal_bodies = self._natal_bodies()
+        windows = forecast_transits(natal_bodies, from_dt, to_dt)
+        for w in windows:
+            if w.ingress is not None and w.exact:
+                assert w.ingress <= w.exact[0], (
+                    f"ingress {w.ingress} > first exact {w.exact[0]}"
+                )
+            if w.egress is not None and w.exact:
+                assert w.exact[-1] <= w.egress, (
+                    f"last exact {w.exact[-1]} > egress {w.egress}"
+                )
+
+    def test_all_datetimes_utc(self):
+        from datetime import timezone
+
+        from hoshi.transits import forecast_transits
+
+        from_dt = datetime(2025, 7, 1, tzinfo=timezone.utc)
+        to_dt = datetime(2025, 9, 30, tzinfo=timezone.utc)
+        natal_bodies = self._natal_bodies()
+        windows = forecast_transits(natal_bodies, from_dt, to_dt)
+        for w in windows:
+            if w.ingress is not None:
+                assert w.ingress.tzinfo is not None
+            if w.egress is not None:
+                assert w.egress.tzinfo is not None
+            for e in w.exact:
+                assert e.tzinfo is not None
+
+    def test_sorted_by_first_in_range_exact(self):
+        from datetime import timezone
+
+        from hoshi.transits import forecast_transits
+
+        from_dt = datetime(2025, 7, 1, tzinfo=timezone.utc)
+        to_dt = datetime(2025, 9, 30, tzinfo=timezone.utc)
+        natal_bodies = self._natal_bodies()
+        windows = forecast_transits(natal_bodies, from_dt, to_dt)
+        if len(windows) >= 2:
+            first_exacts = []
+            for w in windows:
+                in_range = [e for e in w.exact if from_dt <= e <= to_dt]
+                first_exacts.append(in_range[0] if in_range else from_dt)
+            assert first_exacts == sorted(first_exacts)
+
+    def test_no_duplicate_windows(self):
+        """Each transit window should appear at most once."""
+        from datetime import timezone
+
+        from hoshi.transits import forecast_transits
+
+        from_dt = datetime(2025, 7, 1, tzinfo=timezone.utc)
+        to_dt = datetime(2025, 9, 30, tzinfo=timezone.utc)
+        natal_bodies = self._natal_bodies()
+        windows = forecast_transits(natal_bodies, from_dt, to_dt)
+        keys = [
+            (w.transit_pid, w.natal_name, w.aspect_name, w.ingress, w.egress)
+            for w in windows
+        ]
+        assert len(keys) == len(set(keys)), "Duplicate windows found"
+
+    def test_tier_filter(self):
+        from datetime import timezone
+
+        from hoshi.transits import TransitTier, forecast_transits
+
+        from_dt = datetime(2025, 7, 1, tzinfo=timezone.utc)
+        to_dt = datetime(2025, 9, 30, tzinfo=timezone.utc)
+        natal_bodies = self._natal_bodies()
+
+        slow_windows = forecast_transits(
+            natal_bodies, from_dt, to_dt, tiers=frozenset({TransitTier.slow})
+        )
+        medium_windows = forecast_transits(
+            natal_bodies, from_dt, to_dt, tiers=frozenset({TransitTier.medium})
+        )
+        for w in slow_windows:
+            assert w.tier == "slow"
+        for w in medium_windows:
+            assert w.tier == "medium"
+
+    def test_consistency_with_transit_aspect_window(self):
+        """For each ForecastWindow, transit_aspect_window called at the first
+        in-range exact date should return the same ingress/egress."""
+        from datetime import timezone
+
+        from hoshi.aspects import _bodies
+        from hoshi.chart import Chart
+        from hoshi.store import ChartInput
+        from hoshi.transits import forecast_transits, transit_aspect_window
+        from hoshi.aspects import ASPECT_DEFS
+
+        from_dt = datetime(2025, 7, 1, tzinfo=timezone.utc)
+        to_dt = datetime(2025, 9, 30, tzinfo=timezone.utc)
+        ci = ChartInput(**self._CI)
+        chart = Chart.from_input(ci)
+        natal_bodies = _bodies(chart, False, "realsky")
+
+        windows = forecast_transits(natal_bodies, from_dt, to_dt)
+        adef_map = {a.name: a for a in ASPECT_DEFS}
+
+        for w in windows[:5]:  # check first 5 to keep test fast
+            in_range = [e for e in w.exact if from_dt <= e <= to_dt]
+            ref_dt = in_range[0]
+            adef = adef_map[w.aspect_name]
+            ingress2, _, egress2 = transit_aspect_window(
+                w.transit_pid, w.natal_lon, adef, ref_dt
+            )
+            # Allow ≤1 hour difference: bisection precision varies with scan step
+            if w.ingress is not None and ingress2 is not None:
+                assert abs((ingress2 - w.ingress).total_seconds()) <= 3600, (
+                    f"{w.transit_name} {w.aspect_name} {w.natal_name}: "
+                    f"ingress mismatch: forecast={w.ingress}, window={ingress2}"
+                )
+            if w.egress is not None and egress2 is not None:
+                assert abs((egress2 - w.egress).total_seconds()) <= 3600, (
+                    f"{w.transit_name} {w.aspect_name} {w.natal_name}: "
+                    f"egress mismatch: forecast={w.egress}, window={egress2}"
+                )

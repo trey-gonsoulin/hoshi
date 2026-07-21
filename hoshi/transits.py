@@ -17,14 +17,21 @@ always return (None, [], None).
 
 from __future__ import annotations
 
-from datetime import datetime
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from enum import StrEnum
 
 import numpy as np
 
 from hoshi.aspects import AspectDef
 from hoshi.ephemeris import SKYFIELD_TARGETS
-from hoshi.events import _body_lons, _datetime_to_jd, _jd_to_utc
+from hoshi.events import (
+    _body_lons,
+    _datetime_to_jd,
+    _jd_to_utc,
+    _sign_indices,
+    _sign_name,
+)
 
 
 class TransitTier(StrEnum):
@@ -143,6 +150,12 @@ def _bisect_orb_boundary(
         else:
             t_hi = t_mid
     return (t_lo + t_hi) / 2.0
+
+
+def _sign_at(body_pid: str, jd: float, mode: str) -> str:
+    """Return the zodiac sign name of a transiting body at a given Julian Day."""
+    lon = _body_lons(body_pid, np.array([jd]))
+    return _sign_name(int(_sign_indices(lon, np.array([jd]), mode)[0]), mode)
 
 
 # ---------------------------------------------------------------------------
@@ -273,3 +286,172 @@ def transit_aspect_window(
         [_jd_to_utc(jd) for jd in sorted(exact_jds)],
         _jd_to_utc(egress_jd) if egress_jd is not None else None,
     )
+
+
+# ---------------------------------------------------------------------------
+# Date-range forecast
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ForecastWindow:
+    """One transit-to-natal aspect window found by :func:`forecast_transits`.
+
+    Represents a period during which a transiting body forms an aspect to a
+    natal point and becomes exact at least once within the requested range.
+    """
+
+    transit_pid: str
+    transit_name: str
+    transit_sign: str
+    natal_name: str
+    natal_lon: float
+    natal_sign: str
+    aspect_name: str
+    aspect_symbol: str
+    aspect_angle: float
+    aspect_kind: str
+    ingress: datetime | None
+    egress: datetime | None
+    exact: list[datetime] = field(default_factory=list)
+    tier: str = ""
+    pass_count: int = 0
+
+
+def forecast_transits(
+    natal_bodies: list[tuple[str, float, str]],
+    from_dt: datetime,
+    to_dt: datetime,
+    mode: str = "realsky",
+    *,
+    tiers: frozenset[str] | None = None,
+    aspect_defs: list[AspectDef] | None = None,
+) -> list[ForecastWindow]:
+    """Find all transit-to-natal aspect windows with at least one exact date in [from_dt, to_dt].
+
+    Parameters
+    ----------
+    natal_bodies:
+        List of (display_name, ecliptic_lon, sign) tuples — e.g. the output of
+        ``hoshi.aspects._bodies(chart, details, mode)``.
+    from_dt, to_dt:
+        Date range (timezone-aware).  Only windows whose exact date(s) fall
+        within this inclusive range are returned.
+    mode:
+        Zodiac mode string (``"realsky"``, ``"tropical"``, ``"vedic"``).
+    tiers:
+        Which speed tiers to include.  ``None`` defaults to slow planets only
+        (Jupiter, Saturn, Uranus, Neptune, Pluto).
+    aspect_defs:
+        Which aspects to scan.  ``None`` defaults to all
+        :data:`~hoshi.aspects.ASPECT_DEFS`.
+
+    Returns
+    -------
+    list of :class:`ForecastWindow`
+        Sorted by first in-range exact date.  ``exact`` contains *all* exact
+        dates for the window (retrograde passes may fall outside the range).
+    """
+    from hoshi.aspects import ASPECT_DEFS as _ALL_ASPECTS
+
+    if tiers is None:
+        tiers = frozenset({TransitTier.slow})
+    if aspect_defs is None:
+        aspect_defs = _ALL_ASPECTS
+
+    scan_pids = [
+        pid
+        for pid in SKYFIELD_TARGETS
+        if str(_BODY_TIER.get(pid, TransitTier.slow)) in tiers
+    ]
+
+    from_jd = _datetime_to_jd(from_dt)
+    to_jd = _datetime_to_jd(to_dt)
+
+    _DT_MIN = datetime.min.replace(tzinfo=timezone.utc)
+    _DT_MAX = datetime.max.replace(tzinfo=timezone.utc)
+
+    results: list[ForecastWindow] = []
+
+    for transit_pid in scan_pids:
+        mean_motion = _MEAN_MOTION.get(transit_pid, 0.01)
+        min_orb = min(a.orb for a in aspect_defs)
+        # Step: at least 20 samples per orb-traversal so no crossing is missed.
+        step = max(min_orb / mean_motion / 20.0, 0.05)
+        n_samples = max(int((to_jd - from_jd) / step) + 2, 5)
+        t_jd = np.linspace(from_jd, to_jd, n_samples)
+        lons = _body_lons(transit_pid, t_jd)  # one ephemeris call per planet
+        tier_val = str(_BODY_TIER.get(transit_pid, TransitTier.slow))
+
+        for natal_name, natal_lon, natal_sign in natal_bodies:
+            raw_arc = (lons - natal_lon) % 360.0
+
+            for adef in aspect_defs:
+                asp_angle = adef.angle
+                max_orb = adef.orb
+                targets = [asp_angle]
+                if asp_angle not in (0.0, 180.0):
+                    targets.append(360.0 - asp_angle)
+
+                # Collect sign-change JDs (potential exact dates) within the range.
+                in_range_jds: list[float] = []
+                for tgt in targets:
+                    dev = ((raw_arc - tgt + 180.0) % 360.0) - 180.0
+                    abs_dev = np.abs(dev)
+                    for i in range(1, len(t_jd)):
+                        d0 = float(dev[i - 1])
+                        d1 = float(dev[i])
+                        if (
+                            d0 * d1 < 0
+                            and float(abs_dev[i - 1]) <= max_orb + 1.0
+                            and float(abs_dev[i]) <= max_orb + 1.0
+                        ):
+                            exact_jd = _bisect_exact(
+                                transit_pid, natal_lon, tgt, t_jd[i - 1], t_jd[i]
+                            )
+                            in_range_jds.append(exact_jd)
+
+                in_range_jds.sort()
+
+                # Interval-skip dedup: once a window is emitted its (ingress,
+                # egress) interval absorbs any later crossing from the same window
+                # (e.g. retrograde triple passes).
+                emitted: list[tuple[datetime, datetime]] = []
+
+                for exact_jd in in_range_jds:
+                    exact_dt = _jd_to_utc(exact_jd)
+                    if any(lo <= exact_dt <= hi for lo, hi in emitted):
+                        continue
+
+                    ingress, exacts, egress = transit_aspect_window(
+                        transit_pid, natal_lon, adef, exact_dt
+                    )
+                    emitted.append((ingress or _DT_MIN, egress or _DT_MAX))
+
+                    t_sign = _sign_at(transit_pid, exact_jd, mode)
+                    results.append(
+                        ForecastWindow(
+                            transit_pid=transit_pid,
+                            transit_name=transit_pid.capitalize(),
+                            transit_sign=t_sign,
+                            natal_name=natal_name,
+                            natal_lon=natal_lon,
+                            natal_sign=natal_sign,
+                            aspect_name=adef.name,
+                            aspect_symbol=adef.symbol,
+                            aspect_angle=adef.angle,
+                            aspect_kind=adef.kind,
+                            ingress=ingress,
+                            egress=egress,
+                            exact=exacts,
+                            tier=tier_val,
+                            pass_count=len(exacts),
+                        )
+                    )
+
+    def _sort_key(w: ForecastWindow) -> datetime:
+        in_range = [e for e in w.exact if from_dt <= e <= to_dt]
+        return in_range[0] if in_range else (w.ingress or from_dt)
+
+    results.sort(key=_sort_key)
+    return results

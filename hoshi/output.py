@@ -1680,3 +1680,144 @@ class SkyEventsOutput(OutputModel):
             )
             table.add_row(e.when[:16], f"{icon} {e.detail}{sign_part}")
         console.print(_panel(f"Sky Events {self.from_date} – {self.to_date}", table))
+
+
+# ---------------------------------------------------------------------------
+# Forecast output (transit-to-natal aspects over a date range)
+# ---------------------------------------------------------------------------
+
+
+class ForecastHeader(BaseModel, frozen=True):
+    name: str = ""
+    natal_date: str = ""
+    from_date: str = ""
+    to_date: str = ""
+    mode: str = "realsky"
+    tier: str = "slow"
+    house_system: str | None = None
+
+
+class ForecastOutput(OutputModel):
+    header: ForecastHeader = ForecastHeader()
+    warnings: list[str] = []
+    aspects: list[TransitAspect] = []
+
+    @classmethod
+    def build(
+        cls,
+        ci: ChartInput,
+        chart_natal: Chart,
+        from_dt: datetime,
+        to_dt: datetime,
+        mode: str,
+        *,
+        tier: str = "slow",
+        details: bool = False,
+    ) -> ForecastOutput:
+        from hoshi.transits import ForecastWindow, forecast_transits
+
+        warnings = []
+        if not ci.time_known:
+            warnings.append("⚠ Natal time unknown — natal planet degrees approximate")
+        if not ci.location_known:
+            warnings.append("⚠ Natal location unknown — natal house placement omitted")
+
+        if tier == "all":
+            tiers: frozenset[str] = frozenset(t.value for t in TransitTier)
+        else:
+            tiers = frozenset({tier})
+
+        natal_bodies = _aspect_bodies(chart_natal, details, mode)
+        windows: list[ForecastWindow] = forecast_transits(
+            natal_bodies,
+            from_dt,
+            to_dt,
+            mode,
+            tiers=tiers,
+            aspect_defs=ASPECT_DEFS,
+        )
+
+        aspect_list: list[TransitAspect] = [
+            TransitAspect(
+                body_a=w.natal_name,
+                sign_a=w.natal_sign,
+                body_b=w.transit_name,
+                sign_b=w.transit_sign,
+                name=w.aspect_name,
+                symbol=w.aspect_symbol,
+                angle=w.aspect_angle,
+                orb=0.0,
+                kind=w.aspect_kind,
+                ingress=w.ingress,
+                exact=w.exact,
+                egress=w.egress,
+                pass_count=w.pass_count,
+                current_pass=None,
+                tier=w.tier,
+            )
+            for w in windows
+        ]
+
+        return cls(
+            header=ForecastHeader(
+                name=ci.name,
+                natal_date=ci.date,
+                from_date=from_dt.strftime("%Y-%m-%d"),
+                to_date=to_dt.strftime("%Y-%m-%d"),
+                mode=mode,
+                tier=tier,
+                house_system=chart_natal.house_system if ci.location_known else None,
+            ),
+            warnings=warnings,
+            aspects=aspect_list,
+        )
+
+    def render(self, console: Console) -> None:
+        h = self.header
+        console.print(
+            f"[bold]Transit Forecast:[/bold] [yellow]\\[{h.name.title()}][/yellow]  "
+            f"{h.from_date} → {h.to_date}  "
+            f"mode: [magenta]{h.mode}[/magenta]  tier: [magenta]{h.tier}[/magenta]"
+        )
+        for w in self.warnings:
+            console.print(f"[yellow]{w}[/yellow]")
+
+        if not self.aspects:
+            console.print("[dim]No transits found in this date range.[/dim]")
+            return
+
+        from_d = datetime.strptime(h.from_date, "%Y-%m-%d").date()
+        to_d = datetime.strptime(h.to_date, "%Y-%m-%d").date()
+
+        table = _new_table()
+        table.add_column("Exact(s)", style="bold")
+        table.add_column("Transit")
+        table.add_column("Sign", style="dim")
+        table.add_column("", justify="center")
+        table.add_column("Aspect")
+        table.add_column("Natal")
+        table.add_column("Sign", style="dim")
+        table.add_column("Ingress", justify="right")
+        table.add_column("Egress", justify="right")
+        table.add_column("Pass", justify="center")
+
+        for asp in self.aspects:
+            fast = asp.tier in ("fast", "luminary")
+            in_range = [e for e in asp.exact if from_d <= e.date() <= to_d]
+            exact_str = ", ".join(e.strftime("%b %-d") for e in in_range) or "—"
+            pass_str = f"{len(in_range)}/{asp.pass_count}" if asp.pass_count > 1 else ""
+            table.add_row(
+                exact_str,
+                asp.body_b,
+                asp.sign_b,
+                asp.symbol,
+                asp.name,
+                asp.body_a,
+                asp.sign_a,
+                _fmt_window_dt(asp.ingress, fast=fast),
+                _fmt_window_dt(asp.egress, fast=fast),
+                pass_str,
+            )
+
+        console.print()
+        console.print(_panel(f"Forecast: {h.from_date} – {h.to_date}", table))

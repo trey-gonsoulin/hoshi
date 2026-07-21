@@ -510,6 +510,74 @@ def chart_transits(
     _output(output, fmt)
 
 
+@chart_app.command(name="forecast")
+def chart_forecast(
+    name: str = typer.Argument(..., help="Saved natal chart name."),
+    from_date: str | None = typer.Option(
+        None, "--from", help="Start date YYYY-MM-DD (default: today)."
+    ),
+    to_date: str | None = typer.Option(
+        None, "--to", help="End date YYYY-MM-DD (default: 90 days from today)."
+    ),
+    tz: str = typer.Option(
+        "UTC", "--tz", help="IANA timezone for interpreting the date range."
+    ),
+    mode: ZodiacMode = typer.Option(ZodiacMode.realsky, "--mode", help="Zodiac mode."),
+    houses: HouseSystem = typer.Option(
+        HouseSystem.porphyry, "--houses", help="House system."
+    ),
+    tier: str = typer.Option(
+        "slow",
+        "--tier",
+        help="Speed tier to scan: slow (default), medium, fast, luminary, or all.",
+    ),
+    details: bool = typer.Option(
+        False, "--details", help="Include angles, nodes, and points as natal targets."
+    ),
+    fmt: OutputFormat = typer.Option(
+        OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
+    ),
+) -> None:
+    """Show transit-to-natal aspects that become exact within a date range."""
+    from datetime import timedelta
+
+    from hoshi.output import ForecastOutput
+
+    try:
+        ci = store.load(name)
+    except FileNotFoundError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    now = datetime.now().astimezone(ZoneInfo(tz))
+    if from_date is None:
+        from_dt = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    else:
+        try:
+            from_dt = datetime.fromisoformat(from_date).replace(tzinfo=ZoneInfo(tz))
+        except ValueError as exc:
+            raise typer.BadParameter(f"Could not parse --from date: {exc}") from exc
+
+    if to_date is None:
+        to_dt = from_dt + timedelta(days=90)
+    else:
+        try:
+            to_dt = datetime.fromisoformat(to_date).replace(tzinfo=ZoneInfo(tz))
+        except ValueError as exc:
+            raise typer.BadParameter(f"Could not parse --to date: {exc}") from exc
+
+    chart_natal = Chart.from_input(ci, house_system=houses)
+    output = ForecastOutput.build(
+        ci,
+        chart_natal,
+        from_dt,
+        to_dt,
+        mode,
+        tier=tier,
+        details=details,
+    )
+    _output(output, fmt)
+
+
 @chart_app.command(name="compare")
 def chart_compare(
     name_a: str = typer.Argument(..., help="First saved chart name."),
