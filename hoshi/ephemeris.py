@@ -15,7 +15,7 @@ import urllib.request
 from datetime import datetime, timezone
 from functools import cache
 from pathlib import Path
-
+import numpy as np
 from pydantic import BaseModel
 from skyfield.api import Loader, load
 
@@ -439,6 +439,28 @@ def _parse_horizons_ecliptic(body: str) -> tuple[float, float, float]:
     cols0 = [c.strip() for c in rows[0].split(",")]
     cols1 = [c.strip() for c in rows[1].split(",")]
     return float(cols0[3]), float(cols0[4]), float(cols1[3])
+
+
+def batch_ecliptic_lons(planet_id: str, datetimes: list[datetime]) -> np.ndarray:  # type: ignore[type-arg]
+    """Geocentric ecliptic-of-date longitudes (degrees) for `planet_id` at each datetime.
+
+    Vectorized Skyfield call — much faster than calling `positions()` per
+    timestamp. No retrograde computation. All datetimes must be timezone-aware.
+
+    Returns a 1-D numpy array of longitude values in [0, 360).
+    """
+
+    if planet_id not in SKYFIELD_TARGETS:
+        raise ValueError(f"{planet_id!r} is not a Skyfield-backed planet")
+
+    eph = _load_ephemeris()
+    ts = timescale()
+    t_arr = ts.from_datetimes(datetimes)
+    earth = eph["earth"]
+    body = eph[SKYFIELD_TARGETS[planet_id]]
+    astrometric = earth.at(t_arr).observe(body)  # type: ignore[reportAttributeAccessIssue]
+    _, lon, _ = astrometric.ecliptic_latlon(epoch=t_arr)
+    return np.asarray(lon.degrees) % 360.0
 
 
 def lahiri_ayanamsa(when: datetime) -> float:

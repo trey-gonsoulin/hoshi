@@ -71,6 +71,14 @@ from hoshi.transits import (
     transit_aspect_window,
     transit_tier,
 )
+from hoshi.birthrange import (
+    BirthDateRange,
+    Constraint,
+    SCANNABLE_ANGLES,
+    SCANNABLE_PLANETS,
+    find_birth_date_ranges,
+)
+from hoshi.output import BirthRangeOutput
 from hoshi.store import ChartInput
 from hoshi.zodiac import (
     IAU,
@@ -163,6 +171,13 @@ __all__ = [
     "InfoDetailOutput",
     "InfoListOutput",
     "SkyEventsOutput",
+    "BirthRangeOutput",
+    # Birth date range
+    "Constraint",
+    "BirthDateRange",
+    "SCANNABLE_ANGLES",
+    "SCANNABLE_PLANETS",
+    "find_birth_date_ranges",
     # Utilities
     "fuzzy_match",
 ]

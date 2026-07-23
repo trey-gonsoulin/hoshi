@@ -7,6 +7,7 @@ themselves are derived here rather than read from an ephemeris.
 import math
 from datetime import datetime, timezone
 
+import numpy as np
 from pydantic import BaseModel
 
 from hoshi.ephemeris import timescale
@@ -68,6 +69,44 @@ def _mc_from_ramc(ramc: float, eps: float) -> float:
     return _n360(
         math.degrees(math.atan2(math.sin(ramc_r), math.cos(ramc_r) * math.cos(eps)))
     )
+
+
+def batch_angle_lons(
+    datetimes: list[datetime],
+    geo_lat: float,
+    geo_lon: float,
+) -> dict[str, np.ndarray]:  # type: ignore[type-arg]
+    """Vectorized ASC/MC/IC/DSC ecliptic longitudes for a list of UTC datetimes.
+
+    Uses the same GMST polynomial and ASC formula as `Angles.compute` so the
+    two paths are always consistent (verified by oracle tests in test_birthrange).
+    """
+    ts = timescale()
+    t_arr = ts.from_datetimes(datetimes)
+    jd = np.asarray(t_arr.ut1)
+    T = (jd - 2451545.0) / 36525.0
+    gmst = (
+        280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * T * T
+    ) % 360.0
+    ramc = (gmst + geo_lon) % 360.0
+    eps = np.radians(23.439291111 - 0.013004167 * T)
+    ramc_r = np.radians(ramc)
+    lat_r = math.radians(geo_lat)
+
+    mc = np.degrees(np.arctan2(np.sin(ramc_r), np.cos(ramc_r) * np.cos(eps))) % 360.0
+
+    y_a = -np.cos(ramc_r)
+    x_a = np.sin(eps) * np.tan(lat_r) + np.cos(eps) * np.sin(ramc_r)
+    asc = np.degrees(np.arctan2(y_a, x_a)) % 360.0
+    # ASC must lead MC by 0–180° on the ecliptic.
+    asc = np.where((asc - mc) % 360.0 > 180.0, (asc + 180.0) % 360.0, asc)
+
+    return {
+        "asc": asc,
+        "mc": mc,
+        "ic": (mc + 180.0) % 360.0,
+        "dsc": (asc + 180.0) % 360.0,
+    }
 
 
 class Angles(BaseModel, frozen=True):

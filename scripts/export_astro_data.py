@@ -11,7 +11,16 @@ Add a CI step or pre-commit hook to verify the file is up-to-date.
 import json
 from pathlib import Path
 
-from hoshi.info import ANGLES, ASPECTS, DIGNITIES, HOUSES, PLANETS, POINTS, RETROGRADE, SIGNS
+from hoshi.info import (
+    ANGLES,
+    ASPECTS,
+    DIGNITIES,
+    HOUSES,
+    PLANETS,
+    POINTS,
+    RETROGRADE,
+    SIGNS,
+)
 
 
 def _info(item) -> dict:

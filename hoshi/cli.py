@@ -590,6 +590,108 @@ def chart_forecast(
     _output(output, fmt)
 
 
+@chart_app.command(name="birthrange")
+def chart_birthrange(
+    constraints: list[str] = typer.Argument(
+        ...,
+        help=(
+            "One or more BODY:SIGN pairs, e.g. sun:aries moon:taurus asc:leo. "
+            "Planet and sign names are fuzzy-matched. "
+            "Angle bodies (asc, mc, ic, dsc) require --lat and --lon."
+        ),
+    ),
+    from_date: str = typer.Option(
+        "1900-01-01",
+        "--from",
+        help="Search start date YYYY-MM-DD (default: 1900-01-01; max 5-year span with angle constraints).",
+    ),
+    to_date: str | None = typer.Option(
+        None, "--to", help="Search end date YYYY-MM-DD (default: today)."
+    ),
+    lat: float | None = typer.Option(
+        None,
+        "--lat",
+        help="Geographic latitude (decimal degrees). Required for asc/mc/ic/dsc constraints.",
+    ),
+    lon: float | None = typer.Option(
+        None,
+        "--lon",
+        help="Geographic longitude (decimal degrees, east-positive). Required for asc/mc/ic/dsc constraints.",
+    ),
+    mode: ZodiacMode = typer.Option(ZodiacMode.realsky, "--mode", help="Zodiac mode."),
+    fmt: OutputFormat = typer.Option(
+        OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
+    ),
+) -> None:
+    """Find birth date ranges consistent with known planetary/angle sign placements."""
+    from datetime import timezone
+
+    from hoshi.birthrange import (
+        SCANNABLE_ANGLES,
+        BirthDateRange,
+        Constraint,
+        _step_hours,
+        find_birth_date_ranges,
+        valid_planets,
+        valid_signs,
+    )
+    from hoshi.output import BirthRangeOutput
+
+    # Parse constraints
+    parsed: list[Constraint] = []
+    planet_map = valid_planets()
+    for raw in constraints:
+        if ":" not in raw:
+            raise typer.BadParameter(
+                f"Constraint {raw!r} must be in BODY:SIGN format, e.g. sun:aries or asc:leo"
+            )
+        planet_raw, sign_raw = raw.split(":", 1)
+        planet = fuzzy_match(planet_raw, planet_map)
+        if planet is None:
+            raise typer.BadParameter(
+                f"Unknown body {planet_raw!r}. Valid: {sorted(planet_map)}"
+            )
+        sign_map = valid_signs(mode)
+        sign = fuzzy_match(sign_raw, sign_map)
+        if sign is None:
+            raise typer.BadParameter(
+                f"Unknown sign {sign_raw!r} for {mode} mode. Valid: {sorted(sign_map)}"
+            )
+        parsed.append(Constraint(planet=str(planet), sign=str(sign)))
+
+    # Validate lat/lon for angle constraints
+    has_angles = any(c.planet in SCANNABLE_ANGLES for c in parsed)
+    if has_angles and (lat is None or lon is None):
+        raise typer.BadParameter(
+            "Angle constraints (asc, mc, ic, dsc) require --lat and --lon."
+        )
+
+    # Parse dates
+    try:
+        search_start = datetime.fromisoformat(from_date).replace(tzinfo=timezone.utc)
+    except ValueError as exc:
+        raise typer.BadParameter(f"Could not parse --from date: {exc}") from exc
+
+    if to_date is None:
+        search_end = datetime.now(tz=timezone.utc).replace(
+            hour=23, minute=59, second=59, microsecond=0
+        )
+    else:
+        try:
+            search_end = datetime.fromisoformat(to_date).replace(tzinfo=timezone.utc)
+        except ValueError as exc:
+            raise typer.BadParameter(f"Could not parse --to date: {exc}") from exc
+
+    step_h = _step_hours([c.planet for c in parsed], mode)
+    windows: list[BirthDateRange] = find_birth_date_ranges(
+        parsed, search_start, search_end, mode, lat=lat, lon=lon
+    )
+    output = BirthRangeOutput.build(
+        parsed, str(mode), search_start, search_end, step_h, windows
+    )
+    _output(output, fmt)
+
+
 @chart_app.command(name="compare")
 def chart_compare(
     name_a: str = typer.Argument(..., help="First saved chart name."),

@@ -1867,3 +1867,109 @@ class ForecastOutput(OutputModel):
 
         console.print()
         console.print(_panel(f"Forecast: {h.from_date} – {h.to_date}", table))
+
+
+# ---------------------------------------------------------------------------
+# Birth date range output
+# ---------------------------------------------------------------------------
+
+
+class BirthRangeWindow(BaseModel, frozen=True):
+    start: datetime
+    end: datetime
+    duration_days: float
+
+
+class BirthRangeOutput(OutputModel):
+    constraints: list[str] = []
+    mode: str = "realsky"
+    search_start: datetime
+    search_end: datetime
+    step_hours: float
+    windows: list[BirthRangeWindow] = []
+
+    @classmethod
+    def build(
+        cls,
+        constraints: list,  # list[Constraint]
+        mode: str,
+        search_start: datetime,
+        search_end: datetime,
+        step_hours: float,
+        windows: list,  # list[BirthDateRange]
+    ) -> "BirthRangeOutput":
+        from hoshi.zodiac import SIGN_GLYPHS
+
+        planet_labels = {
+            "sun": "Sun",
+            "moon": "Moon",
+            "mercury": "Mercury",
+            "venus": "Venus",
+            "mars": "Mars",
+            "jupiter": "Jupiter",
+            "saturn": "Saturn",
+            "uranus": "Uranus",
+            "neptune": "Neptune",
+            "pluto": "Pluto",
+            "asc": "ASC",
+            "mc": "MC",
+            "ic": "IC",
+            "dsc": "DSC",
+        }
+        constraint_strs = [
+            f"{planet_labels.get(c.planet, c.planet.title())} in "
+            f"{c.sign} {SIGN_GLYPHS.get(c.sign, '')}".strip()
+            for c in constraints
+        ]
+        return cls(
+            constraints=constraint_strs,
+            mode=mode,
+            search_start=search_start,
+            search_end=search_end,
+            step_hours=step_hours,
+            windows=[
+                BirthRangeWindow(
+                    start=w.start,
+                    end=w.end,
+                    duration_days=round(w.duration_days, 2),
+                )
+                for w in windows
+            ],
+        )
+
+    def render(self, console: Console) -> None:
+        header_parts = ", ".join(self.constraints)
+        console.print(
+            f"[bold]Birth date ranges:[/bold] {header_parts}  "
+            f"mode: [magenta]{self.mode}[/magenta]"
+        )
+
+        if not self.windows:
+            console.print("[dim]No date windows found matching all constraints.[/dim]")
+            return
+
+        table = _new_table()
+        table.add_column("Start", style="bold")
+        table.add_column("End")
+        table.add_column("Duration", justify="right")
+
+        for w in self.windows:
+            start_str = w.start.strftime("%Y-%m-%d %H:%M UTC")
+            end_str = w.end.strftime("%Y-%m-%d %H:%M UTC")
+            days = w.duration_days
+            if days < 1:
+                dur_str = f"{days * 24:.1f}h"
+            elif days < 14:
+                dur_str = f"{days:.1f}d"
+            else:
+                dur_str = f"{days / 7:.1f}wk"
+            table.add_row(start_str, end_str, dur_str)
+
+        console.print()
+        search = (
+            f"{self.search_start.strftime('%Y-%m-%d')} – "
+            f"{self.search_end.strftime('%Y-%m-%d')}"
+        )
+        console.print(
+            _panel(f"Windows ({len(self.windows)} found, search: {search})", table)
+        )
