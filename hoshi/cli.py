@@ -622,6 +622,14 @@ def chart_birthrange(
     fmt: OutputFormat = typer.Option(
         OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
     ),
+    save_name: str | None = typer.Option(
+        None,
+        "--save",
+        help="Save results as a named chart with birth windows for display with proportions.",
+    ),
+    force: bool = typer.Option(
+        False, "--force", help="Overwrite an existing saved chart with --save."
+    ),
 ) -> None:
     """Find birth date ranges consistent with known planetary/angle sign placements."""
     from datetime import timezone
@@ -636,6 +644,7 @@ def chart_birthrange(
         valid_signs,
     )
     from hoshi.output import BirthRangeOutput
+    from hoshi.store import BirthWindow
 
     # Parse constraints
     parsed: list[Constraint] = []
@@ -690,6 +699,26 @@ def chart_birthrange(
         parsed, str(mode), search_start, search_end, step_h, windows
     )
     _output(output, fmt)
+
+    if save_name:
+        if not windows:
+            typer.echo("No birth windows found — nothing to save.", err=True)
+            raise typer.Exit(1)
+        birth_windows = [BirthWindow(start=w.start, end=w.end) for w in windows]
+        ci = ChartInput(
+            name=save_name,
+            date=windows[0].start.strftime("%Y-%m-%d"),
+            birth_windows=birth_windows,
+            lat=lat,
+            lon=lon,
+        )
+        try:
+            path = store.save(ci, overwrite=force)
+        except FileExistsError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        typer.echo(
+            f"Saved chart '{save_name}' with {len(windows)} birth window(s) to {path}."
+        )
 
 
 @chart_app.command(name="compare")

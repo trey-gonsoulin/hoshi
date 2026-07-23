@@ -17,6 +17,19 @@ from pydantic import BaseModel
 CHARTS_DIR = Path("charts")
 
 
+class BirthWindow(BaseModel, frozen=True):
+    """A temporal window in which the person may have been born.
+
+    Represents a single contiguous UTC interval. A saved chart may carry
+    a list of these (from ``hoshi chart birthrange --save``) to express
+    uncertain or constrained birth times.  The first window's midpoint is
+    used as the primary chart time for calculations.
+    """
+
+    start: datetime  # UTC-aware
+    end: datetime  # UTC-aware
+
+
 class ChartInput(BaseModel, frozen=True):
     name: str
     date: str  # YYYY-MM-DD
@@ -26,6 +39,7 @@ class ChartInput(BaseModel, frozen=True):
     tz: str = "UTC"  # IANA timezone; ignored when time is None
     lat: float | None = None  # degrees N positive; None = unknown
     lon: float | None = None  # degrees E positive; None = unknown
+    birth_windows: list[BirthWindow] | None = None  # optional temporal windows
 
     @property
     def time_known(self) -> bool:
@@ -35,7 +49,15 @@ class ChartInput(BaseModel, frozen=True):
     def location_known(self) -> bool:
         return self.lat is not None and self.lon is not None
 
+    @property
+    def has_birth_windows(self) -> bool:
+        return self.birth_windows is not None and len(self.birth_windows) > 0
+
     def to_datetime(self) -> datetime:
+        if self.birth_windows:
+            # Use midpoint of the first window as the primary chart moment.
+            w = self.birth_windows[0]
+            return w.start + (w.end - w.start) / 2
         time_str = self.time if self.time is not None else "12:00"
         tz_str = self.tz if self.time is not None else "UTC"
         local = datetime.fromisoformat(f"{self.date}T{time_str}")

@@ -74,12 +74,14 @@ from hoshi.transits import (
 from hoshi.birthrange import (
     BirthDateRange,
     Constraint,
+    PlacementFraction,
     SCANNABLE_ANGLES,
     SCANNABLE_PLANETS,
     find_birth_date_ranges,
+    placement_proportions,
 )
 from hoshi.output import BirthRangeOutput
-from hoshi.store import ChartInput
+from hoshi.store import BirthWindow, ChartInput
 from hoshi.zodiac import (
     IAU,
     PLANET_GLYPHS,
@@ -172,12 +174,15 @@ __all__ = [
     "InfoListOutput",
     "SkyEventsOutput",
     "BirthRangeOutput",
-    # Birth date range
+    # Birth date range and placement proportions
     "Constraint",
     "BirthDateRange",
+    "PlacementFraction",
     "SCANNABLE_ANGLES",
     "SCANNABLE_PLANETS",
     "find_birth_date_ranges",
+    "placement_proportions",
+    "BirthWindow",
     # Utilities
     "fuzzy_match",
 ]

@@ -267,3 +267,84 @@ class TestAngleConstraints:
         assert len(windows) >= 1
         for w in windows:
             assert w.duration_days < 1  # ASC window dominates duration
+
+
+class TestPlacementProportions:
+    """Tests for placement_proportions() over BirthWindow lists."""
+
+    # Sun is in tropical Aries roughly Mar 20 – Apr 19.
+    _ARIES_START = datetime(2000, 3, 20, 12, 0, tzinfo=timezone.utc)
+    _ARIES_END = datetime(2000, 4, 19, 12, 0, tzinfo=timezone.utc)
+
+    def _window(self, start: datetime, end: datetime):
+        from hoshi.store import BirthWindow
+
+        return BirthWindow(start=start, end=end)
+
+    def test_empty_windows_returns_empty(self):
+        from hoshi.birthrange import placement_proportions
+
+        result = placement_proportions([], ZodiacMode.tropical)
+        assert result == {}
+
+    def test_sun_fully_in_aries_returns_single_fraction(self):
+        from hoshi.birthrange import placement_proportions
+
+        window = self._window(self._ARIES_START, self._ARIES_END)
+        result = placement_proportions([window], ZodiacMode.tropical)
+        sun = result["sun"]
+        assert len(sun) == 1
+        assert sun[0].sign == "Aries"
+        assert sun[0].fraction == pytest.approx(1.0, abs=0.05)
+
+    def test_fractions_sum_to_one(self):
+        from hoshi.birthrange import placement_proportions
+
+        # Window spanning a sign boundary: late Pisces into Aries.
+        window = self._window(
+            datetime(2000, 3, 15, 0, 0, tzinfo=timezone.utc),
+            datetime(2000, 3, 25, 0, 0, tzinfo=timezone.utc),
+        )
+        result = placement_proportions([window], ZodiacMode.tropical)
+        for pid, fracs in result.items():
+            total = sum(f.fraction for f in fracs)
+            assert total == pytest.approx(1.0, abs=1e-6), (
+                f"{pid} fractions don't sum to 1"
+            )
+
+    def test_moon_spans_multiple_signs_over_month(self):
+        from hoshi.birthrange import placement_proportions
+
+        # Moon moves ~13°/day so over 30 days it covers many signs.
+        window = self._window(self._ARIES_START, self._ARIES_END)
+        result = placement_proportions([window], ZodiacMode.tropical)
+        assert len(result["moon"]) > 2
+
+    def test_all_scannable_planets_returned(self):
+        from hoshi.birthrange import SCANNABLE_PLANETS, placement_proportions
+
+        window = self._window(self._ARIES_START, self._ARIES_END)
+        result = placement_proportions([window], ZodiacMode.tropical)
+        assert set(result.keys()) == SCANNABLE_PLANETS
+
+    def test_realsky_mode_uses_iau_signs(self):
+        from hoshi.birthrange import placement_proportions
+
+        window = self._window(self._ARIES_START, self._ARIES_END)
+        result = placement_proportions([window], ZodiacMode.realsky)
+        # All signs returned should be valid IAU names.
+        from hoshi.zodiac import IAU
+
+        iau_names = {s.name for s in IAU}
+        for fracs in result.values():
+            for f in fracs:
+                assert f.sign in iau_names
+
+    def test_fractions_sorted_descending(self):
+        from hoshi.birthrange import placement_proportions
+
+        window = self._window(self._ARIES_START, self._ARIES_END)
+        result = placement_proportions([window], ZodiacMode.tropical)
+        for fracs in result.values():
+            fractions = [f.fraction for f in fracs]
+            assert fractions == sorted(fractions, reverse=True)

@@ -853,6 +853,10 @@ class ChartOutput(OutputModel):
     asc_lon: float = Field(default=0.0, exclude=True)
     details: bool = Field(default=False, exclude=True)
     ayanamsa: float = Field(default=0.0, exclude=True)
+    # pid → [(sign, fraction), ...] sorted by fraction desc; set when birth_windows present
+    placement_dist: dict[str, list[tuple[str, float]]] = Field(
+        default_factory=dict, exclude=True
+    )
 
     @classmethod
     def build(
@@ -866,28 +870,68 @@ class ChartOutput(OutputModel):
         group_by: str = "category",
         show_cusps: bool = False,
     ) -> ChartOutput:
+        from datetime import timezone as _utc
+        from zoneinfo import ZoneInfo as _ZI
+
+        from hoshi.birthrange import placement_proportions
+        from hoshi.store import BirthWindow
+
         time_known = ci.time_known
         loc_known = ci.location_known
-        show_full = time_known and loc_known
-        uncertain = uncertain_signs(ci, mode) if not time_known else frozenset()
+        show_full = (time_known or ci.has_birth_windows) and loc_known
+
+        # Build the windows to sample for sign distributions.
+        # birth_windows: use them directly.
+        # time unknown: synthesize a midnight-to-midnight window on the birth date.
+        # time known: no window needed — single-point chart, all signs certain.
+        windows_for_dist: list[BirthWindow] = []
+        if ci.has_birth_windows:
+            windows_for_dist = ci.birth_windows or []
+        elif not time_known:
+            d = ci.date  # YYYY-MM-DD
+            _tz = _ZI(ci.tz) if ci.time is not None else _utc.utc
+            from datetime import datetime as _dt
+
+            midnight = _dt.fromisoformat(d).replace(
+                hour=0, minute=0, second=0, microsecond=0, tzinfo=_tz
+            )
+            end_of_day = _dt.fromisoformat(d).replace(
+                hour=23, minute=59, second=59, microsecond=0, tzinfo=_tz
+            )
+            windows_for_dist = [BirthWindow(start=midnight, end=end_of_day)]
+
+        placement_dist: dict[str, list[tuple[str, float]]] = {}
+        uncertain: frozenset[str] = frozenset()
+        if windows_for_dist:
+            raw = placement_proportions(windows_for_dist, mode)
+            placement_dist = {
+                pid: [(f.sign, f.fraction) for f in fracs] for pid, fracs in raw.items()
+            }
+            uncertain = frozenset(
+                pid for pid, fracs in placement_dist.items() if len(fracs) > 1
+            )
 
         when_str = (
-            ci.to_datetime().strftime("%Y-%m-%d")
-            if not time_known
-            else ci.to_datetime().isoformat()
+            ci.to_datetime().strftime("%Y-%m-%d %H:%M UTC")
+            if ci.has_birth_windows
+            else (
+                ci.to_datetime().strftime("%Y-%m-%d")
+                if not time_known
+                else ci.to_datetime().isoformat()
+            )
         )
 
         warnings: list[str] = []
-        if not time_known:
-            if uncertain:
-                names = ", ".join(p.capitalize() for p in uncertain)
-                warnings.append(
-                    f"⚠ Birth time unknown — {names} may be in a different sign (highlighted)"
-                )
-            else:
-                warnings.append(
-                    "⚠ Birth time unknown — all signs stable on this date, degrees approximate"
-                )
+        if ci.has_birth_windows:
+            n = len(ci.birth_windows or [])
+            warnings.append(
+                f"⚠ Birth time ranges across {n} window{'s' if n != 1 else ''} — "
+                "sign distribution shown below"
+            )
+        elif not time_known:
+            warnings.append(
+                "⚠ Birth time unknown — sign distribution shown below, degrees approximate"
+            )
         if not loc_known:
             warnings.append("⚠ Birth location unknown — angles and houses omitted")
 
@@ -936,6 +980,7 @@ class ChartOutput(OutputModel):
             asc_lon=next((a.placed.lon for a in chart.angles if a.name == "asc"), 0.0),
             details=details,
             ayanamsa=chart.ayanamsa,
+            placement_dist=placement_dist,
         )
 
     def render(self, console: Console) -> None:
@@ -1014,8 +1059,43 @@ class ChartOutput(OutputModel):
                 body_houses=body_houses,
                 mode=self.chart.mode,
             )
+        if self.placement_dist:
+            self._render_placement_dist(console)
         if self.show_cusp_table and self.cusp_entries:
             self._render_cusps(console)
+
+    def _render_placement_dist(self, console: Console) -> None:
+        _PLANET_LABELS = {
+            "sun": "Sun",
+            "moon": "Moon",
+            "mercury": "Mercury",
+            "venus": "Venus",
+            "mars": "Mars",
+            "jupiter": "Jupiter",
+            "saturn": "Saturn",
+            "uranus": "Uranus",
+            "neptune": "Neptune",
+            "pluto": "Pluto",
+        }
+        table = _new_table()
+        table.add_column("Body", style="bold")
+        table.add_column("Sign Distribution")
+        for pid, fracs in self.placement_dist.items():
+            label = _PLANET_LABELS.get(pid, pid.capitalize())
+            if len(fracs) == 1:
+                sign, _frac = fracs[0]
+                glyph = SIGN_GLYPHS.get(sign, "")
+                parts = f"[green]{glyph} {sign}[/green]"
+            else:
+                segments = []
+                for sign, frac in fracs:
+                    glyph = SIGN_GLYPHS.get(sign, "")
+                    pct = f"{frac * 100:.0f}%"
+                    segments.append(f"[yellow]{glyph} {sign}[/yellow] ({pct})")
+                parts = "  ".join(segments)
+            table.add_row(label, parts)
+        console.print()
+        console.print(_panel("Sign Distribution", table))
 
     def _render_cusps(self, console: Console) -> None:
         title = f"{self.chart.house_system.capitalize() if self.chart.house_system else ''} cusps"

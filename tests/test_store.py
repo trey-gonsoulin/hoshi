@@ -1,7 +1,14 @@
+from datetime import datetime, timezone
+
 import pytest
 
 from hoshi import store
-from hoshi.store import ChartInput, _safe_filename
+from hoshi.store import BirthWindow, ChartInput, _safe_filename
+
+_W1_START = datetime(2000, 3, 20, 6, 0, tzinfo=timezone.utc)
+_W1_END = datetime(2000, 3, 20, 9, 0, tzinfo=timezone.utc)
+_W2_START = datetime(2000, 3, 21, 6, 0, tzinfo=timezone.utc)
+_W2_END = datetime(2000, 3, 21, 9, 0, tzinfo=timezone.utc)
 
 
 @pytest.fixture
@@ -129,3 +136,55 @@ class TestStoreCrud:
         (charts_dir / "bad.json").write_text("not json{{{")
         result = store.list_all()
         assert len(result) == 1
+
+
+class TestBirthWindow:
+    def _ci_with_windows(self, name: str = "ranged") -> ChartInput:
+        return ChartInput(
+            name=name,
+            date="2000-03-20",
+            birth_windows=[
+                BirthWindow(start=_W1_START, end=_W1_END),
+                BirthWindow(start=_W2_START, end=_W2_END),
+            ],
+        )
+
+    def test_has_birth_windows_true(self):
+        ci = self._ci_with_windows()
+        assert ci.has_birth_windows is True
+
+    def test_has_birth_windows_false_no_field(self):
+        ci = ChartInput(name="plain", date="2000-01-01")
+        assert ci.has_birth_windows is False
+
+    def test_has_birth_windows_false_empty(self):
+        ci = ChartInput(name="empty", date="2000-01-01", birth_windows=[])
+        assert ci.has_birth_windows is False
+
+    def test_to_datetime_returns_midpoint_of_first_window(self):
+        ci = self._ci_with_windows()
+        dt = ci.to_datetime()
+        expected = _W1_START + (_W1_END - _W1_START) / 2
+        assert dt == expected
+
+    def test_time_known_false_with_birth_windows(self):
+        ci = self._ci_with_windows()
+        assert ci.time_known is False
+
+    def test_round_trip_json(self, charts_dir):
+        ci = self._ci_with_windows("roundtrip")
+        store.save(ci)
+        loaded = store.load("roundtrip")
+        assert loaded.has_birth_windows is True
+        bw = loaded.birth_windows
+        assert bw is not None and len(bw) == 2
+        assert bw[0].start == _W1_START
+        assert bw[1].end == _W2_END
+
+    def test_old_chart_loads_without_birth_windows(self, charts_dir):
+        # Simulate a JSON file written before birth_windows existed.
+        old_json = '{"name": "old", "date": "2000-01-01", "time": "12:00", "tz": "UTC"}'
+        (charts_dir / "old.json").write_text(old_json)
+        ci = store.load("old")
+        assert ci.birth_windows is None
+        assert ci.has_birth_windows is False

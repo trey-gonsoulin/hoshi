@@ -38,6 +38,7 @@ from typing import NamedTuple
 import numpy as np
 
 from hoshi.ephemeris import PLANET_ORDER, batch_ecliptic_lons, timescale
+from hoshi.store import BirthWindow
 from hoshi.zodiac import IAU, TROP_SIGNS, ZodiacMode
 
 # ---------------------------------------------------------------------------
@@ -85,6 +86,10 @@ DE421_END = datetime(2050, 12, 31, tzinfo=timezone.utc)
 # J2000 IAU lower-boundary array, used by the vectorized sign lookup.
 _IAU_LO = np.array([s.lo for s in IAU])  # [29.00, 53.41, ..., 351.65]
 
+# Sampling step and cap used by placement_proportions().
+_PROPORTION_STEP = timedelta(minutes=30)
+_PROPORTION_MAX_SAMPLES: int = 2000
+
 # ---------------------------------------------------------------------------
 # Public types
 # ---------------------------------------------------------------------------
@@ -106,6 +111,13 @@ class BirthDateRange(NamedTuple):
     @property
     def duration_days(self) -> float:
         return (self.end - self.start).total_seconds() / 86400.0
+
+
+class PlacementFraction(NamedTuple):
+    """A (sign, fraction) pair from placement_proportions()."""
+
+    sign: str
+    fraction: float  # 0.0–1.0; fractions for one body sum to ~1.0
 
 
 # ---------------------------------------------------------------------------
@@ -278,6 +290,101 @@ def _vectorized_scan(
     for s, e in zip(run_starts, run_ends):
         ranges.append(BirthDateRange(start=times[s], end=times[e - 1]))
     return ranges
+
+
+# ---------------------------------------------------------------------------
+# Placement proportions (for ranged/uncertain birth charts)
+# ---------------------------------------------------------------------------
+
+
+def placement_proportions(
+    windows: list[BirthWindow],
+    mode: ZodiacMode | str,
+) -> dict[str, list[PlacementFraction]]:
+    """Compute sign distribution for each planet across a set of birth windows.
+
+    Samples each window at 30-minute intervals (up to _PROPORTION_MAX_SAMPLES
+    total) and tallies which sign each planet occupies at each sample point.
+    Returns a dict mapping planet pid → list of PlacementFraction, sorted by
+    fraction descending.  Only SCANNABLE_PLANETS are included (Horizons-backed
+    bodies are skipped).
+
+    All windows are weighted equally per unit time: a 2-hour window contributes
+    twice as many samples as a 1-hour window.
+
+    Args:
+        windows: Ordered list of BirthWindow intervals.
+        mode: Zodiac mode for sign placement.
+
+    Returns:
+        Dict of pid → [PlacementFraction, ...] sorted by fraction descending.
+        Each list sums to ~1.0.  Empty dict when windows is empty.
+    """
+    if not windows:
+        return {}
+
+    mode = ZodiacMode(mode)
+
+    # Build sample datetimes: one sample every 30 min across every window.
+    times: list[datetime] = []
+    for w in windows:
+        t = w.start
+        while t <= w.end:
+            times.append(t)
+            t += _PROPORTION_STEP
+        if not times or times[-1] < w.end:
+            times.append(w.end)
+
+    # Subsample evenly if over the cap.
+    if len(times) > _PROPORTION_MAX_SAMPLES:
+        indices = np.round(
+            np.linspace(0, len(times) - 1, _PROPORTION_MAX_SAMPLES)
+        ).astype(int)
+        times = [times[int(i)] for i in indices]
+
+    if not times:
+        return {}
+
+    ts = timescale()
+    t_arr = ts.from_datetimes(times)
+
+    prec: np.ndarray | None = (
+        _precessions_for_times(t_arr) if mode == ZodiacMode.realsky else None
+    )
+    ayan: np.ndarray | None = (
+        _ayanamsas_for_times(t_arr) if mode == ZodiacMode.vedic else None
+    )
+
+    sign_names = (
+        [s.name for s in IAU]
+        if mode == ZodiacMode.realsky
+        else [s.name for s in TROP_SIGNS]
+    )
+    n_signs = len(sign_names)
+
+    result: dict[str, list[PlacementFraction]] = {}
+    for pid in SCANNABLE_PLANETS:
+        lons = batch_ecliptic_lons(pid, times)
+        if mode == ZodiacMode.realsky:
+            assert prec is not None
+            idx = _sign_index_realsky(lons, prec)
+        elif mode == ZodiacMode.vedic:
+            assert ayan is not None
+            idx = _sign_index_vedic(lons, ayan)
+        else:
+            idx = _sign_index_tropical(lons)
+
+        counts = np.bincount(idx, minlength=n_signs)
+        total = counts.sum()
+        fracs = [
+            PlacementFraction(sign=sign_names[i], fraction=int(counts[i]) / int(total))
+            for i in range(n_signs)
+            if counts[i] > 0
+        ]
+        fracs.sort(key=lambda f: f.fraction, reverse=True)
+        result[pid] = fracs
+
+    return result
 
 
 # ---------------------------------------------------------------------------
