@@ -1,6 +1,47 @@
 from unittest.mock import patch
 
 
+class TestBirthRange:
+    def test_basic_search(self, client):
+        resp = client.post(
+            "/charts/birthrange",
+            json={
+                "constraints": [{"planet": "sun", "sign": "Aries"}],
+                "from_date": "2000-03-20",
+                "to_date": "2000-04-20",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["windows"]) > 0
+        assert data["mode"] == "realsky"
+        assert data["windows"][0]["duration_days"] > 0
+
+    def test_no_windows_in_range(self, client):
+        resp = client.post(
+            "/charts/birthrange",
+            json={
+                "constraints": [{"planet": "sun", "sign": "Aries"}],
+                "from_date": "2000-06-01",
+                "to_date": "2000-06-30",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["windows"] == []
+
+    def test_invalid_planet_returns_422(self, client):
+        resp = client.post(
+            "/charts/birthrange",
+            json={
+                "constraints": [{"planet": "chiron", "sign": "Aries"}],
+                "from_date": "2000-01-01",
+                "to_date": "2000-12-31",
+            },
+        )
+        assert resp.status_code == 422
+
+
 class TestComputeChart:
     def test_compute(self, client, mock_chart):
         resp = client.post(

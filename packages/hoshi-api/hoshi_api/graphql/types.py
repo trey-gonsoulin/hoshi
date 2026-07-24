@@ -30,6 +30,22 @@ class ChartDataInput:
     location: Optional[str] = None
 
 
+@strawberry.input
+class BirthWindowInput:
+    """A UTC temporal window [start, end] for ranged birth charts."""
+
+    start: str  # ISO datetime string, UTC
+    end: str
+
+
+@strawberry.input
+class ConstraintInput:
+    """A (planet, sign) pair for birth range search."""
+
+    planet: str
+    sign: str
+
+
 # ---------------------------------------------------------------------------
 # Output types
 # ---------------------------------------------------------------------------
@@ -120,6 +136,18 @@ class ChartHeader:
 
 
 @strawberry.type
+class PlacementFrac:
+    sign: str
+    fraction: float
+
+
+@strawberry.type
+class PlacementDist:
+    pid: str
+    fracs: list[PlacementFrac]
+
+
+@strawberry.type
 class ChartResult:
     chart: ChartHeader
     warnings: list[str]
@@ -127,6 +155,24 @@ class ChartResult:
     cusps: list[float]
     tallies: Optional[TallyOutput]
     aspects: Optional[list[Aspect]]
+    placement_dist: Optional[list[PlacementDist]]
+
+
+@strawberry.type
+class BirthRangeWindow:
+    start: str
+    end: str
+    duration_days: float
+
+
+@strawberry.type
+class BirthRangeResult:
+    constraints: list[str]
+    mode: str
+    search_start: str
+    search_end: str
+    step_hours: float
+    windows: list[BirthRangeWindow]
 
 
 @strawberry.type
@@ -234,6 +280,19 @@ def _tally(data: dict) -> TallyOutput:
 
 def from_chart_output(output: _pydantic.ChartOutput) -> ChartResult:
     data = output.model_dump(mode="json")
+    # placement_dist is exclude=True from JSON; read directly from the model instance
+    pd = output.placement_dist
+    placement_dist = (
+        [
+            PlacementDist(
+                pid=pid,
+                fracs=[PlacementFrac(sign=s, fraction=f) for s, f in fracs],
+            )
+            for pid, fracs in pd.items()
+        ]
+        if pd
+        else None
+    )
     return ChartResult(
         chart=ChartHeader(**data["chart"]),
         warnings=data["warnings"],
@@ -245,6 +304,26 @@ def from_chart_output(output: _pydantic.ChartOutput) -> ChartResult:
             if data["aspects"] is not None
             else None
         ),
+        placement_dist=placement_dist,
+    )
+
+
+def from_birth_range_output(output: _pydantic.BirthRangeOutput) -> BirthRangeResult:
+    data = output.model_dump(mode="json")
+    return BirthRangeResult(
+        constraints=data["constraints"],
+        mode=data["mode"],
+        search_start=data["search_start"],
+        search_end=data["search_end"],
+        step_hours=data["step_hours"],
+        windows=[
+            BirthRangeWindow(
+                start=w["start"],
+                end=w["end"],
+                duration_days=w["duration_days"],
+            )
+            for w in data["windows"]
+        ],
     )
 
 

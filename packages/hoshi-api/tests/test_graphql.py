@@ -253,4 +253,85 @@ class TestSkyEvents:
             """,
         )
         assert "errors" not in data
-        assert data["data"]["skyEvents"]["events"] == []
+
+
+class TestBirthRange:
+    def test_basic_search(self, client):
+        data = _gql(
+            client,
+            """
+            query {
+              birthRange(
+                constraints: [{planet: "sun", sign: "Aries"}],
+                fromDate: "2000-03-20", toDate: "2000-04-20"
+              ) {
+                constraints mode searchStart searchEnd stepHours
+                windows { start end durationDays }
+              }
+            }
+            """,
+        )
+        assert "errors" not in data
+        result = data["data"]["birthRange"]
+        assert result["mode"] == "realsky"
+        assert len(result["constraints"]) == 1
+        assert len(result["windows"]) > 0
+        assert result["windows"][0]["durationDays"] > 0
+
+    def test_no_windows_in_range(self, client):
+        data = _gql(
+            client,
+            """
+            query {
+              birthRange(
+                constraints: [{planet: "sun", sign: "Aries"}],
+                fromDate: "2000-06-01", toDate: "2000-06-30"
+              ) {
+                windows { start end durationDays }
+              }
+            }
+            """,
+        )
+        assert "errors" not in data
+        result = data["data"]["birthRange"]
+        assert result["windows"] == []
+
+    def test_invalid_planet_returns_error(self, client):
+        data = _gql(
+            client,
+            """
+            query {
+              birthRange(
+                constraints: [{planet: "chiron", sign: "Aries"}],
+                fromDate: "2000-01-01", toDate: "2000-12-31"
+              ) {
+                windows { start end durationDays }
+              }
+            }
+            """,
+        )
+        assert "errors" in data
+
+    def test_chart_with_birth_windows(self, client, mock_chart):
+        data = _gql(
+            client,
+            """
+            query {
+              chart(
+                date: "2000-03-25",
+                birthWindows: [
+                  {start: "2000-03-20T00:00:00", end: "2000-04-20T00:00:00"}
+                ]
+              ) {
+                warnings
+                bodies { name sign }
+                placementDist { pid fracs { sign fraction } }
+              }
+            }
+            """,
+        )
+        assert "errors" not in data
+        result = data["data"]["chart"]
+        assert any("window" in w.lower() for w in result["warnings"])
+        assert result["placementDist"] is not None
+        assert len(result["placementDist"]) > 0

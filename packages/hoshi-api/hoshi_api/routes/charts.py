@@ -1,14 +1,15 @@
 """Chart endpoints."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from hoshi import ChartInput
 from hoshi.chart import Chart, HouseSystem
 from hoshi.output import (
+    BirthRangeOutput,
     ChartOutput,
     CompareOutput,
     CuspsOutput,
@@ -104,6 +105,20 @@ class CompareRequest(BaseModel):
     houses: HouseSystem = HouseSystem.porphyry
     details: bool = False
     aspects: bool = False
+
+
+class BirthRangeConstraint(BaseModel):
+    planet: str
+    sign: str
+
+
+class BirthRangeRequest(BaseModel):
+    constraints: list[BirthRangeConstraint]
+    from_date: str = "1900-01-01"
+    to_date: str | None = None
+    lat: float | None = None
+    lon: float | None = None
+    mode: ZodiacMode = ZodiacMode.realsky
 
 
 # ---------------------------------------------------------------------------
@@ -258,6 +273,30 @@ def chart_forecast(body: ForecastRequest) -> ForecastOutput:
         tier=body.tier,
         details=body.details,
         sensitivity=body.sensitivity,
+    )
+
+
+@router.post("/birthrange", response_model=BirthRangeOutput)
+def chart_birthrange(body: BirthRangeRequest) -> BirthRangeOutput:
+    from hoshi.birthrange import Constraint, _step_hours, find_birth_date_ranges
+
+    parsed = [Constraint(planet=c.planet, sign=c.sign) for c in body.constraints]
+    search_start = datetime.fromisoformat(body.from_date).replace(tzinfo=timezone.utc)
+    if body.to_date is not None:
+        search_end = datetime.fromisoformat(body.to_date).replace(tzinfo=timezone.utc)
+    else:
+        search_end = datetime.now(timezone.utc).replace(
+            hour=23, minute=59, second=59, microsecond=0
+        )
+    try:
+        step_h = _step_hours([c.planet for c in parsed], body.mode)
+        windows = find_birth_date_ranges(
+            parsed, search_start, search_end, body.mode, lat=body.lat, lon=body.lon
+        )
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return BirthRangeOutput.build(
+        parsed, str(body.mode), search_start, search_end, step_h, windows
     )
 
 

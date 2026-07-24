@@ -29,12 +29,16 @@ from hoshi.zodiac import ZodiacMode
 from hoshi_api.routes.charts import _resolve_coords
 
 from hoshi_api.graphql.types import (
+    BirthRangeResult,
+    BirthWindowInput,
     ChartDataInput,
     ChartResult,
     CompareResult,
+    ConstraintInput,
     CuspsResult,
     SkyEventsResult,
     TransitsResult,
+    from_birth_range_output,
     from_chart_output,
     from_compare_output,
     from_cusps_output,
@@ -58,14 +62,67 @@ class Query:
         houses: HouseSystem = HouseSystem.porphyry,
         details: bool = False,
         aspects: bool = False,
+        birth_windows: Optional[list[BirthWindowInput]] = None,
     ) -> ChartResult:
+        from hoshi.store import BirthWindow as _BirthWindow
+
         resolved_lat, resolved_lon = _resolve_coords(lat, lon, location)
+        bws = None
+        if birth_windows:
+            bws = [
+                _BirthWindow(
+                    start=datetime.fromisoformat(w.start).replace(tzinfo=timezone.utc)
+                    if datetime.fromisoformat(w.start).tzinfo is None
+                    else datetime.fromisoformat(w.start),
+                    end=datetime.fromisoformat(w.end).replace(tzinfo=timezone.utc)
+                    if datetime.fromisoformat(w.end).tzinfo is None
+                    else datetime.fromisoformat(w.end),
+                )
+                for w in birth_windows
+            ]
         ci = ChartInput(
-            name="", date=date, time=time, tz=tz, lat=resolved_lat, lon=resolved_lon
+            name="",
+            date=date,
+            time=time,
+            tz=tz,
+            lat=resolved_lat,
+            lon=resolved_lon,
+            birth_windows=bws,
         )
         chart = Chart.from_input(ci, house_system=houses)
         output = ChartOutput.build(ci, chart, mode, details=details, aspects=aspects)
         return from_chart_output(output)
+
+    @strawberry.field
+    def birth_range(
+        self,
+        constraints: list[ConstraintInput],
+        from_date: str,
+        to_date: Optional[str] = None,
+        mode: ZodiacMode = ZodiacMode.realsky,
+        lat: Optional[float] = None,
+        lon: Optional[float] = None,
+    ) -> BirthRangeResult:
+        from hoshi.birthrange import Constraint as _Constraint
+        from hoshi.birthrange import _step_hours, find_birth_date_ranges
+        from hoshi.output import BirthRangeOutput
+
+        parsed = [_Constraint(planet=c.planet, sign=c.sign) for c in constraints]
+        search_start = datetime.fromisoformat(from_date).replace(tzinfo=timezone.utc)
+        if to_date:
+            search_end = datetime.fromisoformat(to_date).replace(tzinfo=timezone.utc)
+        else:
+            search_end = datetime.now(timezone.utc).replace(
+                hour=23, minute=59, second=59, microsecond=0
+            )
+        windows = find_birth_date_ranges(
+            parsed, search_start, search_end, mode, lat=lat, lon=lon
+        )
+        step_h = _step_hours([c.planet for c in parsed], mode)
+        output = BirthRangeOutput.build(
+            parsed, str(mode), search_start, search_end, step_h, windows
+        )
+        return from_birth_range_output(output)
 
     @strawberry.field
     def import_chart(
