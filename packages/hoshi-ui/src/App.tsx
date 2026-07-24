@@ -6,6 +6,7 @@ import { ChartsPage } from '@/pages/ChartsPage'
 import { ChartDetailPage } from '@/pages/ChartDetailPage'
 import { TransitsPage } from '@/pages/TransitsPage'
 import { ComparePage } from '@/pages/ComparePage'
+import { BirthRangePage } from '@/pages/BirthRangePage'
 import { InfoPage } from '@/pages/InfoPage'
 import { InfoCategoryPage } from '@/pages/InfoCategoryPage'
 import { InfoDetailPage } from '@/pages/InfoDetailPage'
@@ -28,6 +29,7 @@ export default function App() {
           <NavLink to="/" end className={navClass}>Sky</NavLink>
           <NavLink to="/charts" className={navClass}>Charts</NavLink>
           <NavLink to="/compute" className={navClass}>Compute</NavLink>
+          <NavLink to="/birthrange" className={navClass}>Birth Range</NavLink>
           <NavLink to="/info" className={navClass}>Info</NavLink>
         </nav>
         <button
@@ -46,6 +48,7 @@ export default function App() {
           <Route path="/charts/:id" element={<ChartDetailPage />} />
           <Route path="/charts/:id/transits" element={<TransitsPage />} />
           <Route path="/charts/:id/compare" element={<ComparePage />} />
+          <Route path="/birthrange" element={<BirthRangePage />} />
           <Route path="/info" element={<InfoPage />} />
           <Route path="/info/:category" element={<InfoCategoryPage />} />
           <Route path="/info/:category/:name" element={<InfoDetailPage />} />

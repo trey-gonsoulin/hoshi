@@ -8,7 +8,7 @@ import { InfoTooltip } from '@/components/InfoTooltip'
 import { WheelChart } from '@/components/WheelChart'
 import { lookupHouse } from '@/lib/astroInfo'
 import { formatLon } from '@/lib/format'
-import type { ChartOutput } from '@/api/client'
+import type { ChartOutput, PlacementDist } from '@/api/client'
 
 interface ChartResultProps {
   result: ChartOutput
@@ -38,6 +38,9 @@ export function ChartResult({ result, actions }: ChartResultProps) {
       <Tabs defaultValue="bodies">
         <TabsList>
           <TabsTrigger value="bodies">Bodies</TabsTrigger>
+          {result.placementDist?.length ? (
+            <TabsTrigger value="distribution">Distribution</TabsTrigger>
+          ) : null}
           {result.aspects?.length ? (
             <TabsTrigger value="aspects">Aspects</TabsTrigger>
           ) : null}
@@ -52,6 +55,12 @@ export function ChartResult({ result, actions }: ChartResultProps) {
         <TabsContent value="bodies" className="mt-6">
           <BodyTable bodies={result.bodies} showHouses={showHouses} />
         </TabsContent>
+
+        {result.placementDist?.length ? (
+          <TabsContent value="distribution" className="mt-6">
+            <DistributionTable dist={result.placementDist} />
+          </TabsContent>
+        ) : null}
 
         {result.aspects?.length ? (
           <TabsContent value="aspects" className="mt-6">
@@ -72,6 +81,44 @@ export function ChartResult({ result, actions }: ChartResultProps) {
         ) : null}
       </Tabs>
     </div>
+  )
+}
+
+const PLANET_LABELS: Record<string, string> = {
+  sun: 'Sun', moon: 'Moon', mercury: 'Mercury', venus: 'Venus',
+  mars: 'Mars', jupiter: 'Jupiter', saturn: 'Saturn',
+  uranus: 'Uranus', neptune: 'Neptune', pluto: 'Pluto',
+}
+
+function DistributionTable({ dist }: { dist: PlacementDist[] }) {
+  return (
+    <table className="text-sm border-collapse w-full">
+      <tbody>
+        {dist.map(({ pid, fracs }) => (
+          <tr key={pid} className="border-b border-border/40 last:border-0">
+            <td className="py-1.5 pr-6 text-muted-foreground text-xs w-24 align-top">
+              {PLANET_LABELS[pid] ?? pid}
+            </td>
+            <td className="py-1.5">
+              {fracs.length === 1 ? (
+                <span className="text-foreground">{fracs[0].sign}</span>
+              ) : (
+                <span className="flex flex-wrap gap-x-3 gap-y-0.5">
+                  {fracs.map(({ sign, fraction }) => (
+                    <span key={sign} className="text-amber-600 dark:text-amber-400">
+                      {sign}{' '}
+                      <span className="text-muted-foreground text-xs">
+                        {Math.round(fraction * 100)}%
+                      </span>
+                    </span>
+                  ))}
+                </span>
+              )}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   )
 }
 

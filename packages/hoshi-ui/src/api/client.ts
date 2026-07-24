@@ -70,6 +70,16 @@ export interface ChartHeader {
   houseSystem?: string | null
 }
 
+export interface PlacementFrac {
+  sign: string
+  fraction: number
+}
+
+export interface PlacementDist {
+  pid: string
+  fracs: PlacementFrac[]
+}
+
 export interface ChartOutput {
   chart: ChartHeader
   warnings: string[]
@@ -77,6 +87,41 @@ export interface ChartOutput {
   cusps: number[]
   tallies?: TallyOutput | null
   aspects?: Aspect[] | null
+  placementDist?: PlacementDist[] | null
+}
+
+export interface BirthWindow {
+  start: string // ISO datetime string
+  end: string
+}
+
+export interface BirthRangeWindow {
+  start: string
+  end: string
+  durationDays: number
+}
+
+export interface BirthRangeResultOutput {
+  constraints: string[]
+  mode: string
+  searchStart: string
+  searchEnd: string
+  stepHours: number
+  windows: BirthRangeWindow[]
+}
+
+export interface ConstraintInput {
+  planet: string
+  sign: string
+}
+
+export interface BirthRangeRequest {
+  constraints: ConstraintInput[]
+  fromDate: string
+  toDate?: string | null
+  mode: ZodiacMode
+  lat?: number | null
+  lon?: number | null
 }
 
 export interface CuspEntry {
@@ -162,6 +207,7 @@ export interface ChartCompute extends ChartData {
   details: boolean
   aspects: boolean
   cusps: boolean
+  birthWindows?: BirthWindow[] | null
 }
 
 export interface TransitsRequest {
@@ -222,6 +268,7 @@ const CHART_RESULT_FIELDS = `
   cusps
   tallies { ${TALLY_FIELDS} }
   aspects { ${ASPECT_FIELDS} }
+  placementDist { pid fracs { sign fraction } }
 `
 
 // ---------------------------------------------------------------------------
@@ -255,11 +302,12 @@ export const api = {
       `query ComputeChart(
         $date: String!, $tz: String!,
         $time: String, $lat: Float, $lon: Float, $location: String,
-        $mode: ZodiacMode!, $houses: HouseSystem!, $details: Boolean!, $aspects: Boolean!
+        $mode: ZodiacMode!, $houses: HouseSystem!, $details: Boolean!, $aspects: Boolean!,
+        $birthWindows: [BirthWindowInput!]
       ) {
         chart(date: $date, tz: $tz, time: $time, lat: $lat, lon: $lon,
               location: $location, mode: $mode, houses: $houses,
-              details: $details, aspects: $aspects) { ${CHART_RESULT_FIELDS} }
+              details: $details, aspects: $aspects, birthWindows: $birthWindows) { ${CHART_RESULT_FIELDS} }
       }`,
       {
         date: req.date,
@@ -272,8 +320,32 @@ export const api = {
         houses: req.houses,
         details: req.details,
         aspects: req.aspects,
+        birthWindows: req.birthWindows ?? null,
       },
     ).then((d) => d.chart),
+
+  birthRange: (req: BirthRangeRequest): Promise<BirthRangeResultOutput> =>
+    gql<{ birthRange: BirthRangeResultOutput }>(
+      `query BirthRange(
+        $constraints: [ConstraintInput!]!,
+        $fromDate: String!, $toDate: String,
+        $mode: ZodiacMode!, $lat: Float, $lon: Float
+      ) {
+        birthRange(constraints: $constraints, fromDate: $fromDate, toDate: $toDate,
+                   mode: $mode, lat: $lat, lon: $lon) {
+          constraints mode searchStart searchEnd stepHours
+          windows { start end durationDays }
+        }
+      }`,
+      {
+        constraints: req.constraints,
+        fromDate: req.fromDate,
+        toDate: req.toDate ?? null,
+        mode: req.mode,
+        lat: req.lat ?? null,
+        lon: req.lon ?? null,
+      },
+    ).then((d) => d.birthRange),
 
   importChart: (source: string, opts?: Partial<Omit<ChartCompute, 'date'>>): Promise<ChartOutput> =>
     gql<{ importChart: ChartOutput }>(
