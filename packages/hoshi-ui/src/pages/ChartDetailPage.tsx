@@ -177,6 +177,12 @@ export function ChartDetailPage() {
             >
               Composite
             </Link>
+            <Link
+              to={`/charts/${chart.id}/cycles`}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Cycles
+            </Link>
           </div>
         )}
         {editing && (
