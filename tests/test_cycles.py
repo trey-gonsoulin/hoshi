@@ -74,7 +74,9 @@ class TestNextCycles:
         for r in results:
             if r.body_pid in skyfield_ids:
                 assert r.available, f"{r.body_pid} should be available"
-                assert len(r.exact) >= 1, f"{r.body_pid} should have at least one return date"
+                assert len(r.exact) >= 1, (
+                    f"{r.body_pid} should have at least one return date"
+                )
 
     def test_horizons_bodies_not_available(self):
         chart = _chart()
