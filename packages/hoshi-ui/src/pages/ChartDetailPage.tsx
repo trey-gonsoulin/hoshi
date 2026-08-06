@@ -166,6 +166,12 @@ export function ChartDetailPage() {
               Transits
             </Link>
             <Link
+              to={`/charts/${chart.id}/forecast`}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Forecast
+            </Link>
+            <Link
               to={`/charts/${chart.id}/compare`}
               className="text-muted-foreground hover:text-foreground transition-colors"
             >

@@ -237,6 +237,20 @@ export interface TransitsRequest {
   details: boolean
   aspects: boolean
   showNatal: boolean
+  tier: string
+  sensitivity: string
+}
+
+export interface ForecastRequest {
+  natal: ChartData
+  fromDate?: string | null
+  toDate?: string | null
+  tz: string
+  mode: ZodiacMode
+  houses: HouseSystem
+  tier: string
+  details: boolean
+  sensitivity: string
 }
 
 export interface CompareRequest {
@@ -481,16 +495,18 @@ export const api = {
         $natal: ChartDataInput!, $tz: String!,
         $date: String, $time: String,
         $mode: ZodiacMode!, $houses: HouseSystem!,
-        $details: Boolean!, $aspects: Boolean!, $showNatal: Boolean!
+        $details: Boolean!, $aspects: Boolean!, $showNatal: Boolean!,
+        $tier: String!, $sensitivity: String!
       ) {
         transits(natal: $natal, tz: $tz, date: $date, time: $time,
                  mode: $mode, houses: $houses, details: $details,
-                 aspects: $aspects, showNatal: $showNatal) {
+                 aspects: $aspects, showNatal: $showNatal,
+                 tier: $tier, sensitivity: $sensitivity) {
           header { name natalDate transitWhen mode houseSystem }
           warnings
           transitBodies { ${BODY_FIELDS} }
           natalBodies { ${BODY_FIELDS} }
-          aspects { ${ASPECT_FIELDS} }
+          aspects { ${ASPECT_FIELDS} ingress exact egress passCount currentPass tier natalSensitivity }
         }
       }`,
       {
@@ -503,8 +519,39 @@ export const api = {
         details: req.details,
         aspects: req.aspects,
         showNatal: req.showNatal,
+        tier: req.tier,
+        sensitivity: req.sensitivity,
       },
     ).then((d) => d.transits),
+
+  chartForecast: (req: ForecastRequest): Promise<ForecastOutput> =>
+    gql<{ forecast: ForecastOutput }>(
+      `query ChartForecast(
+        $natal: ChartDataInput!, $tz: String!,
+        $fromDate: String, $toDate: String,
+        $mode: ZodiacMode!, $houses: HouseSystem!,
+        $tier: String!, $details: Boolean!, $sensitivity: String!
+      ) {
+        forecast(natal: $natal, tz: $tz, fromDate: $fromDate, toDate: $toDate,
+                 mode: $mode, houses: $houses, tier: $tier, details: $details,
+                 sensitivity: $sensitivity) {
+          header { name natalDate fromDate toDate mode tier houseSystem }
+          warnings
+          aspects { ${ASPECT_FIELDS} ingress exact egress passCount currentPass tier natalSensitivity }
+        }
+      }`,
+      {
+        natal: req.natal,
+        tz: req.tz,
+        fromDate: req.fromDate ?? null,
+        toDate: req.toDate ?? null,
+        mode: req.mode,
+        houses: req.houses,
+        tier: req.tier,
+        details: req.details,
+        sensitivity: req.sensitivity,
+      },
+    ).then((d) => d.forecast),
 
   chartCompare: (req: CompareRequest): Promise<CompareOutput> =>
     gql<{ compare: CompareOutput }>(
