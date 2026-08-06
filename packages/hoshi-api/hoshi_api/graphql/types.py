@@ -226,6 +226,25 @@ class CompareResult:
 
 
 @strawberry.type
+class CompositeHeader:
+    name_a: str
+    name_b: str
+    date_a: str
+    date_b: str
+    mode: str
+    house_system: Optional[str]
+
+
+@strawberry.type
+class CompositeResult:
+    header: CompositeHeader
+    warnings: list[str]
+    bodies: list[BodyEntry]
+    cusps: list[float]
+    aspects: Optional[list[Aspect]]
+
+
+@strawberry.type
 class SkyEventEntry:
     when: str
     event_type: str
@@ -381,6 +400,21 @@ def from_compare_output(output: _pydantic.CompareOutput) -> CompareResult:
         warnings=data["warnings"],
         bodies_a=[_body_entry(b) for b in data["bodies_a"]],
         bodies_b=[_body_entry(b) for b in data["bodies_b"]],
+        aspects=(
+            [_aspect(a) for a in data["aspects"]]
+            if data["aspects"] is not None
+            else None
+        ),
+    )
+
+
+def from_composite_output(output: _pydantic.CompositeOutput) -> CompositeResult:
+    data = output.model_dump(mode="json")
+    return CompositeResult(
+        header=CompositeHeader(**data["header"]),
+        warnings=data["warnings"],
+        bodies=[_body_entry(b) for b in data["bodies"]],
+        cusps=data["cusps"],
         aspects=(
             [_aspect(a) for a in data["aspects"]]
             if data["aspects"] is not None

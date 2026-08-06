@@ -171,6 +171,12 @@ export function ChartDetailPage() {
             >
               Compare
             </Link>
+            <Link
+              to={`/charts/${chart.id}/composite`}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Composite
+            </Link>
           </div>
         )}
         {editing && (

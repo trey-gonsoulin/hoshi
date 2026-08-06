@@ -255,6 +255,86 @@ class TestSkyEvents:
         assert "errors" not in data
 
 
+class TestComposite:
+    def test_basic_composite(self, client, mock_chart):
+        data = _gql(
+            client,
+            """
+            query {
+              composite(
+                chartA: {date: "2000-01-01", time: "12:00", lat: 30.0, lon: -90.0},
+                chartB: {date: "1990-06-15", time: "08:30", lat: 40.7, lon: -74.0}
+              ) {
+                header { nameA nameB dateA dateB mode houseSystem }
+                warnings
+                bodies { name sign degree lon rx house symbol }
+                cusps
+              }
+            }
+            """,
+        )
+        assert "errors" not in data
+        result = data["data"]["composite"]
+        assert result["header"]["mode"] == "realsky"
+        assert result["header"]["dateA"] == "2000-01-01"
+        assert result["header"]["dateB"] == "1990-06-15"
+        assert result["header"]["houseSystem"] is not None
+        assert len(result["bodies"]) > 0
+        sun = next(b for b in result["bodies"] if b["name"] == "Sun")
+        assert sun["symbol"] == "☉"
+        assert 0.0 <= sun["lon"] < 360.0
+        assert sun["rx"] is False  # composite bodies are never retrograde
+        assert len(result["cusps"]) > 0
+
+    def test_composite_with_aspects(self, client, mock_chart):
+        data = _gql(
+            client,
+            """
+            query {
+              composite(
+                chartA: {date: "2000-01-01", time: "12:00", lat: 30.0, lon: -90.0},
+                chartB: {date: "1990-06-15", time: "08:30", lat: 40.7, lon: -74.0},
+                aspects: true, details: true
+              ) {
+                bodies { name sign }
+                aspects { bodyA bodyB name orb kind }
+              }
+            }
+            """,
+        )
+        assert "errors" not in data
+        result = data["data"]["composite"]
+        assert result["aspects"] is not None
+
+    def test_composite_no_location_omits_angles(self, client, mock_chart):
+        data = _gql(
+            client,
+            """
+            query {
+              composite(
+                chartA: {date: "2000-01-01"},
+                chartB: {date: "1990-06-15"}
+              ) {
+                warnings
+                bodies { name house }
+                cusps
+                header { houseSystem }
+              }
+            }
+            """,
+        )
+        assert "errors" not in data
+        result = data["data"]["composite"]
+        assert len(result["cusps"]) == 0
+        assert result["header"]["houseSystem"] is None
+        assert all(
+            b["house"] is None
+            for b in result["bodies"]
+            if b["name"] in ("Ascendant", "Midheaven")
+        )
+        assert any("location unknown" in w for w in result["warnings"])
+
+
 class TestBirthRange:
     def test_basic_search(self, client):
         data = _gql(

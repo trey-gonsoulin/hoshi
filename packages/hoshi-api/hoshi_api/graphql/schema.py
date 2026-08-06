@@ -19,6 +19,7 @@ from hoshi.chart import Chart, HouseSystem
 from hoshi.output import (
     ChartOutput,
     CompareOutput,
+    CompositeOutput,
     CuspsOutput,
     SkyEventsOutput,
     TransitsOutput,
@@ -34,6 +35,7 @@ from hoshi_api.graphql.types import (
     ChartDataInput,
     ChartResult,
     CompareResult,
+    CompositeResult,
     ConstraintInput,
     CuspsResult,
     SkyEventsResult,
@@ -41,6 +43,7 @@ from hoshi_api.graphql.types import (
     from_birth_range_output,
     from_chart_output,
     from_compare_output,
+    from_composite_output,
     from_cusps_output,
     from_sky_events_output,
     from_transits_output,
@@ -235,6 +238,42 @@ class Query:
             ci_a, ci_b, a, b, mode, details=details, aspects=aspects
         )
         return from_compare_output(output)
+
+    @strawberry.field
+    def composite(
+        self,
+        chart_a: ChartDataInput,
+        chart_b: ChartDataInput,
+        mode: ZodiacMode = ZodiacMode.realsky,
+        houses: HouseSystem = HouseSystem.porphyry,
+        details: bool = False,
+        aspects: bool = False,
+    ) -> CompositeResult:
+        lat_a, lon_a = _resolve_coords(chart_a.lat, chart_a.lon, chart_a.location)
+        lat_b, lon_b = _resolve_coords(chart_b.lat, chart_b.lon, chart_b.location)
+        ci_a = ChartInput(
+            name="",
+            date=chart_a.date,
+            time=chart_a.time,
+            tz=chart_a.tz,
+            lat=lat_a,
+            lon=lon_a,
+        )
+        ci_b = ChartInput(
+            name="",
+            date=chart_b.date,
+            time=chart_b.time,
+            tz=chart_b.tz,
+            lat=lat_b,
+            lon=lon_b,
+        )
+        a = Chart.from_input(ci_a, house_system=houses)
+        b = Chart.from_input(ci_b, house_system=houses)
+        chart_comp = Chart.composite(a, b, house_system=houses)
+        output = CompositeOutput.build(
+            ci_a, ci_b, chart_comp, mode, details=details, aspects=aspects
+        )
+        return from_composite_output(output)
 
     @strawberry.field
     def sky_now(

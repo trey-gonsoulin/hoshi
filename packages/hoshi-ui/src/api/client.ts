@@ -168,6 +168,23 @@ export interface CompareOutput {
   aspects?: Aspect[] | null
 }
 
+export interface CompositeHeader {
+  nameA: string
+  nameB: string
+  dateA: string
+  dateB: string
+  mode: string
+  houseSystem?: string | null
+}
+
+export interface CompositeOutput {
+  header: CompositeHeader
+  warnings: string[]
+  bodies: BodyEntry[]
+  cusps: number[]
+  aspects?: Aspect[] | null
+}
+
 export interface SkyEventEntry {
   when: string
   eventType: string
@@ -223,6 +240,15 @@ export interface TransitsRequest {
 }
 
 export interface CompareRequest {
+  chartA: ChartData
+  chartB: ChartData
+  mode: ZodiacMode
+  houses: HouseSystem
+  details: boolean
+  aspects: boolean
+}
+
+export interface CompositeRequest {
   chartA: ChartData
   chartB: ChartData
   mode: ZodiacMode
@@ -421,6 +447,32 @@ export const api = {
         aspects: req.aspects,
       },
     ).then((d) => d.compare),
+
+  chartComposite: (req: CompositeRequest): Promise<CompositeOutput> =>
+    gql<{ composite: CompositeOutput }>(
+      `query ChartComposite(
+        $chartA: ChartDataInput!, $chartB: ChartDataInput!,
+        $mode: ZodiacMode!, $houses: HouseSystem!,
+        $details: Boolean!, $aspects: Boolean!
+      ) {
+        composite(chartA: $chartA, chartB: $chartB, mode: $mode, houses: $houses,
+                  details: $details, aspects: $aspects) {
+          header { nameA nameB dateA dateB mode houseSystem }
+          warnings
+          bodies { ${BODY_FIELDS} }
+          cusps
+          aspects { ${ASPECT_FIELDS} }
+        }
+      }`,
+      {
+        chartA: req.chartA,
+        chartB: req.chartB,
+        mode: req.mode,
+        houses: req.houses,
+        details: req.details,
+        aspects: req.aspects,
+      },
+    ).then((d) => d.composite),
 
   skyNow: (opts?: { mode?: ZodiacMode; tz?: string }): Promise<ChartOutput> =>
     gql<{ skyNow: ChartOutput }>(
