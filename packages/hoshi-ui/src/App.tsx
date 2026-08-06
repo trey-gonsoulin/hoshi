@@ -5,6 +5,7 @@ import { ComputePage } from '@/pages/ComputePage'
 import { ChartsPage } from '@/pages/ChartsPage'
 import { ChartDetailPage } from '@/pages/ChartDetailPage'
 import { TransitsPage } from '@/pages/TransitsPage'
+import { ForecastPage } from '@/pages/ForecastPage'
 import { ComparePage } from '@/pages/ComparePage'
 import { CompositePage } from '@/pages/CompositePage'
 import { CompositeTransitsPage } from '@/pages/CompositeTransitsPage'
@@ -49,6 +50,7 @@ export default function App() {
           <Route path="/compute" element={<ComputePage />} />
           <Route path="/charts/:id" element={<ChartDetailPage />} />
           <Route path="/charts/:id/transits" element={<TransitsPage />} />
+          <Route path="/charts/:id/forecast" element={<ForecastPage />} />
           <Route path="/charts/:id/compare" element={<ComparePage />} />
           <Route path="/charts/:id/composite" element={<CompositePage />} />
           <Route path="/charts/:id/composite-transits" element={<CompositeTransitsPage />} />

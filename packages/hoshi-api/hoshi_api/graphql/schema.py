@@ -278,6 +278,58 @@ class Query:
         return from_composite_output(output)
 
     @strawberry.field
+    def forecast(
+        self,
+        natal: ChartDataInput,
+        tz: str = "UTC",
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        mode: ZodiacMode = ZodiacMode.realsky,
+        houses: HouseSystem = HouseSystem.porphyry,
+        tier: str = "slow",
+        details: bool = False,
+        sensitivity: str = "",
+    ) -> ForecastResult:
+        from datetime import timedelta
+
+        from hoshi.output import ForecastOutput
+
+        resolved_lat, resolved_lon = _resolve_coords(
+            natal.lat, natal.lon, natal.location
+        )
+        ci = ChartInput(
+            name="",
+            date=natal.date,
+            time=natal.time,
+            tz=natal.tz,
+            lat=resolved_lat,
+            lon=resolved_lon,
+        )
+        chart_natal = Chart.from_input(ci, house_system=houses)
+        now = datetime.now(tz=timezone.utc).astimezone(ZoneInfo(tz))
+        from_dt = (
+            datetime.fromisoformat(from_date).replace(tzinfo=ZoneInfo(tz))
+            if from_date is not None
+            else now.replace(hour=0, minute=0, second=0, microsecond=0)
+        )
+        to_dt = (
+            datetime.fromisoformat(to_date).replace(tzinfo=ZoneInfo(tz))
+            if to_date is not None
+            else from_dt + timedelta(days=90)
+        )
+        output = ForecastOutput.build(
+            ci,
+            chart_natal,
+            from_dt,
+            to_dt,
+            mode,
+            tier=tier,
+            details=details,
+            sensitivity=sensitivity,
+        )
+        return from_forecast_output(output)
+
+    @strawberry.field
     def composite_transits(
         self,
         chart_a: ChartDataInput,

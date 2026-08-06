@@ -8,9 +8,9 @@ import { Label } from '@/components/ui/label'
 import { TimezonePicker } from '@/components/TimezonePicker'
 import { WarningBanner } from '@/components/WarningBanner'
 import { BodyTable } from '@/components/BodyTable'
-import { AspectTable } from '@/components/AspectTable'
+import { TransitAspectTable } from '@/components/TransitAspectTable'
 import { useChartStore } from '@/hooks/useChartStore'
-import { api, type TransitsOutput, type ZodiacMode, type HouseSystem, type TransitsRequest } from '@/api/client'
+import { api, type TransitsOutput, type TransitAspect, type ZodiacMode, type HouseSystem, type TransitsRequest } from '@/api/client'
 import { chartDataFrom } from '@/lib/chartData'
 
 const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -23,6 +23,8 @@ interface FormState {
   mode: ZodiacMode
   houses: HouseSystem
   showNatal: boolean
+  tier: string
+  sensitivity: string
 }
 
 export function TransitsPage() {
@@ -40,6 +42,8 @@ export function TransitsPage() {
     mode: (searchParams.get('mode') as ZodiacMode | null) ?? chart?.input.mode ?? 'realsky',
     houses: chart?.input.houses ?? 'porphyry',
     showNatal: false,
+    tier: 'all',
+    sensitivity: '',
   }))
   const [result, setResult] = useState<TransitsOutput | null>(null)
 
@@ -58,6 +62,8 @@ export function TransitsPage() {
         details: true,
         aspects: true,
         showNatal: form.showNatal,
+        tier: form.tier,
+        sensitivity: form.sensitivity,
       }
       return api.chartTransits(req)
     },
@@ -82,6 +88,10 @@ export function TransitsPage() {
   }
 
   const showHousesNatal = result?.natalBodies?.some((b) => b.house != null) ?? false
+  const transitAspects = (result?.aspects ?? []) as TransitAspect[]
+  const hasWindowData = transitAspects.some(
+    (a) => a.ingress != null || a.egress != null || (a.exact?.length ?? 0) > 0,
+  )
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-10">
@@ -138,6 +148,30 @@ export function TransitsPage() {
           </div>
         </div>
 
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="tier">Planet tier</Label>
+            <select id="tier" value={form.tier} onChange={(e) => set({ tier: e.target.value })}
+              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+              <option value="all">All planets</option>
+              <option value="slow">Slow (Jupiter+)</option>
+              <option value="medium">Medium (Mars)</option>
+              <option value="fast">Fast (Sun/Mercury/Venus)</option>
+              <option value="luminary">Luminaries (Moon)</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="sensitivity">Natal sensitivity</Label>
+            <select id="sensitivity" value={form.sensitivity} onChange={(e) => set({ sensitivity: e.target.value })}
+              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+              <option value="">All points</option>
+              <option value="primary">Primary (Sun/Moon/Asc/MC)</option>
+              <option value="secondary">Secondary (personal planets)</option>
+              <option value="tertiary">Tertiary (outer planets/nodes)</option>
+            </select>
+          </div>
+        </div>
+
         <label className="flex items-center gap-2.5 text-sm cursor-pointer select-none">
           <input type="checkbox" checked={form.showNatal} onChange={(e) => set({ showNatal: e.target.checked })}
             className="h-4 w-4 rounded border-input accent-primary" />
@@ -189,12 +223,12 @@ export function TransitsPage() {
             </section>
           ) : null}
 
-          {result.aspects?.length ? (
+          {transitAspects.length ? (
             <section>
               <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-4 select-none">
                 Inter-aspects
               </p>
-              <AspectTable aspects={result.aspects} />
+              <TransitAspectTable aspects={transitAspects} showWindows={hasWindowData} />
             </section>
           ) : null}
         </div>
