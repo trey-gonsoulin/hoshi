@@ -458,3 +458,38 @@ def from_sky_events_output(output: _pydantic.SkyEventsOutput) -> SkyEventsResult
         from_date=data["from_date"],
         to_date=data["to_date"],
     )
+
+
+@strawberry.type
+class CycleEntryResult:
+    body_pid: str
+    body_name: str
+    natal_lon: float
+    natal_sign: str
+    natal_sign_symbol: str
+    period_days: float
+    period_label: str
+    exact: list[str]
+    pass_count: int
+    available: bool
+    note: Optional[str]
+
+
+@strawberry.type
+class CyclesResult:
+    name: str
+    natal_date: str
+    from_date: str
+    mode: str
+    cycles: list[CycleEntryResult]
+
+
+def from_cycles_output(output: _pydantic.CyclesOutput) -> CyclesResult:
+    data = output.model_dump(mode="json")
+    return CyclesResult(
+        name=data["name"],
+        natal_date=data["natal_date"],
+        from_date=data["from_date"],
+        mode=data["mode"],
+        cycles=[CycleEntryResult(**e) for e in data["cycles"]],
+    )

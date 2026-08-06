@@ -1,4 +1,77 @@
+from datetime import datetime, timezone
 from unittest.mock import patch
+
+from hoshi.cycles import CycleReturn
+
+
+class TestCycles:
+    _NATAL = {
+        "date": "1990-06-15",
+        "time": "12:00",
+        "lat": 40.7,
+        "lon": -74.0,
+    }
+
+    def _mock_next_cycles(self, returns: list[CycleReturn]):
+        return patch("hoshi.output.next_cycles", return_value=returns)
+
+    def test_returns_200_with_cycles(self, client, mock_chart):
+        returns = [
+            CycleReturn(
+                body_pid="sun",
+                body_name="Sun",
+                natal_lon=90.0,
+                natal_sign="Cancer",
+                period_days=365.25,
+                exact=[datetime(2027, 6, 15, 12, 0, tzinfo=timezone.utc)],
+                available=True,
+            )
+        ]
+        with self._mock_next_cycles(returns):
+            resp = client.post(
+                "/charts/cycles",
+                json={"natal": self._NATAL, "from_date": "2026-01-01"},
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "cycles" in data
+        assert len(data["cycles"]) == 1
+        assert data["cycles"][0]["body_pid"] == "sun"
+        assert data["cycles"][0]["available"] is True
+        assert len(data["cycles"][0]["exact"]) == 1
+
+    def test_returns_200_without_from_date(self, client, mock_chart):
+        with self._mock_next_cycles([]):
+            resp = client.post(
+                "/charts/cycles",
+                json={"natal": self._NATAL},
+            )
+        assert resp.status_code == 200
+        assert "cycles" in resp.json()
+
+    def test_unavailable_body_in_response(self, client, mock_chart):
+        returns = [
+            CycleReturn(
+                body_pid="chiron",
+                body_name="Chiron",
+                natal_lon=10.0,
+                natal_sign="Aries",
+                period_days=18520.275,
+                available=False,
+                note="Chiron return requires Horizons data (forward scan not available).",
+            )
+        ]
+        with self._mock_next_cycles(returns):
+            resp = client.post(
+                "/charts/cycles",
+                json={"natal": self._NATAL, "from_date": "2026-01-01"},
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        chiron = data["cycles"][0]
+        assert chiron["available"] is False
+        assert chiron["note"] is not None
+        assert chiron["exact"] == []
 
 
 class TestBirthRange:

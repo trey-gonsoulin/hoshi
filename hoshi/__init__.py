@@ -14,6 +14,7 @@ functions from here rather than the internal submodules, e.g.::
 """
 
 from hoshi.adb import ADBError, ADBResult, adb_to_chart_input
+from hoshi.cycles import ORBITAL_PERIODS, CycleReturn, format_period, next_cycles
 from hoshi.events import BODY_DISPLAY, BODY_SYMBOL, SIGN_SYMBOL, SkyEvent, sky_events
 from hoshi.output import (
     BodySelection,
@@ -22,6 +23,7 @@ from hoshi.output import (
     CompareOutput,
     CompositeOutput,
     CuspsOutput,
+    CyclesOutput,
     ForecastHeader,
     ForecastOutput,
     HouseComparisonOutput,
@@ -160,11 +162,17 @@ __all__ = [
     "transit_tier",
     "ForecastWindow",
     "forecast_transits",
+    # Cycles
+    "CycleReturn",
+    "ORBITAL_PERIODS",
+    "next_cycles",
+    "format_period",
     # Output models
     "BodySelection",
     "ChartOutput",
     "ChartListOutput",
     "CuspsOutput",
+    "CyclesOutput",
     "TransitAspect",
     "TransitsOutput",
     "ForecastHeader",

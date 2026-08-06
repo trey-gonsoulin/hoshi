@@ -14,6 +14,7 @@ from hoshi.output import (
     CompareOutput,
     CompositeOutput,
     CuspsOutput,
+    CyclesOutput,
     ForecastOutput,
     TransitsOutput,
 )
@@ -144,6 +145,14 @@ class CompositeForecastRequest(BaseModel):
     tier: str = "slow"
     details: bool = False
     sensitivity: str = ""
+
+
+class CyclesRequest(BaseModel):
+    natal: ChartData
+    from_date: str | None = None
+    tz: str = "UTC"
+    mode: ZodiacMode = ZodiacMode.realsky
+    houses: HouseSystem = HouseSystem.porphyry
 
 
 class BirthRangeConstraint(BaseModel):
@@ -354,6 +363,19 @@ def chart_compare(body: CompareRequest) -> CompareOutput:
         details=body.details,
         aspects=body.aspects,
     )
+
+
+@router.post("/cycles", response_model=CyclesOutput)
+def chart_cycles(body: CyclesRequest) -> CyclesOutput:
+    ci = _chart_input_from(body.natal)
+    if body.from_date is not None:
+        from_dt = datetime.fromisoformat(body.from_date).replace(
+            tzinfo=ZoneInfo(body.tz)
+        )
+    else:
+        from_dt = datetime.now(timezone.utc)
+    chart_natal = Chart.from_input(ci, house_system=body.houses)
+    return CyclesOutput.build(ci, chart_natal, from_dt, body.mode)
 
 
 @router.post("/composite", response_model=CompositeOutput)

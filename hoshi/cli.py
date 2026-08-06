@@ -17,6 +17,7 @@ from hoshi.output import (
     CompareOutput,
     CompositeOutput,
     CuspsOutput,
+    CyclesOutput,
     DeleteOutput,
     HouseComparisonOutput,
     InfoDetailOutput,
@@ -985,6 +986,40 @@ def chart_composite_forecast(
         details=details,
         sensitivity=sensitivity,
     )
+    _output(output, fmt)
+
+
+@chart_app.command(name="cycles")
+def chart_cycles(
+    name: str = typer.Argument(..., help="Saved natal chart name."),
+    from_date: str | None = typer.Option(
+        None, "--from", help="Reference date YYYY-MM-DD (default: today)."
+    ),
+    tz: str = typer.Option("UTC", "--tz", help="IANA timezone for the from date."),
+    mode: ZodiacMode = typer.Option(ZodiacMode.realsky, "--mode", help="Zodiac mode."),
+    houses: HouseSystem = typer.Option(
+        HouseSystem.porphyry, "--houses", help="House system."
+    ),
+    fmt: OutputFormat = typer.Option(
+        OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
+    ),
+) -> None:
+    """Show next planetary return dates (cycle completions) for a saved natal chart."""
+    try:
+        ci = store.load(name)
+    except FileNotFoundError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    if from_date is not None:
+        try:
+            from_dt = datetime.fromisoformat(from_date).replace(tzinfo=ZoneInfo(tz))
+        except ValueError as exc:
+            raise typer.BadParameter(f"Could not parse date: {exc}") from exc
+    else:
+        from_dt = datetime.now(ZoneInfo(tz))
+
+    chart_natal = Chart.from_input(ci, house_system=houses)
+    output = CyclesOutput.build(ci, chart_natal, from_dt, mode)
     _output(output, fmt)
 
 

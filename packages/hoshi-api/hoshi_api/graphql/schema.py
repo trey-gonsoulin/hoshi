@@ -21,6 +21,7 @@ from hoshi.output import (
     CompareOutput,
     CompositeOutput,
     CuspsOutput,
+    CyclesOutput,
     SkyEventsOutput,
     TransitsOutput,
 )
@@ -38,6 +39,7 @@ from hoshi_api.graphql.types import (
     CompositeResult,
     ConstraintInput,
     CuspsResult,
+    CyclesResult,
     ForecastResult,
     SkyEventsResult,
     TransitsResult,
@@ -46,6 +48,7 @@ from hoshi_api.graphql.types import (
     from_compare_output,
     from_composite_output,
     from_cusps_output,
+    from_cycles_output,
     from_forecast_output,
     from_sky_events_output,
     from_transits_output,
@@ -409,6 +412,34 @@ class Query:
             sensitivity=sensitivity,
         )
         return from_forecast_output(output)
+
+    @strawberry.field
+    def cycles(
+        self,
+        natal: ChartDataInput,
+        tz: str = "UTC",
+        from_date: Optional[str] = None,
+        mode: ZodiacMode = ZodiacMode.realsky,
+        houses: HouseSystem = HouseSystem.porphyry,
+    ) -> CyclesResult:
+        resolved_lat, resolved_lon = _resolve_coords(
+            natal.lat, natal.lon, natal.location
+        )
+        ci = ChartInput(
+            name="",
+            date=natal.date,
+            time=natal.time,
+            tz=natal.tz,
+            lat=resolved_lat,
+            lon=resolved_lon,
+        )
+        if from_date is not None:
+            from_dt = datetime.fromisoformat(from_date).replace(tzinfo=ZoneInfo(tz))
+        else:
+            from_dt = datetime.now(timezone.utc)
+        chart_natal = Chart.from_input(ci, house_system=houses)
+        output = CyclesOutput.build(ci, chart_natal, from_dt, str(mode))
+        return from_cycles_output(output)
 
     @strawberry.field
     def sky_now(

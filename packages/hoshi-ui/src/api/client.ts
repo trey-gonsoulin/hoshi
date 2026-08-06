@@ -311,6 +311,36 @@ export interface CompositeForecastRequest {
   sensitivity: string
 }
 
+export interface CycleEntry {
+  bodyPid: string
+  bodyName: string
+  natalLon: number
+  natalSign: string
+  natalSignSymbol: string
+  periodDays: number
+  periodLabel: string
+  exact: string[]  // ISO 8601 UTC strings
+  passCount: number
+  available: boolean
+  note?: string | null
+}
+
+export interface CyclesOutput {
+  name: string
+  natalDate: string
+  fromDate: string
+  mode: string
+  cycles: CycleEntry[]
+}
+
+export interface CyclesRequest {
+  natal: ChartData
+  fromDate?: string | null
+  tz: string
+  mode: ZodiacMode
+  houses: HouseSystem
+}
+
 export interface SkyEventsParams {
   from?: string
   to?: string
@@ -594,6 +624,28 @@ export const api = {
         sensitivity: req.sensitivity,
       },
     ).then((d) => d.compositeForecast),
+
+  chartCycles: (req: CyclesRequest): Promise<CyclesOutput> =>
+    gql<{ cycles: CyclesOutput }>(
+      `query ChartCycles(
+        $natal: ChartDataInput!, $tz: String!, $fromDate: String, $mode: ZodiacMode!, $houses: HouseSystem!
+      ) {
+        cycles(natal: $natal, tz: $tz, fromDate: $fromDate, mode: $mode, houses: $houses) {
+          name natalDate fromDate mode
+          cycles {
+            bodyPid bodyName natalLon natalSign natalSignSymbol
+            periodDays periodLabel exact passCount available note
+          }
+        }
+      }`,
+      {
+        natal: req.natal,
+        tz: req.tz,
+        fromDate: req.fromDate ?? null,
+        mode: req.mode,
+        houses: req.houses,
+      },
+    ).then((d) => d.cycles),
 
   skyNow: (opts?: { mode?: ZodiacMode; tz?: string }): Promise<ChartOutput> =>
     gql<{ skyNow: ChartOutput }>(
