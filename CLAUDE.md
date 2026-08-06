@@ -173,6 +173,8 @@ with auto-reload). Interactive docs at `/docs`.
 | `POST` | `/charts/forecast` | Transit-to-natal aspects over a date range (supports `sensitivity` field in request body) |
 | `GET` | `/charts/{name}/compare/{other}` | Synastry |
 | `POST` | `/charts/composite` | Composite (midpoint) chart from two inline chart inputs |
+| `POST` | `/charts/composite-transits` | Transits against a composite chart |
+| `POST` | `/charts/composite-forecast` | Date-range transit forecast against a composite chart |
 | `GET` | `/info/{category}` | List reference info |
 | `GET` | `/info/{category}/{name}` | Single item detail |
 | `GET` | `/sky/now` | Current transiting sky — all bodies, no natal required |

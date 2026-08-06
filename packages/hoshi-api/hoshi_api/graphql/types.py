@@ -245,6 +245,24 @@ class CompositeResult:
 
 
 @strawberry.type
+class ForecastHeader:
+    name: str
+    natal_date: str
+    from_date: str
+    to_date: str
+    mode: str
+    tier: str
+    house_system: Optional[str]
+
+
+@strawberry.type
+class ForecastResult:
+    header: ForecastHeader
+    warnings: list[str]
+    aspects: list[TransitAspect]
+
+
+@strawberry.type
 class SkyEventEntry:
     when: str
     event_type: str
@@ -420,6 +438,15 @@ def from_composite_output(output: _pydantic.CompositeOutput) -> CompositeResult:
             if data["aspects"] is not None
             else None
         ),
+    )
+
+
+def from_forecast_output(output: _pydantic.ForecastOutput) -> ForecastResult:
+    data = output.model_dump(mode="json")
+    return ForecastResult(
+        header=ForecastHeader(**data["header"]),
+        warnings=data["warnings"],
+        aspects=[_transit_aspect(a) for a in data["aspects"]],
     )
 
 

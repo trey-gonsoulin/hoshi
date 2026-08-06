@@ -118,6 +118,34 @@ class CompositeRequest(BaseModel):
     cusps: bool = False
 
 
+class CompositeTransitsRequest(BaseModel):
+    chart_a: ChartData
+    chart_b: ChartData
+    date: str | None = None
+    time: str | None = None
+    tz: str = "UTC"
+    mode: ZodiacMode = ZodiacMode.realsky
+    houses: HouseSystem = HouseSystem.porphyry
+    details: bool = False
+    aspects: bool = False
+    show_natal: bool = False
+    tier: str = "all"
+    sensitivity: str = ""
+
+
+class CompositeForecastRequest(BaseModel):
+    chart_a: ChartData
+    chart_b: ChartData
+    from_date: str | None = None
+    to_date: str | None = None
+    tz: str = "UTC"
+    mode: ZodiacMode = ZodiacMode.realsky
+    houses: HouseSystem = HouseSystem.porphyry
+    tier: str = "slow"
+    details: bool = False
+    sensitivity: str = ""
+
+
 class BirthRangeConstraint(BaseModel):
     planet: str
     sign: str
@@ -343,4 +371,77 @@ def chart_composite(body: CompositeRequest) -> CompositeOutput:
         details=body.details,
         aspects=body.aspects,
         show_cusps=body.cusps,
+    )
+
+
+def _composite_ci(ci_a: ChartInput, ci_b: ChartInput, chart_comp: Chart) -> ChartInput:
+    return ChartInput(
+        name=f"{ci_a.name} × {ci_b.name}",
+        date=ci_a.date,
+        time=ci_a.time if chart_comp.time_known else None,
+        lat=chart_comp.lat if chart_comp.location_known else None,
+        lon=chart_comp.lon if chart_comp.location_known else None,
+    )
+
+
+@router.post("/composite-transits", response_model=TransitsOutput)
+def chart_composite_transits(body: CompositeTransitsRequest) -> TransitsOutput:
+    ci_a = _chart_input_from(body.chart_a)
+    ci_b = _chart_input_from(body.chart_b)
+    chart_a = Chart.from_input(ci_a, house_system=body.houses)
+    chart_b = Chart.from_input(ci_b, house_system=body.houses)
+    chart_comp = Chart.composite(chart_a, chart_b, house_system=body.houses)
+    ci_comp = _composite_ci(ci_a, ci_b, chart_comp)
+
+    now = datetime.now().astimezone()
+    if body.date is None:
+        transit_dt = now
+    else:
+        t = body.time if body.time is not None else now.strftime("%H:%M")
+        local = datetime.fromisoformat(f"{body.date}T{t}")
+        transit_dt = local.replace(tzinfo=ZoneInfo(body.tz))
+
+    return TransitsOutput.build(
+        ci_comp,
+        chart_comp,
+        transit_dt,
+        body.mode,
+        details=body.details,
+        aspects=body.aspects,
+        natal=body.show_natal,
+        tier=body.tier,
+        sensitivity=body.sensitivity,
+    )
+
+
+@router.post("/composite-forecast", response_model=ForecastOutput)
+def chart_composite_forecast(body: CompositeForecastRequest) -> ForecastOutput:
+    ci_a = _chart_input_from(body.chart_a)
+    ci_b = _chart_input_from(body.chart_b)
+    chart_a = Chart.from_input(ci_a, house_system=body.houses)
+    chart_b = Chart.from_input(ci_b, house_system=body.houses)
+    chart_comp = Chart.composite(chart_a, chart_b, house_system=body.houses)
+    ci_comp = _composite_ci(ci_a, ci_b, chart_comp)
+
+    now = datetime.now().astimezone(ZoneInfo(body.tz))
+    from_dt = (
+        datetime.fromisoformat(body.from_date).replace(tzinfo=ZoneInfo(body.tz))
+        if body.from_date is not None
+        else now.replace(hour=0, minute=0, second=0, microsecond=0)
+    )
+    to_dt = (
+        datetime.fromisoformat(body.to_date).replace(tzinfo=ZoneInfo(body.tz))
+        if body.to_date is not None
+        else from_dt + timedelta(days=90)
+    )
+
+    return ForecastOutput.build(
+        ci_comp,
+        chart_comp,
+        from_dt,
+        to_dt,
+        body.mode,
+        tier=body.tier,
+        details=body.details,
+        sensitivity=body.sensitivity,
     )

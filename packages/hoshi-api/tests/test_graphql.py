@@ -335,6 +335,77 @@ class TestComposite:
         assert any("location unknown" in w for w in result["warnings"])
 
 
+class TestCompositeTransits:
+    def test_basic_composite_transits(self, client, mock_chart):
+        data = _gql(
+            client,
+            """
+            query {
+              compositeTransits(
+                chartA: {date: "2000-01-01", time: "12:00", lat: 30.0, lon: -90.0},
+                chartB: {date: "1990-06-15", time: "08:30", lat: 40.7, lon: -74.0},
+                date: "2024-06-01", time: "12:00"
+              ) {
+                header { name transitWhen mode }
+                warnings
+                transitBodies { name sign degree lon }
+              }
+            }
+            """,
+        )
+        assert "errors" not in data
+        result = data["data"]["compositeTransits"]
+        assert result["header"]["transitWhen"] != ""
+        assert len(result["transitBodies"]) > 0
+
+    def test_composite_transits_no_location_suppresses_houses(self, client, mock_chart):
+        data = _gql(
+            client,
+            """
+            query {
+              compositeTransits(
+                chartA: {date: "2000-01-01"},
+                chartB: {date: "1990-06-15"},
+                date: "2024-06-01", time: "12:00"
+              ) {
+                warnings
+                transitBodies { name house }
+              }
+            }
+            """,
+        )
+        assert "errors" not in data
+        result = data["data"]["compositeTransits"]
+        assert any("location unknown" in w for w in result["warnings"])
+        assert all(b["house"] is None for b in result["transitBodies"])
+
+
+class TestCompositeForecast:
+    def test_basic_composite_forecast(self, client, mock_chart):
+        data = _gql(
+            client,
+            """
+            query {
+              compositeForecast(
+                chartA: {date: "2000-01-01", time: "12:00", lat: 30.0, lon: -90.0},
+                chartB: {date: "1990-06-15", time: "08:30", lat: 40.7, lon: -74.0},
+                fromDate: "2024-06-01", toDate: "2024-07-01",
+                tier: "all"
+              ) {
+                header { name fromDate toDate mode tier }
+                warnings
+                aspects { bodyA signA bodyB signB name }
+              }
+            }
+            """,
+        )
+        assert "errors" not in data
+        result = data["data"]["compositeForecast"]
+        assert result["header"]["fromDate"] == "2024-06-01"
+        assert result["header"]["toDate"] == "2024-07-01"
+        assert isinstance(result["aspects"], list)
+
+
 class TestBirthRange:
     def test_basic_search(self, client):
         data = _gql(

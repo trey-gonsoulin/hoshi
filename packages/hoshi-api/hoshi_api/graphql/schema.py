@@ -38,6 +38,7 @@ from hoshi_api.graphql.types import (
     CompositeResult,
     ConstraintInput,
     CuspsResult,
+    ForecastResult,
     SkyEventsResult,
     TransitsResult,
     from_birth_range_output,
@@ -45,6 +46,7 @@ from hoshi_api.graphql.types import (
     from_compare_output,
     from_composite_output,
     from_cusps_output,
+    from_forecast_output,
     from_sky_events_output,
     from_transits_output,
 )
@@ -274,6 +276,139 @@ class Query:
             ci_a, ci_b, chart_comp, mode, details=details, aspects=aspects
         )
         return from_composite_output(output)
+
+    @strawberry.field
+    def composite_transits(
+        self,
+        chart_a: ChartDataInput,
+        chart_b: ChartDataInput,
+        tz: str = "UTC",
+        date: Optional[str] = None,
+        time: Optional[str] = None,
+        mode: ZodiacMode = ZodiacMode.realsky,
+        houses: HouseSystem = HouseSystem.porphyry,
+        details: bool = False,
+        aspects: bool = False,
+        show_natal: bool = False,
+        tier: str = "all",
+        sensitivity: str = "",
+    ) -> TransitsResult:
+        lat_a, lon_a = _resolve_coords(chart_a.lat, chart_a.lon, chart_a.location)
+        lat_b, lon_b = _resolve_coords(chart_b.lat, chart_b.lon, chart_b.location)
+        ci_a = ChartInput(
+            name="",
+            date=chart_a.date,
+            time=chart_a.time,
+            tz=chart_a.tz,
+            lat=lat_a,
+            lon=lon_a,
+        )
+        ci_b = ChartInput(
+            name="",
+            date=chart_b.date,
+            time=chart_b.time,
+            tz=chart_b.tz,
+            lat=lat_b,
+            lon=lon_b,
+        )
+        a = Chart.from_input(ci_a, house_system=houses)
+        b = Chart.from_input(ci_b, house_system=houses)
+        chart_comp = Chart.composite(a, b, house_system=houses)
+        ci_comp = ChartInput(
+            name=f"{ci_a.date} × {ci_b.date}",
+            date=ci_a.date,
+            time=ci_a.time if chart_comp.time_known else None,
+            lat=chart_comp.lat if chart_comp.location_known else None,
+            lon=chart_comp.lon if chart_comp.location_known else None,
+        )
+        now = datetime.now().astimezone()
+        if date is None:
+            transit_dt = now
+        else:
+            t = time if time is not None else now.strftime("%H:%M")
+            local = datetime.fromisoformat(f"{date}T{t}")
+            transit_dt = local.replace(tzinfo=ZoneInfo(tz))
+        output = TransitsOutput.build(
+            ci_comp,
+            chart_comp,
+            transit_dt,
+            mode,
+            details=details,
+            aspects=aspects,
+            natal=show_natal,
+            tier=tier,
+            sensitivity=sensitivity,
+        )
+        return from_transits_output(output)
+
+    @strawberry.field
+    def composite_forecast(
+        self,
+        chart_a: ChartDataInput,
+        chart_b: ChartDataInput,
+        tz: str = "UTC",
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        mode: ZodiacMode = ZodiacMode.realsky,
+        houses: HouseSystem = HouseSystem.porphyry,
+        tier: str = "slow",
+        details: bool = False,
+        sensitivity: str = "",
+    ) -> ForecastResult:
+        from datetime import timedelta
+
+        from hoshi.output import ForecastOutput
+
+        lat_a, lon_a = _resolve_coords(chart_a.lat, chart_a.lon, chart_a.location)
+        lat_b, lon_b = _resolve_coords(chart_b.lat, chart_b.lon, chart_b.location)
+        ci_a = ChartInput(
+            name="",
+            date=chart_a.date,
+            time=chart_a.time,
+            tz=chart_a.tz,
+            lat=lat_a,
+            lon=lon_a,
+        )
+        ci_b = ChartInput(
+            name="",
+            date=chart_b.date,
+            time=chart_b.time,
+            tz=chart_b.tz,
+            lat=lat_b,
+            lon=lon_b,
+        )
+        a = Chart.from_input(ci_a, house_system=houses)
+        b = Chart.from_input(ci_b, house_system=houses)
+        chart_comp = Chart.composite(a, b, house_system=houses)
+        ci_comp = ChartInput(
+            name=f"{ci_a.date} × {ci_b.date}",
+            date=ci_a.date,
+            time=ci_a.time if chart_comp.time_known else None,
+            lat=chart_comp.lat if chart_comp.location_known else None,
+            lon=chart_comp.lon if chart_comp.location_known else None,
+        )
+        now = datetime.now().astimezone(ZoneInfo(tz))
+        from_dt = (
+            datetime.fromisoformat(from_date).replace(tzinfo=ZoneInfo(tz))
+            if from_date is not None
+            else now.replace(hour=0, minute=0, second=0, microsecond=0)
+        )
+        to_dt = (
+            datetime.fromisoformat(to_date).replace(tzinfo=ZoneInfo(tz))
+            if to_date is not None
+            else from_dt + timedelta(days=90)
+        )
+        output = ForecastOutput.build(
+            ci_comp,
+            chart_comp,
+            from_dt,
+            to_dt,
+            mode,
+            tier=tier,
+            details=details,
+            sensitivity=sensitivity,
+        )
+        return from_forecast_output(output)
 
     @strawberry.field
     def sky_now(
