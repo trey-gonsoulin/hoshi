@@ -54,6 +54,7 @@ from hoshi.zodiac import (
     Placement,
     format_deg,
 )
+from hoshi.cycles import format_period, next_cycles
 
 # Display order for tier grouping (most impactful first).
 _TIER_DISPLAY_ORDER = [
@@ -2005,7 +2006,7 @@ class ForecastOutput(OutputModel):
         tier: str = "slow",
         details: bool = False,
         sensitivity: str = "",
-    ) -> ForecastOutput:
+    ) -> "ForecastOutput":
         from hoshi.transits import ForecastWindow, forecast_transits
 
         warnings = []
@@ -2230,3 +2231,121 @@ class BirthRangeOutput(OutputModel):
         console.print(
             _panel(f"Windows ({len(self.windows)} found, search: {search})", table)
         )
+
+
+# ---------------------------------------------------------------------------
+# Cycles output
+# ---------------------------------------------------------------------------
+
+
+class CycleEntry(BaseModel, frozen=True):
+    """One body's next return data, serialisable to JSON."""
+
+    body_pid: str
+    body_name: str
+    natal_lon: float
+    natal_sign: str
+    natal_sign_symbol: str = ""
+    period_days: float
+    period_label: str = ""
+    exact: list[str] = []  # ISO 8601 UTC strings
+    pass_count: int = 0
+    available: bool = True
+    note: str | None = None
+
+
+class CyclesOutput(OutputModel):
+    """Next-return (cycle completion) dates for every planet in a natal chart."""
+
+    name: str = ""
+    natal_date: str = ""
+    from_date: str = ""
+    mode: str = "realsky"
+    cycles: list[CycleEntry] = []
+
+    @classmethod
+    def build(
+        cls,
+        ci: ChartInput,
+        chart: Chart,
+        from_dt: datetime,
+        mode: str,
+    ) -> "CyclesOutput":
+        returns = next_cycles(chart, from_dt, mode)
+        entries: list[CycleEntry] = []
+        for r in returns:
+            entries.append(
+                CycleEntry(
+                    body_pid=r.body_pid,
+                    body_name=r.body_name,
+                    natal_lon=r.natal_lon,
+                    natal_sign=r.natal_sign,
+                    natal_sign_symbol=SIGN_GLYPHS.get(r.natal_sign, ""),
+                    period_days=r.period_days,
+                    period_label=format_period(r.period_days),
+                    exact=[dt.isoformat() for dt in r.exact],
+                    pass_count=len(r.exact),
+                    available=r.available,
+                    note=r.note,
+                )
+            )
+        return cls(
+            name=ci.name,
+            natal_date=ci.date,
+            from_date=from_dt.strftime("%Y-%m-%d"),
+            mode=mode,
+            cycles=entries,
+        )
+
+    def render(self, console: Console) -> None:
+        name_part = f"[yellow]\\[{self.name.title()}][/yellow] " if self.name else ""
+        console.print(
+            f"[bold]Cycles:[/bold] {name_part}natal {self.natal_date}  "
+            f"from: {self.from_date}  mode: [magenta]{self.mode}[/magenta]"
+        )
+
+        table = _new_table()
+        table.add_column("Body", min_width=10)
+        table.add_column("Natal position", min_width=14)
+        table.add_column("Period", min_width=6, justify="right")
+        table.add_column("Next return date(s)", min_width=20)
+        table.add_column("Passes", justify="center")
+
+        for c in self.cycles:
+            lon_str = format_deg(c.natal_lon)
+            sign_str = (
+                f"{c.natal_sign_symbol} {c.natal_sign}"
+                if c.natal_sign_symbol
+                else c.natal_sign
+            )
+
+            if not c.available:
+                table.add_row(
+                    c.body_name,
+                    f"{lon_str}  {sign_str}",
+                    c.period_label,
+                    f"[dim]{c.note or 'N/A'}[/dim]",
+                    "—",
+                )
+            elif not c.exact:
+                table.add_row(
+                    c.body_name,
+                    f"{lon_str}  {sign_str}",
+                    c.period_label,
+                    "[dim]Not found[/dim]",
+                    "—",
+                )
+            else:
+                dates_str = "  ·  ".join(d[:10] for d in c.exact)
+                if c.note:
+                    dates_str = f"[dim]~[/dim]{dates_str} [dim]({c.note})[/dim]"
+                passes = str(c.pass_count) if c.pass_count > 1 else ""
+                table.add_row(
+                    c.body_name,
+                    f"{lon_str}  {sign_str}",
+                    c.period_label,
+                    dates_str,
+                    passes,
+                )
+
+        console.print(table)
