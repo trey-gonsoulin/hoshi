@@ -812,6 +812,182 @@ def chart_composite(
     _output(output, fmt)
 
 
+def _composite_chart_input(
+    ci_a: ChartInput, ci_b: ChartInput, chart_comp: "Chart"
+) -> ChartInput:
+    """Build a synthetic ChartInput for a composite chart, preserving time/location flags."""
+    return ChartInput(
+        name=f"{ci_a.name} × {ci_b.name}",
+        date=ci_a.date,
+        time=ci_a.time if chart_comp.time_known else None,
+        lat=chart_comp.lat if chart_comp.location_known else None,
+        lon=chart_comp.lon if chart_comp.location_known else None,
+    )
+
+
+@chart_app.command(name="composite-transits")
+def chart_composite_transits(
+    name_a: str = typer.Argument(..., help="First saved chart name."),
+    name_b: str = typer.Argument(..., help="Second saved chart name."),
+    date: str | None = typer.Argument(
+        None, help="Transit date YYYY-MM-DD (default: today)."
+    ),
+    time: str | None = typer.Argument(
+        None, help="Transit time HH:MM 24h (default: now)."
+    ),
+    tz: str = typer.Option(
+        "UTC", "--tz", help="IANA timezone for the transit date/time."
+    ),
+    mode: ZodiacMode = typer.Option(ZodiacMode.realsky, "--mode", help="Zodiac mode."),
+    houses: HouseSystem = typer.Option(
+        HouseSystem.porphyry, "--houses", help="House system."
+    ),
+    details: bool = typer.Option(
+        False, "--details", help="Include angles, nodes, and points."
+    ),
+    aspects: bool = typer.Option(
+        False, "--aspects", help="Print inter-aspect tables (composite × transit)."
+    ),
+    natal: bool = typer.Option(
+        False, "--natal", help="Show composite placements alongside transits."
+    ),
+    group_by: GroupBy = typer.Option(
+        GroupBy.category,
+        "--group-by",
+        help="Group output by category (default), sign, house, planet, or tier.",
+    ),
+    tier: str = typer.Option(
+        "all",
+        "--tier",
+        help="Filter transit aspects by speed tier: slow, medium, fast, luminary, or all.",
+    ),
+    sensitivity: str = typer.Option(
+        "",
+        "--sensitivity",
+        help="Filter by natal point sensitivity: primary, secondary, or tertiary.",
+    ),
+    fmt: OutputFormat = typer.Option(
+        OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
+    ),
+) -> None:
+    """Compare a composite chart against current (or specified date) transiting planets."""
+    try:
+        ci_a = store.load(name_a)
+        ci_b = store.load(name_b)
+    except FileNotFoundError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    now = datetime.now().astimezone()
+    if date is None:
+        transit_dt = now
+    else:
+        t = time if time is not None else now.strftime("%H:%M")
+        try:
+            local = datetime.fromisoformat(f"{date}T{t}")
+        except ValueError as exc:
+            raise typer.BadParameter(f"Could not parse date/time: {exc}") from exc
+        transit_dt = local.replace(tzinfo=ZoneInfo(tz))
+
+    chart_a = Chart.from_input(ci_a, house_system=houses)
+    chart_b = Chart.from_input(ci_b, house_system=houses)
+    chart_comp = Chart.composite(chart_a, chart_b, house_system=houses)
+    ci_comp = _composite_chart_input(ci_a, ci_b, chart_comp)
+
+    output = TransitsOutput.build(
+        ci_comp,
+        chart_comp,
+        transit_dt,
+        mode,
+        details=details,
+        aspects=aspects,
+        natal=natal,
+        group_by=group_by,
+        tier=tier,
+        sensitivity=sensitivity,
+    )
+    _output(output, fmt)
+
+
+@chart_app.command(name="composite-forecast")
+def chart_composite_forecast(
+    name_a: str = typer.Argument(..., help="First saved chart name."),
+    name_b: str = typer.Argument(..., help="Second saved chart name."),
+    from_date: str | None = typer.Option(
+        None, "--from", help="Start date YYYY-MM-DD (default: today)."
+    ),
+    to_date: str | None = typer.Option(
+        None, "--to", help="End date YYYY-MM-DD (default: 90 days from today)."
+    ),
+    tz: str = typer.Option(
+        "UTC", "--tz", help="IANA timezone for interpreting the date range."
+    ),
+    mode: ZodiacMode = typer.Option(ZodiacMode.realsky, "--mode", help="Zodiac mode."),
+    houses: HouseSystem = typer.Option(
+        HouseSystem.porphyry, "--houses", help="House system."
+    ),
+    tier: str = typer.Option(
+        "slow",
+        "--tier",
+        help="Speed tier to scan: slow (default), medium, fast, luminary, or all.",
+    ),
+    details: bool = typer.Option(
+        False, "--details", help="Include angles, nodes, and points as natal targets."
+    ),
+    sensitivity: str = typer.Option(
+        "",
+        "--sensitivity",
+        help="Filter by natal point sensitivity: primary, secondary, or tertiary.",
+    ),
+    fmt: OutputFormat = typer.Option(
+        OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
+    ),
+) -> None:
+    """Show transit-to-composite aspects that become exact within a date range."""
+    from datetime import timedelta
+
+    from hoshi.output import ForecastOutput
+
+    try:
+        ci_a = store.load(name_a)
+        ci_b = store.load(name_b)
+    except FileNotFoundError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    now = datetime.now().astimezone(ZoneInfo(tz))
+    if from_date is None:
+        from_dt = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    else:
+        try:
+            from_dt = datetime.fromisoformat(from_date).replace(tzinfo=ZoneInfo(tz))
+        except ValueError as exc:
+            raise typer.BadParameter(f"Could not parse --from date: {exc}") from exc
+
+    if to_date is None:
+        to_dt = from_dt + timedelta(days=90)
+    else:
+        try:
+            to_dt = datetime.fromisoformat(to_date).replace(tzinfo=ZoneInfo(tz))
+        except ValueError as exc:
+            raise typer.BadParameter(f"Could not parse --to date: {exc}") from exc
+
+    chart_a = Chart.from_input(ci_a, house_system=houses)
+    chart_b = Chart.from_input(ci_b, house_system=houses)
+    chart_comp = Chart.composite(chart_a, chart_b, house_system=houses)
+    ci_comp = _composite_chart_input(ci_a, ci_b, chart_comp)
+
+    output = ForecastOutput.build(
+        ci_comp,
+        chart_comp,
+        from_dt,
+        to_dt,
+        mode,
+        tier=tier,
+        details=details,
+        sensitivity=sensitivity,
+    )
+    _output(output, fmt)
+
+
 # ---------------------------------------------------------------------------
 # Info commands
 # ---------------------------------------------------------------------------

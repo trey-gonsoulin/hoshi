@@ -337,7 +337,7 @@ def _build_transit_bodies(
     *,
     natal_loc_known: bool = True,
 ) -> list[BodyEntry]:
-    natal_asc = next(a.placed.lon for a in natal.angles if a.name == "asc")
+    natal_asc = next((a.placed.lon for a in natal.angles if a.name == "asc"), 0.0)
 
     def natal_house(lon: float) -> int | None:
         if not natal_loc_known:

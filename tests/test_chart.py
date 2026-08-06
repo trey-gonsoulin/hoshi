@@ -542,3 +542,67 @@ class TestCompositeOutput:
         comp = Chart.composite(chart_a, chart_b)
         output = CompositeOutput.build(ci_a, ci_b, comp, "tropical", aspects=True)
         assert output.aspects is not None
+
+
+# ---------------------------------------------------------------------------
+# Composite transits / forecast output
+# ---------------------------------------------------------------------------
+
+
+class TestCompositeTransitsOutput:
+    def test_basic_transits(self, mock_deps):
+        from datetime import datetime, timezone
+
+        from hoshi.cli import _composite_chart_input
+        from hoshi.output import TransitsOutput
+
+        ci_a, ci_b, chart_a, chart_b = _make_two_charts(mock_deps)
+        comp = Chart.composite(chart_a, chart_b)
+        ci_comp = _composite_chart_input(ci_a, ci_b, comp)
+
+        assert "person_a" in ci_comp.name
+        assert "person_b" in ci_comp.name
+        assert ci_comp.time_known
+        assert ci_comp.location_known
+
+        transit_dt = datetime(2024, 6, 1, 12, 0, tzinfo=timezone.utc)
+        output = TransitsOutput.build(ci_comp, comp, transit_dt, "tropical")
+        assert output.header.name == ci_comp.name
+        assert len(output.transit_bodies) > 0
+
+    def test_no_location_suppresses_houses(self, mock_deps):
+        from datetime import datetime, timezone
+
+        from hoshi.cli import _composite_chart_input
+        from hoshi.output import TransitsOutput
+
+        ci_a, ci_b, chart_a, chart_b = _make_two_charts(mock_deps)
+        chart_b_no_loc = chart_b.model_copy(update={"location_known": False})
+        comp = Chart.composite(chart_a, chart_b_no_loc)
+        ci_b_no_loc = ChartInput(name="person_b", date="1995-06-15")
+        ci_comp = _composite_chart_input(ci_a, ci_b_no_loc, comp)
+
+        assert not ci_comp.location_known
+        transit_dt = datetime(2024, 6, 1, 12, 0, tzinfo=timezone.utc)
+        output = TransitsOutput.build(ci_comp, comp, transit_dt, "tropical")
+        assert any("location unknown" in w for w in output.warnings)
+
+
+class TestCompositeForecastOutput:
+    def test_basic_forecast(self, mock_deps):
+        from datetime import datetime, timedelta, timezone
+
+        from hoshi.cli import _composite_chart_input
+        from hoshi.output import ForecastOutput
+
+        ci_a, ci_b, chart_a, chart_b = _make_two_charts(mock_deps)
+        comp = Chart.composite(chart_a, chart_b)
+        ci_comp = _composite_chart_input(ci_a, ci_b, comp)
+
+        from_dt = datetime(2024, 6, 1, tzinfo=timezone.utc)
+        to_dt = from_dt + timedelta(days=30)
+        output = ForecastOutput.build(
+            ci_comp, comp, from_dt, to_dt, "tropical", tier="all"
+        )
+        assert output.header.name == ci_comp.name
+        assert isinstance(output.aspects, list)
