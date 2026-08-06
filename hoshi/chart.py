@@ -2,7 +2,7 @@
 plus angles, Placidus cusps, and house numbers."""
 
 from collections.abc import Callable, Iterator
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import StrEnum
 from zoneinfo import ZoneInfo
 
@@ -258,6 +258,178 @@ class Chart(BaseModel, frozen=True):
             location_known=False,
         )
 
+    @classmethod
+    def composite(
+        cls,
+        chart_a: "Chart",
+        chart_b: "Chart",
+        house_system: HouseSystem | str = HouseSystem.porphyry,
+    ) -> "Chart":
+        """Compute a composite (midpoint) chart from two natal charts.
+
+        Each body's ecliptic longitude is the shorter-arc midpoint of the
+        corresponding pair. Angles and houses are included only when both
+        source charts have a known location. Placidus is not supported for
+        composites (no single real time+location); it falls back to Porphyry.
+        """
+        loc_known = chart_a.location_known and chart_b.location_known
+        time_known = chart_a.time_known and chart_b.time_known
+
+        ayan = (chart_a.ayanamsa + chart_b.ayanamsa) / 2.0
+        prec = (
+            ecliptic_precession(chart_a.when) + ecliptic_precession(chart_b.when)
+        ) / 2.0
+        mid_ts = (chart_a.when.timestamp() + chart_b.when.timestamp()) / 2.0
+        mid_when = datetime.fromtimestamp(mid_ts, tz=timezone.utc)
+        lat = (chart_a.lat + chart_b.lat) / 2.0 if loc_known else PLACEHOLDER_LAT
+        lon_geo = (chart_a.lon + chart_b.lon) / 2.0 if loc_known else PLACEHOLDER_LON
+
+        pid_map_a = {p.pid: p for p in chart_a.planets}
+        pid_map_b = {p.pid: p for p in chart_b.planets}
+        planets: list[PlanetChart] = []
+        for pid in PLANET_ORDER:
+            pa = pid_map_a.get(pid)
+            pb = pid_map_b.get(pid)
+            if pa is None or pb is None:
+                continue
+            comp_lon = _midpoint_lon(pa.pos.lon, pb.pos.lon)
+            comp_pos = PlanetPosition(
+                lon=comp_lon,
+                lat=(pa.pos.lat + pb.pos.lat) / 2.0,
+                retrograde=False,
+            )
+            planets.append(
+                PlanetChart(
+                    pid=pid,
+                    pos=comp_pos,
+                    placed=Placed.for_longitude(comp_lon, ayan, prec),
+                    house=None,
+                )
+            )
+
+        name_map_a = {pt.name: pt for pt in chart_a.points}
+        name_map_b = {pt.name: pt for pt in chart_b.points}
+        points: list[PointChart] = [
+            PointChart(
+                name=name,
+                placed=Placed.for_longitude(
+                    _midpoint_lon(
+                        name_map_a[name].placed.lon, name_map_b[name].placed.lon
+                    ),
+                    ayan,
+                    prec,
+                ),
+                house=None,
+            )
+            for name in ("N.Node", "S.Node", "Lilith")
+            if name in name_map_a and name in name_map_b
+        ]
+
+        if not loc_known:
+            return cls(
+                when=mid_when,
+                lat=lat,
+                lon=lon_geo,
+                ayanamsa=ayan,
+                house_system=house_system,
+                angles=[],
+                planets=planets,
+                points=points,
+                lots=[],
+                cusps=[],
+                location_known=False,
+                time_known=time_known,
+            )
+
+        ang_map_a = {a.name: a for a in chart_a.angles}
+        ang_map_b = {a.name: a for a in chart_b.angles}
+        comp_asc = _midpoint_lon(
+            ang_map_a["asc"].placed.lon, ang_map_b["asc"].placed.lon
+        )
+        comp_mc = _midpoint_lon(ang_map_a["mc"].placed.lon, ang_map_b["mc"].placed.lon)
+        comp_vertex = _midpoint_lon(
+            ang_map_a["vertex"].placed.lon, ang_map_b["vertex"].placed.lon
+        )
+        composite_angles = Angles(
+            asc=comp_asc,
+            mc=comp_mc,
+            ic=(comp_mc + 180.0) % 360.0,
+            dsc=(comp_asc + 180.0) % 360.0,
+            vertex=comp_vertex,
+            antivertex=(comp_vertex + 180.0) % 360.0,
+        )
+
+        # Placidus requires a real moment and location — fall back to Porphyry.
+        effective_house_system = (
+            HouseSystem.porphyry if house_system == "placidus" else house_system
+        )
+        if effective_house_system == "porphyry":
+            cusps = porphyry_cusps(composite_angles)
+        elif effective_house_system == "equal":
+            cusps = equal_cusps(comp_asc)
+        else:
+            cusps = arc13_cusps(comp_asc)
+
+        if effective_house_system == "arc13":
+
+            def house_of(lon: float) -> int:
+                return house_13_arc(lon, comp_asc)
+
+        else:
+
+            def house_of(lon: float) -> int:
+                return house_from_cusps(lon, cusps)
+
+        planets = [
+            p.model_copy(update={"house": house_of(p.placed.lon)}) for p in planets
+        ]
+        points = [
+            pt.model_copy(update={"house": house_of(pt.placed.lon)}) for pt in points
+        ]
+        angle_charts = [
+            AngleChart(
+                name=name,
+                placed=Placed.for_longitude(
+                    getattr(composite_angles, name), ayan, prec
+                ),
+                house=house_of(getattr(composite_angles, name)),
+            )
+            for name in ("asc", "mc", "ic", "dsc", "vertex", "antivertex")
+        ]
+        planet_lon_map = {p.pid: p.placed.lon for p in planets}
+        lot_lons = hermetic_lots(
+            comp_asc,
+            planet_lon_map["sun"],
+            planet_lon_map["moon"],
+            planet_lon_map["mercury"],
+            planet_lon_map["venus"],
+            planet_lon_map["mars"],
+            planet_lon_map["jupiter"],
+            planet_lon_map["saturn"],
+        )
+        lot_charts = [
+            PointChart(
+                name=name,
+                placed=Placed.for_longitude(lot_lons[name], ayan, prec),
+                house=house_of(lot_lons[name]),
+            )
+            for name in HERMETIC_LOT_NAMES
+        ]
+        return cls(
+            when=mid_when,
+            lat=lat,
+            lon=lon_geo,
+            ayanamsa=ayan,
+            house_system=effective_house_system,
+            angles=angle_charts,
+            planets=planets,
+            points=points,
+            lots=lot_charts,
+            cusps=cusps,
+            location_known=True,
+            time_known=time_known,
+        )
+
     # -- iteration -----------------------------------------------------------
 
     def bodies(self) -> Iterator[BodyRef]:
@@ -310,6 +482,14 @@ class Chart(BaseModel, frozen=True):
             if b.id == id:
                 return b
         raise KeyError(f"No body with id {id!r} in chart")
+
+
+def _midpoint_lon(lon_a: float, lon_b: float) -> float:
+    """Shorter-arc midpoint of two ecliptic longitudes."""
+    diff = (lon_b - lon_a) % 360.0
+    if diff > 180.0:
+        diff -= 360.0
+    return (lon_a + diff / 2.0) % 360.0
 
 
 def uncertain_signs(ci: ChartInput, mode: "ZodiacMode | str") -> frozenset[str]:

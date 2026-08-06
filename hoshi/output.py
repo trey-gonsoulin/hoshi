@@ -1528,6 +1528,183 @@ class CompareOutput(OutputModel):
         console.print(_panel("Placements", table))
 
 
+class CompositeHeader(BaseModel, frozen=True):
+    name_a: str = ""
+    name_b: str = ""
+    date_a: str = ""
+    date_b: str = ""
+    mode: str = "realsky"
+    house_system: str | None = None
+
+
+class CompositeOutput(OutputModel):
+    header: CompositeHeader = CompositeHeader()
+    warnings: list[str] = []
+    bodies: list[BodyEntry] = []
+    cusps: list[float] = []
+    aspects: list[Aspect] | None = None
+
+    # Rendering-only
+    group_by: str = Field(default="category", exclude=True)
+    show_cusp_table: bool = Field(default=False, exclude=True)
+    show_houses: bool = Field(default=True, exclude=True)
+    cusp_entries: list[CuspEntry] = Field(default_factory=list, exclude=True)
+    asc_lon: float = Field(default=0.0, exclude=True)
+    details: bool = Field(default=False, exclude=True)
+    ayanamsa: float = Field(default=0.0, exclude=True)
+
+    @classmethod
+    def build(
+        cls,
+        ci_a: ChartInput,
+        ci_b: ChartInput,
+        chart_composite: Chart,
+        mode: str,
+        *,
+        details: bool = False,
+        aspects: bool = False,
+        show_cusps: bool = False,
+        group_by: str = "category",
+    ) -> "CompositeOutput":
+        loc_known = chart_composite.location_known
+        show_full = loc_known
+
+        warnings: list[str] = []
+        for ci in (ci_a, ci_b):
+            if not ci.time_known:
+                warnings.append(
+                    f"⚠ {ci.name.title()} birth time unknown — composite positions approximate"
+                )
+            if not ci.location_known:
+                warnings.append(
+                    f"⚠ {ci.name.title()} birth location unknown — angles and houses omitted"
+                )
+        bodies = _build_bodies(
+            chart_composite,
+            mode,
+            BodySelection(
+                details=details, angles=show_full, lots=show_full, houses=show_full
+            ),
+        )
+        cusp_entries = _build_cusp_entries(chart_composite, mode) if show_full else []
+        aspect_list = (
+            compute_aspects(chart_composite, details, mode) if aspects else None
+        )
+
+        return cls(
+            header=CompositeHeader(
+                name_a=ci_a.name,
+                name_b=ci_b.name,
+                date_a=ci_a.date,
+                date_b=ci_b.date,
+                mode=mode,
+                house_system=chart_composite.house_system if show_full else None,
+            ),
+            warnings=warnings,
+            bodies=bodies,
+            cusps=[round(c, 4) for c in chart_composite.cusps] if show_full else [],
+            aspects=aspect_list,
+            group_by=group_by,
+            show_cusp_table=show_cusps and show_full,
+            show_houses=show_full,
+            cusp_entries=cusp_entries,
+            asc_lon=next(
+                (a.placed.lon for a in chart_composite.angles if a.name == "asc"), 0.0
+            ),
+            details=details,
+            ayanamsa=chart_composite.ayanamsa,
+        )
+
+    def render(self, console: Console) -> None:
+        h = self.header
+        houses_str = (
+            f"  houses: [magenta]{h.house_system}[/magenta]" if h.house_system else ""
+        )
+        console.print(
+            f"[bold]Composite:[/bold] [yellow]{h.name_a.title()}[/yellow] ({h.date_a})  ×  "
+            f"[yellow]{h.name_b.title()}[/yellow] ({h.date_b})  "
+            f"mode: [magenta]{h.mode}[/magenta]{houses_str}"
+        )
+        if h.mode == "vedic" and self.ayanamsa:
+            console.print(f"Ayanamsa (Lahiri, approx): {self.ayanamsa:.4f}°")
+        for w in self.warnings:
+            console.print(f"[yellow]{w}[/yellow]")
+
+        if self.group_by == "sign":
+            _render_by_sign(console, self.bodies, h.mode, show_houses=self.show_houses)
+        elif self.group_by == "house":
+            _render_by_house(console, self.bodies, self.cusp_entries, self.asc_lon)
+        else:
+            by_kind: dict[str, list[BodyEntry]] = {}
+            for b in self.bodies:
+                by_kind.setdefault(b.kind, []).append(b)
+            if self.details:
+                _render_planets_section(
+                    console, by_kind.get("Planet", []), show_houses=self.show_houses
+                )
+                if self.show_houses:
+                    _render_section(
+                        console,
+                        "Angles",
+                        by_kind.get("Angle", []),
+                        show_houses=self.show_houses,
+                    )
+                _render_section(
+                    console,
+                    "Nodes",
+                    by_kind.get("Node", []),
+                    show_houses=self.show_houses,
+                )
+                _render_section(
+                    console,
+                    "Points",
+                    by_kind.get("Point", []),
+                    show_houses=self.show_houses,
+                )
+                if self.show_houses:
+                    _render_section(
+                        console,
+                        "Lots",
+                        by_kind.get("Lot", []),
+                        show_houses=self.show_houses,
+                    )
+            else:
+                _render_section(
+                    console,
+                    "Placements",
+                    by_kind.get("Planet", []) + by_kind.get("Angle", []),
+                    show_houses=self.show_houses,
+                )
+
+        if self.aspects is not None:
+            body_houses = {b.name: b.house for b in self.bodies if b.house is not None}
+            _render_aspects(
+                console,
+                self.aspects,
+                group_by=self.group_by,
+                body_houses=body_houses,
+                mode=h.mode,
+            )
+        if self.show_cusp_table and self.cusp_entries:
+            self._render_cusps(console)
+
+    def _render_cusps(self, console: Console) -> None:
+        title = (
+            f"{self.header.house_system.capitalize()} cusps"
+            if self.header.house_system
+            else "Cusps"
+        )
+        table = _new_table()
+        table.add_column("House", justify="right")
+        table.add_column("Sign")
+        table.add_column("Degree", justify="right")
+        table.add_column("Lon", justify="right")
+        for c in self.cusp_entries:
+            table.add_row(f"H{c.house}", c.sign, format_deg(c.degree), f"{c.lon:.2f}°")
+        console.print()
+        console.print(_panel(title, table))
+
+
 class HouseComparisonOutput(OutputModel):
     header: ChartHeader = ChartHeader()
     bodies: list[BodyEntry] = []

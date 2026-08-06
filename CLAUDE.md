@@ -24,7 +24,7 @@ Hoshi is a Python CLI for astrological charting, with a focus on real-sky astrol
 | `zodiac.py` | IAU real-sky boundaries, tropical/sidereal placements (`Placement.for_mode(lon, mode, ...)`), `ZodiacMode` enum, `TROP_SIGNS`/`SIGN_ATTRS` sign tables |
 | `houses.py` | Placidus, Porphyry, Equal, Arc-13 house cusps; angle computation (shared `_ramc_obliquity`/`_mc_from_ramc`) |
 | `points.py` | True lunar nodes, Black Moon Lilith, Hermetic lots |
-| `chart.py` | `Chart.build()` / `Chart.from_input()` — assembles all bodies; `Chart.bodies()`/`Chart.body(id)` uniform `BodyRef` iteration; `uncertain_signs()`; `Placed.for_longitude(...)` and `Placed.placement(mode)`; `location_known`/`time_known` flags; `house` is `None` when location unknown |
+| `chart.py` | `Chart.build()` / `Chart.from_input()` — assembles all bodies; `Chart.composite(chart_a, chart_b, house_system)` — composite (shorter-arc midpoint) chart from two natal charts, angles/cusps/lots included only when both charts have location; Placidus falls back to Porphyry for composites; `Chart.bodies()`/`Chart.body(id)` uniform `BodyRef` iteration; `uncertain_signs()`; `Placed.for_longitude(...)` and `Placed.placement(mode)`; `location_known`/`time_known` flags; `house` is `None` when location unknown |
 | `aspects.py` | Aspect definitions and orbs; `compute_aspects()`, `compute_inter_aspects()` |
 | `dignities.py` | Planetary dignities table, element/modality tally; `chart_ruler(asc_sign)` returns the domicile ruler of a sign; `natal_sensitivity(body_name, *, chart_ruler_pid, location_known)` returns `"primary"` / `"secondary"` / `"tertiary"` for a natal body (primary = Sun/Moon always + Asc/MC/chart-ruler when location known; secondary = Mercury/Venus/Mars; tertiary = everything else) |
 | `events.py` | Sky event detection over a date range — stations (retrograde/direct), sign ingresses, moon phases, void-of-course windows, and transit-to-transit exact aspects. Public API: `sky_events(start, end, mode, ...)` → `list[SkyEvent]`. Display tables: `BODY_DISPLAY`, `BODY_SYMBOL`, `SIGN_SYMBOL`. Seed-cache bodies (Chiron/Ceres/Eris) included when seed JSON is available (Lambda/Docker). |
@@ -63,7 +63,8 @@ hoshi chart show     NAME|DATE [TIME] [--lat --lon] ...   [--format table|json] 
 hoshi chart cusps    NAME|DATE [TIME] [--lat --lon] ...   [--mode] [--houses]
 hoshi chart transits NAME [DATE [TIME]]                   [--tz] [--mode] [--houses] [--details] [--aspects] [--natal] [--group-by] [--tier] [--sensitivity primary|secondary|tertiary]
 hoshi chart forecast NAME                                 [--from DATE] [--to DATE] [--tz] [--mode] [--houses] [--tier slow|medium|fast|luminary|all] [--details] [--sensitivity primary|secondary|tertiary] [--format]
-hoshi chart compare  NAME1 NAME2                          [--mode] [--houses] [--aspects] [--details] [--group-by]
+hoshi chart compare    NAME1 NAME2                          [--mode] [--houses] [--aspects] [--details] [--group-by]
+hoshi chart composite  NAME1 NAME2                          [--mode] [--houses] [--details] [--aspects] [--group-by] [--cusps] [--format]
 hoshi chart import   SOURCE [NAME]                        [--force] [--mode] [--houses] [--details] [--aspects] [--group-by] [--cusps] [--format]
 hoshi chart list
 hoshi chart delete   NAME [--yes]
@@ -169,6 +170,7 @@ with auto-reload). Interactive docs at `/docs`.
 | `GET` | `/charts/{name}/transits` | Transits against natal (supports `sensitivity` field in request body) |
 | `POST` | `/charts/forecast` | Transit-to-natal aspects over a date range (supports `sensitivity` field in request body) |
 | `GET` | `/charts/{name}/compare/{other}` | Synastry |
+| `POST` | `/charts/composite` | Composite (midpoint) chart from two inline chart inputs |
 | `GET` | `/info/{category}` | List reference info |
 | `GET` | `/info/{category}/{name}` | Single item detail |
 | `GET` | `/sky/now` | Current transiting sky — all bodies, no natal required |

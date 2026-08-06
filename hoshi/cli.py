@@ -15,6 +15,7 @@ from hoshi.output import (
     ChartListOutput,
     ChartOutput,
     CompareOutput,
+    CompositeOutput,
     CuspsOutput,
     DeleteOutput,
     HouseComparisonOutput,
@@ -760,6 +761,52 @@ def chart_compare(
         mode,
         details=details,
         aspects=aspects,
+        group_by=group_by,
+    )
+    _output(output, fmt)
+
+
+@chart_app.command(name="composite")
+def chart_composite(
+    name_a: str = typer.Argument(..., help="First saved chart name."),
+    name_b: str = typer.Argument(..., help="Second saved chart name."),
+    mode: ZodiacMode = typer.Option(ZodiacMode.realsky, "--mode", help="Zodiac mode."),
+    houses: HouseSystem = typer.Option(
+        HouseSystem.porphyry, "--houses", help="House system."
+    ),
+    details: bool = typer.Option(
+        False, "--details", help="Include angles, nodes, points, and lots."
+    ),
+    aspects: bool = typer.Option(False, "--aspects", help="Print aspect table."),
+    group_by: GroupBy = typer.Option(
+        GroupBy.category,
+        "--group-by",
+        help="Group output by category (default), sign, house, or planet.",
+    ),
+    cusps: bool = typer.Option(False, "--cusps", help="Print house cusp table."),
+    fmt: OutputFormat = typer.Option(
+        OutputFormat.table, "--format", help="Output format: table, json, yaml, or csv."
+    ),
+) -> None:
+    """Show a composite (midpoint) chart from two saved charts."""
+    try:
+        ci_a = store.load(name_a)
+        ci_b = store.load(name_b)
+    except FileNotFoundError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    chart_a = Chart.from_input(ci_a, house_system=houses)
+    chart_b = Chart.from_input(ci_b, house_system=houses)
+    chart_comp = Chart.composite(chart_a, chart_b, house_system=houses)
+
+    output = CompositeOutput.build(
+        ci_a,
+        ci_b,
+        chart_comp,
+        mode,
+        details=details,
+        aspects=aspects,
+        show_cusps=cusps,
         group_by=group_by,
     )
     _output(output, fmt)

@@ -12,6 +12,7 @@ from hoshi.output import (
     BirthRangeOutput,
     ChartOutput,
     CompareOutput,
+    CompositeOutput,
     CuspsOutput,
     ForecastOutput,
     TransitsOutput,
@@ -105,6 +106,16 @@ class CompareRequest(BaseModel):
     houses: HouseSystem = HouseSystem.porphyry
     details: bool = False
     aspects: bool = False
+
+
+class CompositeRequest(BaseModel):
+    chart_a: ChartData
+    chart_b: ChartData
+    mode: ZodiacMode = ZodiacMode.realsky
+    houses: HouseSystem = HouseSystem.porphyry
+    details: bool = False
+    aspects: bool = False
+    cusps: bool = False
 
 
 class BirthRangeConstraint(BaseModel):
@@ -314,4 +325,22 @@ def chart_compare(body: CompareRequest) -> CompareOutput:
         body.mode,
         details=body.details,
         aspects=body.aspects,
+    )
+
+
+@router.post("/composite", response_model=CompositeOutput)
+def chart_composite(body: CompositeRequest) -> CompositeOutput:
+    ci_a = _chart_input_from(body.chart_a)
+    ci_b = _chart_input_from(body.chart_b)
+    chart_a = Chart.from_input(ci_a, house_system=body.houses)
+    chart_b = Chart.from_input(ci_b, house_system=body.houses)
+    chart_comp = Chart.composite(chart_a, chart_b, house_system=body.houses)
+    return CompositeOutput.build(
+        ci_a,
+        ci_b,
+        chart_comp,
+        body.mode,
+        details=body.details,
+        aspects=body.aspects,
+        show_cusps=body.cusps,
     )
