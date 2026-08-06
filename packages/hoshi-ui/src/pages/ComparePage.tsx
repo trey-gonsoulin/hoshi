@@ -8,14 +8,20 @@ import { WarningBanner } from '@/components/WarningBanner'
 import { BodyTable } from '@/components/BodyTable'
 import { AspectTable } from '@/components/AspectTable'
 import { useChartStore } from '@/hooks/useChartStore'
-import { api, type CompareOutput, type ZodiacMode, type HouseSystem } from '@/api/client'
+import { api, type CompareOutput, type CompositeOutput, type ZodiacMode, type HouseSystem } from '@/api/client'
 import { chartDataFrom } from '@/lib/chartData'
+
+type ViewMode = 'synastry' | 'composite'
 
 interface FormState {
   chartBId: string
   mode: ZodiacMode
   houses: HouseSystem
 }
+
+type Result =
+  | { view: 'synastry'; data: CompareOutput; chartBName: string }
+  | { view: 'composite'; data: CompositeOutput; chartBName: string }
 
 export function ComparePage() {
   const { id } = useParams<{ id: string }>()
@@ -24,34 +30,42 @@ export function ComparePage() {
 
   const otherCharts = charts.filter((c) => c.id !== id)
 
+  const [viewMode, setViewMode] = useState<ViewMode>('synastry')
   const [form, setForm] = useState<FormState>({
     chartBId: otherCharts[0]?.id ?? '',
     mode: chartA?.input.mode ?? 'realsky',
     houses: chartA?.input.houses ?? 'porphyry',
   })
-  const [result, setResult] = useState<CompareOutput | null>(null)
-  const [chartBName, setChartBName] = useState<string>('')
+  const [result, setResult] = useState<Result | null>(null)
 
   const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }))
 
-  const mutation = useMutation({
-    mutationFn: () => {
+  const mutation = useMutation<Result, Error>({
+    mutationFn: (): Promise<Result> => {
       if (!chartA) throw new Error('Chart not found')
       const chartB = get(form.chartBId)
       if (!chartB) throw new Error('Select a chart to compare against')
-      return api.chartCompare({
-        chartA: chartDataFrom(chartA.input),
-        chartB: chartDataFrom(chartB.input),
-        mode: form.mode,
-        houses: form.houses,
-        details: true,
-        aspects: true,
-      })
+      if (viewMode === 'synastry') {
+        return api.chartCompare({
+          chartA: chartDataFrom(chartA.input),
+          chartB: chartDataFrom(chartB.input),
+          mode: form.mode,
+          houses: form.houses,
+          details: true,
+          aspects: true,
+        }).then((data): Result => ({ view: 'synastry', data, chartBName: chartB.name }))
+      } else {
+        return api.chartComposite({
+          chartA: chartDataFrom(chartA.input),
+          chartB: chartDataFrom(chartB.input),
+          mode: form.mode,
+          houses: form.houses,
+          details: true,
+          aspects: true,
+        }).then((data): Result => ({ view: 'composite', data, chartBName: chartB.name }))
+      }
     },
-    onSuccess: (data) => {
-      setChartBName(get(form.chartBId)?.name ?? '')
-      setResult(data)
-    },
+    onSuccess: (data) => setResult(data),
   })
 
   if (!chartA) {
@@ -63,8 +77,11 @@ export function ComparePage() {
     )
   }
 
-  const showHousesA = result?.bodiesA.some((b) => b.house != null) ?? false
-  const showHousesB = result?.bodiesB.some((b) => b.house != null) ?? false
+  const synastryResult = result?.view === 'synastry' ? result.data : null
+  const compositeResult = result?.view === 'composite' ? result.data : null
+  const showHousesA = synastryResult?.bodiesA.some((b) => b.house != null) ?? false
+  const showHousesB = synastryResult?.bodiesB.some((b) => b.house != null) ?? false
+  const showCompositeHouses = compositeResult?.bodies.some((b) => b.house != null) ?? false
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-10">
@@ -73,6 +90,23 @@ export function ComparePage() {
           <ArrowLeft size={16} />
         </Link>
         <h1 className="text-lg font-semibold">Compare — {chartA.name}</h1>
+      </div>
+
+      {/* View toggle */}
+      <div className="flex gap-1 mb-6 p-1 bg-muted rounded-lg w-fit">
+        {(['synastry', 'composite'] as ViewMode[]).map((v) => (
+          <button
+            key={v}
+            onClick={() => setViewMode(v)}
+            className={`px-4 py-1.5 text-sm rounded-md transition-colors capitalize ${
+              viewMode === v
+                ? 'bg-background shadow-sm font-medium'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {v}
+          </button>
+        ))}
       </div>
 
       {/* Form */}
@@ -125,7 +159,9 @@ export function ComparePage() {
               {!mutation.isError && <span />}
               <Button onClick={() => mutation.mutate()} disabled={mutation.isPending || !form.chartBId}>
                 {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {mutation.isPending ? 'Computing…' : 'Compare charts'}
+                {mutation.isPending
+                  ? 'Computing…'
+                  : viewMode === 'synastry' ? 'Compare charts' : 'Compute composite'}
               </Button>
             </div>
           </>
@@ -137,38 +173,76 @@ export function ComparePage() {
         <div className="space-y-8 mt-10">
           <div className="h-px bg-border" />
 
-          <WarningBanner warnings={result.warnings} />
+          <WarningBanner warnings={result.data.warnings} />
 
-          <div className="text-xs text-muted-foreground space-x-3">
-            <span>{chartA.name} · {result.header.dateA}</span>
-            <span>vs</span>
-            <span>{chartBName} · {result.header.dateB}</span>
-            <span>·</span>
-            <span className="capitalize">{result.header.mode}</span>
-          </div>
+          {result.view === 'synastry' && synastryResult && (
+            <>
+              <div className="text-xs text-muted-foreground space-x-3">
+                <span>{chartA.name} · {synastryResult.header.dateA}</span>
+                <span>vs</span>
+                <span>{result.chartBName} · {synastryResult.header.dateB}</span>
+                <span>·</span>
+                <span className="capitalize">{synastryResult.header.mode}</span>
+              </div>
 
-          <section>
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-4 select-none">
-              {chartA.name}
-            </p>
-            <BodyTable bodies={result.bodiesA} showHouses={showHousesA} />
-          </section>
+              <section>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-4 select-none">
+                  {chartA.name}
+                </p>
+                <BodyTable bodies={synastryResult.bodiesA} showHouses={showHousesA} />
+              </section>
 
-          <section>
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-4 select-none">
-              {chartBName}
-            </p>
-            <BodyTable bodies={result.bodiesB} showHouses={showHousesB} />
-          </section>
+              <section>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-4 select-none">
+                  {result.chartBName}
+                </p>
+                <BodyTable bodies={synastryResult.bodiesB} showHouses={showHousesB} />
+              </section>
 
-          {result.aspects?.length ? (
-            <section>
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-4 select-none">
-                Inter-aspects
-              </p>
-              <AspectTable aspects={result.aspects} />
-            </section>
-          ) : null}
+              {synastryResult.aspects?.length ? (
+                <section>
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-4 select-none">
+                    Inter-aspects
+                  </p>
+                  <AspectTable aspects={synastryResult.aspects} />
+                </section>
+              ) : null}
+            </>
+          )}
+
+          {result.view === 'composite' && compositeResult && (
+            <>
+              <div className="text-xs text-muted-foreground space-x-3">
+                <span>{chartA.name} · {compositeResult.header.dateA}</span>
+                <span>×</span>
+                <span>{result.chartBName} · {compositeResult.header.dateB}</span>
+                <span>·</span>
+                <span className="capitalize">{compositeResult.header.mode}</span>
+                {compositeResult.header.houseSystem && (
+                  <>
+                    <span>·</span>
+                    <span className="capitalize">{compositeResult.header.houseSystem}</span>
+                  </>
+                )}
+              </div>
+
+              <section>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-4 select-none">
+                  Composite chart
+                </p>
+                <BodyTable bodies={compositeResult.bodies} showHouses={showCompositeHouses} />
+              </section>
+
+              {compositeResult.aspects?.length ? (
+                <section>
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-4 select-none">
+                    Aspects
+                  </p>
+                  <AspectTable aspects={compositeResult.aspects} />
+                </section>
+              ) : null}
+            </>
+          )}
         </div>
       )}
     </div>

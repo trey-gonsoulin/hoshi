@@ -7,6 +7,7 @@ import { ChartDetailPage } from '@/pages/ChartDetailPage'
 import { TransitsPage } from '@/pages/TransitsPage'
 import { ComparePage } from '@/pages/ComparePage'
 import { CompositePage } from '@/pages/CompositePage'
+import { CompositeTransitsPage } from '@/pages/CompositeTransitsPage'
 import { BirthRangePage } from '@/pages/BirthRangePage'
 import { InfoPage } from '@/pages/InfoPage'
 import { InfoCategoryPage } from '@/pages/InfoCategoryPage'
@@ -50,6 +51,7 @@ export default function App() {
           <Route path="/charts/:id/transits" element={<TransitsPage />} />
           <Route path="/charts/:id/compare" element={<ComparePage />} />
           <Route path="/charts/:id/composite" element={<CompositePage />} />
+          <Route path="/charts/:id/composite-transits" element={<CompositeTransitsPage />} />
           <Route path="/birthrange" element={<BirthRangePage />} />
           <Route path="/info" element={<InfoPage />} />
           <Route path="/info/:category" element={<InfoCategoryPage />} />

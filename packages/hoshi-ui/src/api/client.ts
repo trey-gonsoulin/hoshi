@@ -257,6 +257,60 @@ export interface CompositeRequest {
   aspects: boolean
 }
 
+export interface CompositeTransitsRequest {
+  chartA: ChartData
+  chartB: ChartData
+  date?: string | null
+  time?: string | null
+  tz: string
+  mode: ZodiacMode
+  houses: HouseSystem
+  details: boolean
+  aspects: boolean
+  showNatal: boolean
+  tier: string
+  sensitivity: string
+}
+
+export interface ForecastHeader {
+  name: string
+  natalDate: string
+  fromDate: string
+  toDate: string
+  mode: string
+  tier: string
+  houseSystem?: string | null
+}
+
+export interface TransitAspect extends Aspect {
+  ingress?: string | null
+  exact: string[]
+  egress?: string | null
+  passCount: number
+  currentPass?: number | null
+  tier: string
+  natalSensitivity: string
+}
+
+export interface ForecastOutput {
+  header: ForecastHeader
+  warnings: string[]
+  aspects: TransitAspect[]
+}
+
+export interface CompositeForecastRequest {
+  chartA: ChartData
+  chartB: ChartData
+  fromDate?: string | null
+  toDate?: string | null
+  tz: string
+  mode: ZodiacMode
+  houses: HouseSystem
+  tier: string
+  details: boolean
+  sensitivity: string
+}
+
 export interface SkyEventsParams {
   from?: string
   to?: string
@@ -473,6 +527,73 @@ export const api = {
         aspects: req.aspects,
       },
     ).then((d) => d.composite),
+
+  chartCompositeTransits: (req: CompositeTransitsRequest): Promise<TransitsOutput> =>
+    gql<{ compositeTransits: TransitsOutput }>(
+      `query ChartCompositeTransits(
+        $chartA: ChartDataInput!, $chartB: ChartDataInput!,
+        $tz: String!, $date: String, $time: String,
+        $mode: ZodiacMode!, $houses: HouseSystem!,
+        $details: Boolean!, $aspects: Boolean!, $showNatal: Boolean!,
+        $tier: String!, $sensitivity: String!
+      ) {
+        compositeTransits(chartA: $chartA, chartB: $chartB, tz: $tz, date: $date,
+                          time: $time, mode: $mode, houses: $houses, details: $details,
+                          aspects: $aspects, showNatal: $showNatal, tier: $tier,
+                          sensitivity: $sensitivity) {
+          header { name natalDate transitWhen mode houseSystem }
+          warnings
+          transitBodies { ${BODY_FIELDS} }
+          natalBodies { ${BODY_FIELDS} }
+          aspects { ${ASPECT_FIELDS} }
+        }
+      }`,
+      {
+        chartA: req.chartA,
+        chartB: req.chartB,
+        tz: req.tz,
+        date: req.date ?? null,
+        time: req.time ?? null,
+        mode: req.mode,
+        houses: req.houses,
+        details: req.details,
+        aspects: req.aspects,
+        showNatal: req.showNatal,
+        tier: req.tier,
+        sensitivity: req.sensitivity,
+      },
+    ).then((d) => d.compositeTransits),
+
+  chartCompositeForecast: (req: CompositeForecastRequest): Promise<ForecastOutput> =>
+    gql<{ compositeForecast: ForecastOutput }>(
+      `query ChartCompositeForecast(
+        $chartA: ChartDataInput!, $chartB: ChartDataInput!,
+        $tz: String!, $fromDate: String, $toDate: String,
+        $mode: ZodiacMode!, $houses: HouseSystem!,
+        $tier: String!, $details: Boolean!, $sensitivity: String!
+      ) {
+        compositeForecast(chartA: $chartA, chartB: $chartB, tz: $tz,
+                          fromDate: $fromDate, toDate: $toDate, mode: $mode,
+                          houses: $houses, tier: $tier, details: $details,
+                          sensitivity: $sensitivity) {
+          header { name natalDate fromDate toDate mode tier houseSystem }
+          warnings
+          aspects { ${ASPECT_FIELDS} ingress exact egress passCount currentPass tier natalSensitivity }
+        }
+      }`,
+      {
+        chartA: req.chartA,
+        chartB: req.chartB,
+        tz: req.tz,
+        fromDate: req.fromDate ?? null,
+        toDate: req.toDate ?? null,
+        mode: req.mode,
+        houses: req.houses,
+        tier: req.tier,
+        details: req.details,
+        sensitivity: req.sensitivity,
+      },
+    ).then((d) => d.compositeForecast),
 
   skyNow: (opts?: { mode?: ZodiacMode; tz?: string }): Promise<ChartOutput> =>
     gql<{ skyNow: ChartOutput }>(

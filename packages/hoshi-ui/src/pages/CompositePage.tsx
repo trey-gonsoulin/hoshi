@@ -138,6 +138,15 @@ export function CompositePage() {
 
           <WarningBanner warnings={result.warnings} />
 
+          <div className="flex gap-4 text-sm">
+            <Link
+              to={`/charts/${chartA.id}/composite-transits`}
+              className="text-primary hover:underline"
+            >
+              Transits against composite →
+            </Link>
+          </div>
+
           <div className="text-xs text-muted-foreground space-x-3">
             <span>{chartA.name} · {result.header.dateA}</span>
             <span>×</span>
