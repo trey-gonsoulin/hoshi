@@ -168,6 +168,11 @@ def _compute_transit_aspects(
 
     adef_by_name = {a.name: a for a in ASPECT_DEFS}
 
+    # Shared position cache: planet positions are recomputed for every natal body
+    # that aspects the same transiting planet.  Keyed by (body_pid, orb) since
+    # the scan window depends only on those two values (not on natal_lon).
+    pos_cache: dict[tuple[str, float], tuple] = {}
+
     result: list[TransitAspect] = []
     for natal_name, natal_lon, natal_sign in natal_bodies:
         for transit_name, transit_lon, transit_sign in transit_bodies:
@@ -186,7 +191,9 @@ def _compute_transit_aspects(
             win: TransitWindow | None = None
             if windows and (tier == "all" or body_tier == tier):
                 adef = adef_by_name[asp.name]
-                win = transit_aspect_window(transit_pid, natal_lon, adef, transit_dt)
+                win = transit_aspect_window(
+                    transit_pid, natal_lon, adef, transit_dt, _pos_cache=pos_cache
+                )
             ingress = win.ingress if win else None
             exact = win.exact if win else []
             egress = win.egress if win else None

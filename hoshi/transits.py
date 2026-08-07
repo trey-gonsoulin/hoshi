@@ -173,6 +173,8 @@ def transit_aspect_window(
     natal_lon: float,
     aspect_def: AspectDef,
     transit_dt: datetime,
+    *,
+    _pos_cache: dict[tuple[str, float], tuple[np.ndarray, np.ndarray]] | None = None,
 ) -> TransitWindow:
     """Compute ingress / exact / egress for an active transit-to-natal aspect.
 
@@ -188,6 +190,10 @@ def transit_aspect_window(
     transit_dt:
         The snapshot datetime (timezone-aware).  The scan window is centred
         here so the body should be within orb at this moment.
+    _pos_cache:
+        Optional dict shared across calls for the same transit datetime — keyed
+        by ``(body_pid, max_orb)`` — to avoid recomputing the planet's position
+        grid for multiple natal bodies aspecting the same transiting planet.
 
     Returns
     -------
@@ -212,10 +218,15 @@ def transit_aspect_window(
     traverse_days = max_orb / mean_motion
     window_days = min(traverse_days * 4.0, _MAX_HORIZON_DAYS)
 
-    ref_jd = _datetime_to_jd(transit_dt)
-    t_jd = np.linspace(ref_jd - window_days, ref_jd + window_days, _N_SAMPLES)
-
-    lons = _body_lons(body_pid, t_jd)
+    cache_key = (body_pid, max_orb)
+    if _pos_cache is not None and cache_key in _pos_cache:
+        t_jd, lons = _pos_cache[cache_key]
+    else:
+        ref_jd = _datetime_to_jd(transit_dt)
+        t_jd = np.linspace(ref_jd - window_days, ref_jd + window_days, _N_SAMPLES)
+        lons = _body_lons(body_pid, t_jd)
+        if _pos_cache is not None:
+            _pos_cache[cache_key] = (t_jd, lons)
     raw = (lons - natal_lon) % 360.0
 
     # Determine the active target angle (asp_angle or its supplement 360-asp_angle).
