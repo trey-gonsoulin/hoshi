@@ -61,17 +61,15 @@ export function chartToText(result: ChartOutput): string {
   if (tallies) {
     lines.push('')
     lines.push('## Tallies')
-    const el = tallies.elements as Record<string, { primary: number; total: number }>
-    const mod = tallies.modalities as Record<string, { primary: number; total: number }>
     lines.push(
       'Elements: ' +
-        Object.entries(el)
+        (Object.entries(tallies.elements) as [string, { primary: number; total: number }][])
           .map(([k, v]) => `${k} ${v.primary}/${v.total}`)
           .join(', '),
     )
     lines.push(
       'Modalities: ' +
-        Object.entries(mod)
+        (Object.entries(tallies.modalities) as [string, { primary: number; total: number }][])
           .map(([k, v]) => `${k} ${v.primary}/${v.total}`)
           .join(', '),
     )
