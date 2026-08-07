@@ -2,6 +2,61 @@
 
 <!-- version list -->
 
+## v1.8.0 (2026-08-07)
+
+### Bug Fixes
+
+- **api**: Add tier and sensitivity args to transits GraphQL resolver
+  ([`60fe8da`](https://github.com/trey-gonsoulin/hoshi/commit/60fe8da052cd5b3f2ac11133ae29be9b33a6342d))
+
+### Features
+
+- Add dignity reference info across CLI, API, and UI
+  ([`10ca54f`](https://github.com/trey-gonsoulin/hoshi/commit/10ca54f6b4039b84570a089b7eae2d87b5e5e109))
+
+- **api**: Add birth range search and sign distribution endpoints
+  ([`66f33c5`](https://github.com/trey-gonsoulin/hoshi/commit/66f33c592da09a67354f4aeec82536668540e0d6))
+
+- **api**: Add POST /charts/cycles endpoint for planetary return dates
+  ([`280c91a`](https://github.com/trey-gonsoulin/hoshi/commit/280c91a61c14a1b3a59c23eaf555bac1c90946a4))
+
+- **api**: Composite-transits and composite-forecast endpoints
+  ([`49ed388`](https://github.com/trey-gonsoulin/hoshi/commit/49ed38826a34ec54c658926fee585ca7d419f72d))
+
+- **chart**: Composite (midpoint) chart from two natal charts
+  ([`c6cbb71`](https://github.com/trey-gonsoulin/hoshi/commit/c6cbb715f0ae1fe6ab00628265d076308a181bc9))
+
+- **hoshi-api**: Add GraphQL endpoint via Strawberry at /graphql
+  ([`28a38e2`](https://github.com/trey-gonsoulin/hoshi/commit/28a38e2de40e6d5a48332be071cfbe0156c0d6d1))
+
+- **transits**: Add ingress/exact/egress window dates to transit aspects
+  ([`6f597cc`](https://github.com/trey-gonsoulin/hoshi/commit/6f597ccf4f25d8f8a038f353cc7976cf56baf0c4))
+
+- **transits**: Add planet speed tier classification and filtering
+  ([#37](https://github.com/trey-gonsoulin/hoshi/pull/37),
+  [`13d73db`](https://github.com/trey-gonsoulin/hoshi/commit/13d73dbd0e843324428121fde7fd5dd01d6ddb92))
+
+- **transits**: Add retrograde pass count and current-pass tracking
+  ([`777a289`](https://github.com/trey-gonsoulin/hoshi/commit/777a2899d4125702b26ba166b2bafa97220ad746))
+
+- **transits**: Date-range transit-to-natal forecast
+  ([#38](https://github.com/trey-gonsoulin/hoshi/pull/38),
+  [`8d7b7e7`](https://github.com/trey-gonsoulin/hoshi/commit/8d7b7e7dd3cb767124b0d94944c145debfb2f2d2))
+
+- **transits**: Natal point sensitivity weighting
+  ([#39](https://github.com/trey-gonsoulin/hoshi/pull/39),
+  [`8764cfe`](https://github.com/trey-gonsoulin/hoshi/commit/8764cfe926373e80c26270f5715882f62ae5c4d4))
+
+- **ui**: Add cycles page showing next planetary return dates
+  ([`8967ba9`](https://github.com/trey-gonsoulin/hoshi/commit/8967ba94299536e7b7c5665cc94949e1caa2234c))
+
+- **ui**: Composite chart page from two saved charts
+  ([`5e607c2`](https://github.com/trey-gonsoulin/hoshi/commit/5e607c2613b744696517bbe3c737bf4130197263))
+
+- **ui**: Transits tier/sensitivity filters, ingress/egress/pass display, and forecast page
+  ([`e8a74eb`](https://github.com/trey-gonsoulin/hoshi/commit/e8a74eb35e8d637b200994f97deeed0ecf45275a))
+
+
 ## v1.7.0 (2026-07-05)
 
 ### Features
