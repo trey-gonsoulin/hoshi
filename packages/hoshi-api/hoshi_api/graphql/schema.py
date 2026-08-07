@@ -177,6 +177,8 @@ class Query:
         details: bool = False,
         aspects: bool = False,
         show_natal: bool = False,
+        tier: str = "all",
+        sensitivity: str = "",
     ) -> TransitsResult:
         resolved_lat, resolved_lon = _resolve_coords(
             natal.lat, natal.lon, natal.location
@@ -206,6 +208,8 @@ class Query:
             details=details,
             aspects=aspects,
             natal=show_natal,
+            tier=tier,
+            sensitivity=sensitivity,
         )
         return from_transits_output(output)
 
