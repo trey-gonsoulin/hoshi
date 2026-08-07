@@ -154,6 +154,7 @@ def _compute_transit_aspects(
     transit_dt: datetime,
     *,
     windows: bool = True,
+    tier: str = "all",
     chart_ruler_pid: str | None = None,
     location_known: bool = True,
 ) -> list[TransitAspect]:
@@ -181,8 +182,9 @@ def _compute_transit_aspects(
             if asp is None:
                 continue
             transit_pid = transit_pid_map.get(transit_name, transit_name.lower())
+            body_tier = transit_tier(transit_pid)
             win: TransitWindow | None = None
-            if windows:
+            if windows and (tier == "all" or body_tier == tier):
                 adef = adef_by_name[asp.name]
                 win = transit_aspect_window(transit_pid, natal_lon, adef, transit_dt)
             ingress = win.ingress if win else None
@@ -205,7 +207,7 @@ def _compute_transit_aspects(
                     pass_count=len(exact),
                     current_pass=_next_pass(exact, transit_dt) if exact else None,
                     passes=passes,
-                    tier=transit_tier(transit_pid),
+                    tier=body_tier,
                     natal_sensitivity=natal_sensitivity(
                         natal_name,
                         chart_ruler_pid=chart_ruler_pid,
@@ -1297,6 +1299,7 @@ class TransitsOutput(OutputModel):
                 mode,
                 transit_dt,
                 windows=windows,
+                tier=tier,
                 chart_ruler_pid=ruler_pid,
                 location_known=natal_loc_known,
             )
