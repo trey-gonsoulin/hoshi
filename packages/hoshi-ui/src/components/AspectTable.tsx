@@ -6,9 +6,10 @@ const KIND_ORDER = ['Major', 'Minor', 'Micro'] as const
 
 interface AspectTableProps {
   aspects: Aspect[]
+  chartLabels?: { a: string; b: string }
 }
 
-export function AspectTable({ aspects }: AspectTableProps) {
+export function AspectTable({ aspects, chartLabels }: AspectTableProps) {
   if (!aspects.length) {
     return <p className="text-sm text-muted-foreground">No aspects found.</p>
   }
@@ -36,6 +37,11 @@ export function AspectTable({ aspects }: AspectTableProps) {
                       <InfoTooltip info={lookupBody(asp.bodyA)}>
                         {asp.bodyA}
                       </InfoTooltip>
+                      {chartLabels && (
+                        <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+                          {chartLabels.a}
+                        </span>
+                      )}
                     </td>
                     {/* Aspect symbol */}
                     <td className="py-2 pr-4 w-6 text-center text-base leading-none">
@@ -46,6 +52,11 @@ export function AspectTable({ aspects }: AspectTableProps) {
                       <InfoTooltip info={lookupBody(asp.bodyB)}>
                         {asp.bodyB}
                       </InfoTooltip>
+                      {chartLabels && (
+                        <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+                          {chartLabels.b}
+                        </span>
+                      )}
                     </td>
                     {/* Aspect name */}
                     <td className="py-2 pr-5 text-muted-foreground min-w-[96px]">

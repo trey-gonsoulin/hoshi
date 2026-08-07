@@ -204,7 +204,10 @@ export function ComparePage() {
                   <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-4 select-none">
                     Inter-aspects
                   </p>
-                  <AspectTable aspects={synastryResult.aspects} />
+                  <AspectTable
+                    aspects={synastryResult.aspects}
+                    chartLabels={{ a: chartA.name, b: result.chartBName }}
+                  />
                 </section>
               ) : null}
             </>
