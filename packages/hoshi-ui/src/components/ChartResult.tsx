@@ -6,8 +6,9 @@ import { TallyDisplay } from '@/components/TallyDisplay'
 import { ChartMeta } from '@/components/ChartMeta'
 import { InfoTooltip } from '@/components/InfoTooltip'
 import { WheelChart } from '@/components/WheelChart'
+import { CopyButton } from '@/components/CopyButton'
 import { lookupHouse } from '@/lib/astroInfo'
-import { formatLon } from '@/lib/format'
+import { formatLon, chartToText } from '@/lib/format'
 import type { ChartOutput, PlacementDist } from '@/api/client'
 
 interface ChartResultProps {
@@ -26,7 +27,10 @@ export function ChartResult({ result, actions }: ChartResultProps) {
 
       <div className="flex items-start justify-between gap-4">
         <ChartMeta header={result.chart} />
-        {actions && <div className="flex-shrink-0">{actions}</div>}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <CopyButton getText={() => chartToText(result)} />
+          {actions}
+        </div>
       </div>
 
       <WheelChart
