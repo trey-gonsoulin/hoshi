@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v1.9.0 (2026-08-07)
+
+### Features
+
+- **transits**: Per-pass ingress/exact/egress for retrograde multi-hit transits
+  ([#35](https://github.com/trey-gonsoulin/hoshi/pull/35),
+  [`61de631`](https://github.com/trey-gonsoulin/hoshi/commit/61de631a5ea1e6bda321ed9eced9b0b3bf1fd98f))
+
+
 ## v1.8.0 (2026-08-07)
 
 ### Bug Fixes
