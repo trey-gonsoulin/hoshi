@@ -157,56 +157,6 @@ def _bisect_exact(
     return (t_lo + t_hi) / 2.0
 
 
-def _bisect_orb_boundary(
-    body_pid: str,
-    natal_lon: float,
-    target: float,
-    max_orb: float,
-    t_lo: float,
-    t_hi: float,
-    *,
-    lo_outside: bool,
-    n: int = 10,
-) -> float:
-    """Bisect to find the JD where |dev| = max_orb.
-
-    lo_outside=True when t_lo is the outside-orb sample; False when inside.
-    """
-    for _ in range(n):
-        t_mid = (t_lo + t_hi) / 2.0
-        mid_outside = abs(_dev_at(body_pid, natal_lon, target, t_mid)) > max_orb
-        if mid_outside == lo_outside:
-            t_lo = t_mid
-        else:
-            t_hi = t_mid
-    return (t_lo + t_hi) / 2.0
-
-
-def _find_station(
-    body_pid: str,
-    natal_lon: float,
-    target: float,
-    t_lo: float,
-    t_hi: float,
-    n: int = 20,
-) -> float:
-    """Find the JD of maximum |dev| between two consecutive exact crossings.
-
-    Uses ternary search — |dev| is unimodal in this interval because the
-    planet reverses direction exactly once (at the station) between passes.
-    """
-    for _ in range(n):
-        t1 = t_lo + (t_hi - t_lo) / 3.0
-        t2 = t_hi - (t_hi - t_lo) / 3.0
-        d1 = abs(_dev_at(body_pid, natal_lon, target, t1))
-        d2 = abs(_dev_at(body_pid, natal_lon, target, t2))
-        if d1 < d2:
-            t_lo = t1
-        else:
-            t_hi = t2
-    return (t_lo + t_hi) / 2.0
-
-
 def _sign_at(body_pid: str, jd: float, mode: str) -> str:
     """Return the zodiac sign name of a transiting body at a given Julian Day."""
     lon = _body_lons(body_pid, np.array([jd]))
@@ -291,53 +241,46 @@ def transit_aspect_window(
 
     entries: list[float] = []
     exits: list[float] = []
-    exact_jds: list[float] = []
+    # (jd, grid_index_before_crossing) pairs — index used for station finding
+    exact_pairs: list[tuple[float, int]] = []
 
     for i in range(1, _N_SAMPLES):
         was_in = bool(in_orb[i - 1])
         now_in = bool(in_orb[i])
 
         if not was_in and now_in:
+            # Linear interpolation: find t where |dev| = max_orb
+            y0 = float(abs_dev[i - 1]) - max_orb
+            y1 = float(abs_dev[i]) - max_orb
             entries.append(
-                _bisect_orb_boundary(
-                    body_pid,
-                    natal_lon,
-                    active_target,
-                    max_orb,
-                    t_jd[i - 1],
-                    t_jd[i],
-                    lo_outside=True,
-                )
+                t_jd[i - 1] + (t_jd[i] - t_jd[i - 1]) * abs(y0) / (abs(y0) + abs(y1))
             )
         elif was_in and not now_in:
+            y0 = float(abs_dev[i - 1]) - max_orb
+            y1 = float(abs_dev[i]) - max_orb
             exits.append(
-                _bisect_orb_boundary(
-                    body_pid,
-                    natal_lon,
-                    active_target,
-                    max_orb,
-                    t_jd[i - 1],
-                    t_jd[i],
-                    lo_outside=False,
-                )
+                t_jd[i - 1] + (t_jd[i] - t_jd[i - 1]) * abs(y0) / (abs(y0) + abs(y1))
             )
 
         # Exact crossing: dev changes sign while at least one endpoint is in orb.
         if was_in or now_in:
             d0, d1 = float(dev[i - 1]), float(dev[i])
             if d0 * d1 < 0 and abs(d0) < max_orb + 1.0 and abs(d1) < max_orb + 1.0:
-                exact_jds.append(
-                    _bisect_exact(
-                        body_pid, natal_lon, active_target, t_jd[i - 1], t_jd[i]
-                    )
+                # Bisect to find the precise crossing time — exact transit dates
+                # are user-facing timestamps that warrant full precision.
+                exact_jd = _bisect_exact(
+                    body_pid, natal_lon, active_target, t_jd[i - 1], t_jd[i]
                 )
+                exact_pairs.append((exact_jd, i - 1))
 
     # ingress = first entry (None if already in-orb at window start — open-ended)
     ingress_jd = entries[0] if (entries and not bool(in_orb[0])) else None
     # egress = last exit (None if still in-orb at window end — open-ended)
     egress_jd = exits[-1] if (exits and not bool(in_orb[-1])) else None
 
-    exact_jds_sorted = sorted(exact_jds)
+    exact_pairs.sort()
+    exact_jds_sorted = [p[0] for p in exact_pairs]
+    exact_idxs_sorted = [p[1] for p in exact_pairs]
     ingress_dt = _jd_to_utc(ingress_jd) if ingress_jd is not None else None
     egress_dt = _jd_to_utc(egress_jd) if egress_jd is not None else None
     exact_dts = [_jd_to_utc(jd) for jd in exact_jds_sorted]
@@ -349,17 +292,20 @@ def transit_aspect_window(
     if len(exact_jds_sorted) == 1:
         passes = [TransitPass(ingress=ingress_dt, exact=exact_dts[0], egress=egress_dt)]
     elif len(exact_jds_sorted) > 1:
-        station_jds = [
-            _find_station(
-                body_pid,
-                natal_lon,
-                active_target,
-                exact_jds_sorted[i],
-                exact_jds_sorted[i + 1],
-            )
-            for i in range(len(exact_jds_sorted) - 1)
-        ]
-        station_dts = [_jd_to_utc(jd) for jd in station_jds]
+        # Station points: peak of |dev| between consecutive exact crossings.
+        # Use grid argmax instead of iterative ternary-search Skyfield calls —
+        # the 120-point grid is accurate enough for pass-boundary splitting.
+        station_dts = []
+        for k in range(len(exact_jds_sorted) - 1):
+            lo = exact_idxs_sorted[k] + 1
+            hi = exact_idxs_sorted[k + 1] + 1
+            if lo >= hi:
+                # Crossings are adjacent grid points — use midpoint JD
+                station_jd = (exact_jds_sorted[k] + exact_jds_sorted[k + 1]) / 2.0
+            else:
+                station_idx = lo + int(np.argmax(abs_dev[lo : hi + 1]))
+                station_jd = float(t_jd[station_idx])
+            station_dts.append(_jd_to_utc(station_jd))
         pass_ingresses = [ingress_dt] + station_dts
         pass_egresses = station_dts + [egress_dt]
         passes = [
