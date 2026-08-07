@@ -78,23 +78,41 @@ export function TransitAspectTable({ aspects, showWindows = false }: TransitAspe
                             {TIER_LABEL[asp.tier] ?? asp.tier}
                           </td>
                           <td className="py-2 text-xs text-muted-foreground">
-                            <div className="flex flex-col gap-0.5">
-                              {(asp.ingress || asp.egress) && (
-                                <span>
-                                  {asp.ingress ? fmtDate(asp.ingress) : '…'}
-                                  {' – '}
-                                  {asp.egress ? fmtDate(asp.egress) : '…'}
-                                </span>
-                              )}
-                              {asp.exact.length > 0 && (
-                                <span className="text-foreground/70">
-                                  exact: {asp.exact.map(fmtDate).join(', ')}
-                                </span>
-                              )}
-                              {passLabel && (
-                                <span className="text-primary/80">{passLabel}</span>
-                              )}
-                            </div>
+                            {asp.passes.length > 1 ? (
+                              <div className="flex flex-col gap-1">
+                                {asp.passes.map((p, pi) => (
+                                  <span key={pi}>
+                                    <span className="text-primary/80 font-medium">
+                                      {pi + 1}/{asp.passes.length}
+                                    </span>
+                                    {' '}
+                                    {p.ingress ? fmtDate(p.ingress) : '…'}
+                                    {' → '}
+                                    <span className="text-foreground/80">{fmtDate(p.exact)}</span>
+                                    {' → '}
+                                    {p.egress ? fmtDate(p.egress) : '…'}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="flex flex-col gap-0.5">
+                                {(asp.ingress || asp.egress) && (
+                                  <span>
+                                    {asp.ingress ? fmtDate(asp.ingress) : '…'}
+                                    {' – '}
+                                    {asp.egress ? fmtDate(asp.egress) : '…'}
+                                  </span>
+                                )}
+                                {asp.exact.length > 0 && (
+                                  <span className="text-foreground/70">
+                                    exact: {asp.exact.map(fmtDate).join(', ')}
+                                  </span>
+                                )}
+                                {passLabel && (
+                                  <span className="text-primary/80">{passLabel}</span>
+                                )}
+                              </div>
+                            )}
                           </td>
                         </>
                       )}

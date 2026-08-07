@@ -296,12 +296,19 @@ export interface ForecastHeader {
   houseSystem?: string | null
 }
 
+export interface TransitPass {
+  ingress?: string | null
+  exact: string
+  egress?: string | null
+}
+
 export interface TransitAspect extends Aspect {
   ingress?: string | null
   exact: string[]
   egress?: string | null
   passCount: number
   currentPass?: number | null
+  passes: TransitPass[]
   tier: string
   natalSensitivity: string
 }
@@ -506,7 +513,7 @@ export const api = {
           warnings
           transitBodies { ${BODY_FIELDS} }
           natalBodies { ${BODY_FIELDS} }
-          aspects { ${ASPECT_FIELDS} ingress exact egress passCount currentPass tier natalSensitivity }
+          aspects { ${ASPECT_FIELDS} ingress exact egress passCount currentPass passes { ingress exact egress } tier natalSensitivity }
         }
       }`,
       {
@@ -537,7 +544,7 @@ export const api = {
                  sensitivity: $sensitivity) {
           header { name natalDate fromDate toDate mode tier houseSystem }
           warnings
-          aspects { ${ASPECT_FIELDS} ingress exact egress passCount currentPass tier natalSensitivity }
+          aspects { ${ASPECT_FIELDS} ingress exact egress passCount currentPass passes { ingress exact egress } tier natalSensitivity }
         }
       }`,
       {
@@ -655,7 +662,7 @@ export const api = {
                           sensitivity: $sensitivity) {
           header { name natalDate fromDate toDate mode tier houseSystem }
           warnings
-          aspects { ${ASPECT_FIELDS} ingress exact egress passCount currentPass tier natalSensitivity }
+          aspects { ${ASPECT_FIELDS} ingress exact egress passCount currentPass passes { ingress exact egress } tier natalSensitivity }
         }
       }`,
       {

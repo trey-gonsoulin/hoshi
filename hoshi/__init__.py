@@ -69,7 +69,9 @@ from hoshi.houses import Angles
 from hoshi.points import HERMETIC_LOT_NAMES, LunarElements, hermetic_lots
 from hoshi.transits import (
     ForecastWindow,
+    TransitPass,
     TransitTier,
+    TransitWindow,
     forecast_transits,
     transit_aspect_window,
     transit_tier,
@@ -158,6 +160,8 @@ __all__ = [
     "SIGN_SYMBOL",
     # Transit windows and forecast
     "TransitTier",
+    "TransitPass",
+    "TransitWindow",
     "transit_aspect_window",
     "transit_tier",
     "ForecastWindow",

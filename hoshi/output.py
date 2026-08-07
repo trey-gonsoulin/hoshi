@@ -45,7 +45,12 @@ from hoshi.dignities import (
 )
 from hoshi.houses import house_13_arc, house_from_cusps
 from hoshi.store import ChartInput
-from hoshi.transits import TransitTier, transit_aspect_window, transit_tier
+from hoshi.transits import (
+    TransitTier,
+    TransitWindow,
+    transit_aspect_window,
+    transit_tier,
+)
 from hoshi.zodiac import (
     IAU,
     PLANET_GLYPHS,
@@ -76,6 +81,14 @@ ANGLE_DISPLAY_NAMES: dict[str, str] = {
 NODE_NAMES = {"N.Node", "S.Node"}
 
 
+class TransitPassOutput(BaseModel, frozen=True):
+    """Ingress, exact, and egress for one retrograde pass of a transit aspect."""
+
+    ingress: datetime | None = None
+    exact: datetime
+    egress: datetime | None = None
+
+
 class TransitAspect(Aspect, frozen=True):
     """An Aspect enriched with ingress / exact / egress window dates, pass info, and tier.
 
@@ -86,6 +99,8 @@ class TransitAspect(Aspect, frozen=True):
     current_pass is the 1-based index of the next upcoming exact, or the last
     pass index if all exacts are already in the past.  Both are None when window
     computation was skipped or no exact dates were found.
+    passes breaks multi-exact windows into per-pass ingress/exact/egress using
+    station points (local dev extrema) as boundaries between passes.
     tier is the speed classification of the transiting body.
     """
 
@@ -94,6 +109,7 @@ class TransitAspect(Aspect, frozen=True):
     egress: datetime | None = None
     pass_count: int = 0
     current_pass: int | None = None
+    passes: list[TransitPassOutput] = Field(default_factory=list)
     tier: str = ""
     natal_sensitivity: str = ""
 
@@ -165,14 +181,21 @@ def _compute_transit_aspects(
             if asp is None:
                 continue
             transit_pid = transit_pid_map.get(transit_name, transit_name.lower())
-            ingress = None
-            exact: list[datetime] = []
-            egress = None
+            win: TransitWindow | None = None
             if windows:
                 adef = adef_by_name[asp.name]
-                ingress, exact, egress = transit_aspect_window(
-                    transit_pid, natal_lon, adef, transit_dt
-                )
+                win = transit_aspect_window(transit_pid, natal_lon, adef, transit_dt)
+            ingress = win.ingress if win else None
+            exact = win.exact if win else []
+            egress = win.egress if win else None
+            passes = (
+                [
+                    TransitPassOutput(ingress=p.ingress, exact=p.exact, egress=p.egress)
+                    for p in win.passes
+                ]
+                if win
+                else []
+            )
             result.append(
                 TransitAspect(
                     **asp.model_dump(),
@@ -181,6 +204,7 @@ def _compute_transit_aspects(
                     egress=egress,
                     pass_count=len(exact),
                     current_pass=_next_pass(exact, transit_dt) if exact else None,
+                    passes=passes,
                     tier=transit_tier(transit_pid),
                     natal_sensitivity=natal_sensitivity(
                         natal_name,
@@ -2049,6 +2073,10 @@ class ForecastOutput(OutputModel):
                 egress=w.egress,
                 pass_count=w.pass_count,
                 current_pass=None,
+                passes=[
+                    TransitPassOutput(ingress=p.ingress, exact=p.exact, egress=p.egress)
+                    for p in w.passes
+                ],
                 tier=w.tier,
                 natal_sensitivity=natal_sensitivity(
                     w.natal_name,

@@ -18,18 +18,20 @@ class TestTransitAspectWindow:
     def test_returns_none_for_unscannable_bodies(self):
         adef = _adef("Conjunction")
         dt = datetime(2025, 7, 18, 12, 0, tzinfo=timezone.utc)
-        ingress, exact, egress = transit_aspect_window("chiron", 120.0, adef, dt)
-        assert ingress is None
-        assert exact == []
-        assert egress is None
+        win = transit_aspect_window("chiron", 120.0, adef, dt)
+        assert win.ingress is None
+        assert win.exact == []
+        assert win.egress is None
+        assert win.passes == []
 
     def test_returns_none_for_unknown_body(self):
         adef = _adef("Conjunction")
         dt = datetime(2025, 7, 18, 12, 0, tzinfo=timezone.utc)
-        ingress, exact, egress = transit_aspect_window("n.node", 120.0, adef, dt)
-        assert ingress is None
-        assert exact == []
-        assert egress is None
+        win = transit_aspect_window("n.node", 120.0, adef, dt)
+        assert win.ingress is None
+        assert win.exact == []
+        assert win.egress is None
+        assert win.passes == []
 
     def test_window_ordering_when_found(self):
         """ingress <= exact[0] <= egress for an active transit."""
@@ -39,14 +41,14 @@ class TestTransitAspectWindow:
         natal_lon = 349.0  # within 4° of Saturn ~348°
         adef = _adef("Conjunction")
         dt = datetime(2025, 7, 18, 12, 0, tzinfo=timezone.utc)
-        ingress, exact, egress = transit_aspect_window("saturn", natal_lon, adef, dt)
+        win = transit_aspect_window("saturn", natal_lon, adef, dt)
 
-        if ingress is not None and egress is not None and exact:
-            assert ingress <= exact[0]
-            assert exact[-1] <= egress
-            assert ingress.tzinfo is not None
-            assert egress.tzinfo is not None
-            for e in exact:
+        if win.ingress is not None and win.egress is not None and win.exact:
+            assert win.ingress <= win.exact[0]
+            assert win.exact[-1] <= win.egress
+            assert win.ingress.tzinfo is not None
+            assert win.egress.tzinfo is not None
+            for e in win.exact:
                 assert e.tzinfo is not None
 
     def test_consistency_with_snapshot_orb(self):
@@ -67,29 +69,27 @@ class TestTransitAspectWindow:
         snapshot_orb = diff - adef.angle
 
         if abs(snapshot_orb) <= adef.orb:
-            ingress, exact, egress = transit_aspect_window(
-                "saturn", natal_lon, adef, dt
-            )
+            win = transit_aspect_window("saturn", natal_lon, adef, dt)
             # If in-orb, we should find at least one exact date
-            assert isinstance(exact, list)
+            assert isinstance(win.exact, list)
             # Ingress must be before or equal to now
-            if ingress is not None:
-                assert ingress <= dt
+            if win.ingress is not None:
+                assert win.ingress <= dt
             # Egress must be after or equal to now
-            if egress is not None:
-                assert egress >= dt
+            if win.egress is not None:
+                assert win.egress >= dt
 
     def test_exact_dates_are_utc(self):
         """All returned datetimes must be UTC-aware."""
         natal_lon = 349.0
         adef = _adef("Conjunction")
         dt = datetime(2025, 7, 18, 12, 0, tzinfo=timezone.utc)
-        ingress, exact, egress = transit_aspect_window("saturn", natal_lon, adef, dt)
-        if ingress is not None:
-            assert ingress.tzinfo is not None
-        if egress is not None:
-            assert egress.tzinfo is not None
-        for e in exact:
+        win = transit_aspect_window("saturn", natal_lon, adef, dt)
+        if win.ingress is not None:
+            assert win.ingress.tzinfo is not None
+        if win.egress is not None:
+            assert win.egress.tzinfo is not None
+        for e in win.exact:
             assert e.tzinfo is not None
 
     def test_sun_window_is_short(self):
@@ -104,10 +104,10 @@ class TestTransitAspectWindow:
         natal_lon = sun_lon  # exact conjunction right now
 
         adef = _adef("Conjunction")
-        ingress, _, egress = transit_aspect_window("sun", natal_lon, adef, dt)
+        win = transit_aspect_window("sun", natal_lon, adef, dt)
 
-        if ingress is not None and egress is not None:
-            window_days = (egress - ingress).total_seconds() / 86400
+        if win.ingress is not None and win.egress is not None:
+            window_days = (win.egress - win.ingress).total_seconds() / 86400
             # Sun crosses 4° orb in ~8 days; window should be well under 30
             assert window_days < 30
 
@@ -122,9 +122,56 @@ class TestPassTracking:
         ref_jd = _datetime_to_jd(dt)
         sun_lon = float(_body_lons("sun", np.array([ref_jd]))[0])
         adef = _adef("Conjunction")
-        _, exact, _ = transit_aspect_window("sun", sun_lon, adef, dt)
+        win = transit_aspect_window("sun", sun_lon, adef, dt)
         # Sun doesn't retrograde: at most 1 exact crossing
-        assert len(exact) <= 1
+        assert len(win.exact) <= 1
+
+    def test_passes_length_matches_exact_count(self):
+        """passes list length equals len(exact) for any window."""
+        from hoshi.events import _body_lons, _datetime_to_jd
+        import numpy as np
+
+        dt = datetime(2025, 7, 18, 12, 0, tzinfo=timezone.utc)
+        ref_jd = _datetime_to_jd(dt)
+        sun_lon = float(_body_lons("sun", np.array([ref_jd]))[0])
+        adef = _adef("Conjunction")
+        win = transit_aspect_window("sun", sun_lon, adef, dt)
+        assert len(win.passes) == len(win.exact)
+
+    def test_single_pass_inherits_overall_window(self):
+        """A single-pass window: pass.ingress == window.ingress, pass.egress == window.egress."""
+        from hoshi.events import _body_lons, _datetime_to_jd
+        import numpy as np
+
+        dt = datetime(2025, 7, 18, 12, 0, tzinfo=timezone.utc)
+        ref_jd = _datetime_to_jd(dt)
+        sun_lon = float(_body_lons("sun", np.array([ref_jd]))[0])
+        adef = _adef("Conjunction")
+        win = transit_aspect_window("sun", sun_lon, adef, dt)
+        if len(win.passes) == 1:
+            p = win.passes[0]
+            assert p.ingress == win.ingress
+            assert p.exact == win.exact[0]
+            assert p.egress == win.egress
+
+    def test_multipass_station_boundaries(self):
+        """For multi-exact windows: first pass inherits overall ingress, last inherits egress.
+        Inner pass boundaries (stations) are shared between adjacent passes."""
+        natal_lon = 349.0
+        adef = _adef("Conjunction")
+        dt = datetime(2025, 7, 18, 12, 0, tzinfo=timezone.utc)
+        win = transit_aspect_window("saturn", natal_lon, adef, dt)
+        if len(win.passes) >= 2:
+            # First pass inherits overall ingress
+            assert win.passes[0].ingress == win.ingress
+            # Last pass inherits overall egress
+            assert win.passes[-1].egress == win.egress
+            # Adjacent passes share station boundary
+            for i in range(len(win.passes) - 1):
+                assert win.passes[i].egress == win.passes[i + 1].ingress
+            # Each pass exact matches win.exact[i]
+            for i, p in enumerate(win.passes):
+                assert p.exact == win.exact[i]
 
     def test_next_pass_before_first_exact(self):
         """_next_pass returns 1 when transit_dt is before the first exact."""
@@ -410,17 +457,15 @@ class TestForecastTransits:
             in_range = [e for e in w.exact if from_dt <= e <= to_dt]
             ref_dt = in_range[0]
             adef = adef_map[w.aspect_name]
-            ingress2, _, egress2 = transit_aspect_window(
-                w.transit_pid, w.natal_lon, adef, ref_dt
-            )
+            win2 = transit_aspect_window(w.transit_pid, w.natal_lon, adef, ref_dt)
             # Allow ≤1 hour difference: bisection precision varies with scan step
-            if w.ingress is not None and ingress2 is not None:
-                assert abs((ingress2 - w.ingress).total_seconds()) <= 3600, (
+            if w.ingress is not None and win2.ingress is not None:
+                assert abs((win2.ingress - w.ingress).total_seconds()) <= 3600, (
                     f"{w.transit_name} {w.aspect_name} {w.natal_name}: "
-                    f"ingress mismatch: forecast={w.ingress}, window={ingress2}"
+                    f"ingress mismatch: forecast={w.ingress}, window={win2.ingress}"
                 )
-            if w.egress is not None and egress2 is not None:
-                assert abs((egress2 - w.egress).total_seconds()) <= 3600, (
+            if w.egress is not None and win2.egress is not None:
+                assert abs((win2.egress - w.egress).total_seconds()) <= 3600, (
                     f"{w.transit_name} {w.aspect_name} {w.natal_name}: "
-                    f"egress mismatch: forecast={w.egress}, window={egress2}"
+                    f"egress mismatch: forecast={w.egress}, window={win2.egress}"
                 )

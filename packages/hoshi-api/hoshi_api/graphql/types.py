@@ -80,6 +80,13 @@ class Aspect:
 
 
 @strawberry.type
+class TransitPass:
+    ingress: Optional[str]
+    exact: str
+    egress: Optional[str]
+
+
+@strawberry.type
 class TransitAspect:
     body_a: str
     sign_a: str
@@ -95,7 +102,9 @@ class TransitAspect:
     egress: Optional[str]
     pass_count: int
     current_pass: Optional[int]
+    passes: list[TransitPass]
     tier: str
+    natal_sensitivity: str
 
 
 @strawberry.type
@@ -372,6 +381,14 @@ def from_cusps_output(output: _pydantic.CuspsOutput) -> CuspsResult:
     )
 
 
+def _transit_pass(p: dict) -> TransitPass:
+    return TransitPass(
+        ingress=p.get("ingress"),
+        exact=p["exact"],
+        egress=p.get("egress"),
+    )
+
+
 def _transit_aspect(a: dict) -> TransitAspect:
     return TransitAspect(
         body_a=a["body_a"],
@@ -388,7 +405,9 @@ def _transit_aspect(a: dict) -> TransitAspect:
         egress=a.get("egress"),
         pass_count=a.get("pass_count", 0),
         current_pass=a.get("current_pass"),
+        passes=[_transit_pass(p) for p in a.get("passes") or []],
         tier=a.get("tier", "slow"),
+        natal_sensitivity=a.get("natal_sensitivity", ""),
     )
 
 

@@ -34,6 +34,36 @@ from hoshi.events import (
 )
 
 
+@dataclass
+class TransitPass:
+    """Ingress, exact, and egress for one retrograde pass of a transit aspect.
+
+    For a triple-hit transit, pass boundaries are the station points (where
+    the planet reverses direction relative to the natal point) rather than
+    true orb exits.  The first pass inherits the overall ingress; the last
+    pass inherits the overall egress.  Middle passes share a station date as
+    their egress/ingress with adjacent passes.
+    """
+
+    ingress: datetime | None
+    exact: datetime
+    egress: datetime | None
+
+
+@dataclass
+class TransitWindow:
+    """Full window returned by :func:`transit_aspect_window`.
+
+    Replaces the former 3-tuple so per-pass data can be carried alongside
+    the aggregate ingress/exact/egress fields.
+    """
+
+    ingress: datetime | None
+    exact: list[datetime]
+    egress: datetime | None
+    passes: list[TransitPass]
+
+
 class TransitTier(StrEnum):
     """Speed tier classification for transiting bodies."""
 
@@ -152,6 +182,31 @@ def _bisect_orb_boundary(
     return (t_lo + t_hi) / 2.0
 
 
+def _find_station(
+    body_pid: str,
+    natal_lon: float,
+    target: float,
+    t_lo: float,
+    t_hi: float,
+    n: int = 20,
+) -> float:
+    """Find the JD of maximum |dev| between two consecutive exact crossings.
+
+    Uses ternary search — |dev| is unimodal in this interval because the
+    planet reverses direction exactly once (at the station) between passes.
+    """
+    for _ in range(n):
+        t1 = t_lo + (t_hi - t_lo) / 3.0
+        t2 = t_hi - (t_hi - t_lo) / 3.0
+        d1 = abs(_dev_at(body_pid, natal_lon, target, t1))
+        d2 = abs(_dev_at(body_pid, natal_lon, target, t2))
+        if d1 < d2:
+            t_lo = t1
+        else:
+            t_hi = t2
+    return (t_lo + t_hi) / 2.0
+
+
 def _sign_at(body_pid: str, jd: float, mode: str) -> str:
     """Return the zodiac sign name of a transiting body at a given Julian Day."""
     lon = _body_lons(body_pid, np.array([jd]))
@@ -168,7 +223,7 @@ def transit_aspect_window(
     natal_lon: float,
     aspect_def: AspectDef,
     transit_dt: datetime,
-) -> tuple[datetime | None, list[datetime], datetime | None]:
+) -> TransitWindow:
     """Compute ingress / exact / egress for an active transit-to-natal aspect.
 
     Parameters
@@ -186,15 +241,16 @@ def transit_aspect_window(
 
     Returns
     -------
-    tuple of (ingress, exact_dates, egress)
-        All are UTC datetimes.  ingress/egress are ``None`` when the scan
-        horizon was reached before a boundary crossing was found.
-        exact_dates is a list to accommodate retrograde multi-pass windows.
+    :class:`TransitWindow`
+        ``ingress``/``egress`` are ``None`` when the scan horizon was reached.
+        ``exact`` is a list to accommodate retrograde multi-pass windows.
+        ``passes`` breaks multi-exact windows into per-pass ingress/exact/egress,
+        using station points (local dev extrema) as pass boundaries.
 
-    Returns ``(None, [], None)`` for bodies without Skyfield support.
+    Returns an empty :class:`TransitWindow` for bodies without Skyfield support.
     """
     if body_pid not in SKYFIELD_TARGETS:
-        return None, [], None
+        return TransitWindow(ingress=None, exact=[], egress=None, passes=[])
 
     mean_motion = _MEAN_MOTION[body_pid]
     max_orb = aspect_def.orb
@@ -227,7 +283,7 @@ def transit_aspect_window(
             break
 
     if active_target is None:
-        return None, [], None
+        return TransitWindow(ingress=None, exact=[], egress=None, passes=[])
 
     dev = ((raw - active_target + 180.0) % 360.0) - 180.0
     abs_dev = np.abs(dev)
@@ -281,10 +337,40 @@ def transit_aspect_window(
     # egress = last exit (None if still in-orb at window end — open-ended)
     egress_jd = exits[-1] if (exits and not bool(in_orb[-1])) else None
 
-    return (
-        _jd_to_utc(ingress_jd) if ingress_jd is not None else None,
-        [_jd_to_utc(jd) for jd in sorted(exact_jds)],
-        _jd_to_utc(egress_jd) if egress_jd is not None else None,
+    exact_jds_sorted = sorted(exact_jds)
+    ingress_dt = _jd_to_utc(ingress_jd) if ingress_jd is not None else None
+    egress_dt = _jd_to_utc(egress_jd) if egress_jd is not None else None
+    exact_dts = [_jd_to_utc(jd) for jd in exact_jds_sorted]
+
+    # Build per-pass breakdown.  For a triple-hit, the planet typically stays
+    # within orb the whole time — station points between consecutive exacts
+    # serve as pass boundaries rather than true orb exits/entries.
+    passes: list[TransitPass] = []
+    if len(exact_jds_sorted) == 1:
+        passes = [TransitPass(ingress=ingress_dt, exact=exact_dts[0], egress=egress_dt)]
+    elif len(exact_jds_sorted) > 1:
+        station_jds = [
+            _find_station(
+                body_pid,
+                natal_lon,
+                active_target,
+                exact_jds_sorted[i],
+                exact_jds_sorted[i + 1],
+            )
+            for i in range(len(exact_jds_sorted) - 1)
+        ]
+        station_dts = [_jd_to_utc(jd) for jd in station_jds]
+        pass_ingresses = [ingress_dt] + station_dts
+        pass_egresses = station_dts + [egress_dt]
+        passes = [
+            TransitPass(
+                ingress=pass_ingresses[i], exact=exact_dts[i], egress=pass_egresses[i]
+            )
+            for i in range(len(exact_jds_sorted))
+        ]
+
+    return TransitWindow(
+        ingress=ingress_dt, exact=exact_dts, egress=egress_dt, passes=passes
     )
 
 
@@ -316,6 +402,7 @@ class ForecastWindow:
     exact: list[datetime] = field(default_factory=list)
     tier: str = ""
     pass_count: int = 0
+    passes: list[TransitPass] = field(default_factory=list)
 
 
 def forecast_transits(
@@ -423,10 +510,8 @@ def forecast_transits(
                     if any(lo <= exact_dt <= hi for lo, hi in emitted):
                         continue
 
-                    ingress, exacts, egress = transit_aspect_window(
-                        transit_pid, natal_lon, adef, exact_dt
-                    )
-                    emitted.append((ingress or _DT_MIN, egress or _DT_MAX))
+                    win = transit_aspect_window(transit_pid, natal_lon, adef, exact_dt)
+                    emitted.append((win.ingress or _DT_MIN, win.egress or _DT_MAX))
 
                     t_sign = _sign_at(transit_pid, exact_jd, mode)
                     results.append(
@@ -441,11 +526,12 @@ def forecast_transits(
                             aspect_symbol=adef.symbol,
                             aspect_angle=adef.angle,
                             aspect_kind=adef.kind,
-                            ingress=ingress,
-                            egress=egress,
-                            exact=exacts,
+                            ingress=win.ingress,
+                            egress=win.egress,
+                            exact=win.exact,
                             tier=tier_val,
-                            pass_count=len(exacts),
+                            pass_count=len(win.exact),
+                            passes=win.passes,
                         )
                     )
 
